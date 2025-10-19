@@ -1,19 +1,21 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false,
-    userType: 'institute' // 'institute', 'superadmin'
+    userType: 'institute' // 'institute', 'admin', 'student'
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const navigate = useNavigate();
 
   const userTypes = [
     { value: 'institute', label: 'Institute Admin', description: 'Manage certificates and students' },
-    { value: 'superadmin', label: 'Super Admin', description: 'System administration' }
+    { value: 'superadmin', label: 'Super Admin', description: 'System administration' },
+ 
   ];
 
   const handleChange = (e) => {
@@ -68,34 +70,32 @@ const Login = () => {
       setTimeout(() => {
         setIsLoading(false);
         
-        // For demo purposes, just log the navigation
-        // In a real app, you would use navigate here
+        // Redirect based on user type
         switch (formData.userType) {
           case 'superadmin':
-            console.log('Redirecting to /admin/dashboard');
-            // navigate('/admin/dashboard');
+            navigate('/admin/dashboard');
             break;
           case 'institute':
-            console.log('Redirecting to /institute/dashboard');
-            // navigate('/institute/dashboard');
+            navigate('/institute/dashboard');
             break;
+         
           default:
-            console.log('Redirecting to /institute/dashboard');
-            // navigate('/institute/dashboard');
+            navigate('/institute/dashboard');
         }
       }, 1500);
 
     } catch (error) {
       setIsLoading(false);
       setErrors({ submit: 'Login failed. Please check your credentials.' });
-       console.error('Login error:', error);
+      console.error('Login error:', error);
     }
   };
 
   const handleDemoLogin = (userType) => {
     const demoCredentials = {
       superadmin: { email: 'superadmin@certverify.com', password: 'demo123' },
-      institute: { email: 'institute@university.edu', password: 'demo123' }
+      institute: { email: 'institute@university.edu', password: 'demo123' },
+      
     };
 
     setFormData(prev => ({
@@ -143,14 +143,13 @@ const Login = () => {
                   key={type.value}
                   type="button"
                   onClick={() => setFormData(prev => ({ ...prev, userType: type.value }))}
-                  className={`p-3 text-sm text-center rounded-lg border transition-all duration-200 ${
+                  className={`p-2 text-xs text-center rounded-lg border transition-all duration-200 ${
                     formData.userType === type.value
                       ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   <div className="font-medium">{type.label}</div>
-                  <div className="text-xs mt-1 opacity-75">{type.description}</div>
                 </button>
               ))}
             </div>
@@ -293,17 +292,18 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => handleDemoLogin('superadmin')}
-                className="text-sm bg-purple-100 text-purple-700 py-2 px-3 rounded-lg border border-purple-200 hover:bg-purple-200 transition-colors duration-200"
+                className="text-xs bg-purple-100 text-purple-700 py-2 px-1 rounded border border-purple-200 hover:bg-purple-200 transition-colors duration-200"
               >
-                Super Admin Demo
+                Super Admin
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoLogin('institute')}
-                className="text-sm bg-blue-100 text-blue-700 py-2 px-3 rounded-lg border border-blue-200 hover:bg-blue-200 transition-colors duration-200"
+                className="text-xs bg-blue-100 text-blue-700 py-2 px-1 rounded border border-blue-200 hover:bg-blue-200 transition-colors duration-200"
               >
-                Institute Demo
+                Institute
               </button>
+              
             </div>
           </div>
 
