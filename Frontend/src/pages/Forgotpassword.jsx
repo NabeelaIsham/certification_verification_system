@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
-  const [ setIsSubmitted] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false); // Fixed: Changed from setIsSubmitted to setIsSubmitted
   const [currentStep, setCurrentStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
 
   const handleEmailSubmit = (e) => {
@@ -14,19 +14,20 @@ const ForgotPassword = () => {
     setCurrentStep(2);
   };
 
- const handleOtpSubmit = (e) => {
-  e.preventDefault();
-  // Verify OTP logic here
-  console.log('Verifying OTP...');
-  setCurrentStep(3);
-};
+  const handleOtpSubmit = (e) => {
+    e.preventDefault();
+    // Verify OTP logic here
+    console.log('Verifying OTP...');
+    setCurrentStep(3);
+  };
 
-const handlePasswordReset = (e) => {
-  e.preventDefault();
-  // Reset password logic here
-  console.log('Resetting password...');
-  setIsSubmitted(true);
-};
+  const handlePasswordReset = (e) => {
+    e.preventDefault();
+    // Reset password logic here
+    console.log('Resetting password...');
+    setIsSubmitted(true);
+    // You might want to redirect to login or show success message here
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
