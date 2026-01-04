@@ -22,6 +22,8 @@ import StudentDashboard from './pages/StudentPortal'
 import NotFound from './pages/NotFound'
 import CertificateTemplates from './components/institute/CertificateTemplates'
 import CourseManagement from './components/institute/CourseManagement'
+import SystemLogs from './components/admin/SystemLogs'
+import InstituteManagement from './components/admin/InstituteManagement'
 
 function App() {
   return (
@@ -41,6 +43,9 @@ function App() {
               <Route path="/student/dashboard" element={<StudentDashboard />} />
               <Route path="/CertificateTemplates" element={<CertificateTemplates />} />
               <Route path="/CourseManagement" element={<CourseManagement />} />
+              <Route path="/system-logs" element={<SystemLogs />} />
+              <Route path="/InstituteManagement" element={<InstituteManagement />} />
+
 
               <Route path="*" element={<NotFound />} />
             </Routes>
