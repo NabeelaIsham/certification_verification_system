@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const InstituteDashboard = () => {
- 
+  const navigate = useNavigate();
+  
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [certificates, setCertificates] = useState([]);
+  const [showModal, setShowModal] = useState(null); // 'addStudent', 'generateCertificate', 'createCourse', 'bulkUpload'
+  const [modalData, setModalData] = useState({});
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalCourses: 0,
@@ -49,31 +52,280 @@ const InstituteDashboard = () => {
       title: 'Add New Student',
       description: 'Register a new student',
       icon: '👨‍🎓',
-      action: () => console.log('Add student'),
+      action: () => handleAddStudent(),
       color: 'bg-blue-500'
     },
     {
       title: 'Generate Certificate',
       description: 'Issue digital certificate',
       icon: '📜',
-      action: () => console.log('Generate certificate'),
+      action: () => handleGenerateCertificate(),
       color: 'bg-green-500'
     },
     {
       title: 'Create Course',
       description: 'Add new course program',
       icon: '📚',
-      action: () => console.log('Create course'),
+      action: () => handleCreateCourse(),
       color: 'bg-purple-500'
     },
     {
       title: 'Bulk Upload',
       description: 'Upload students via CSV',
       icon: '📁',
-      action: () => console.log('Bulk upload'),
+      action: () => handleBulkUpload(),
       color: 'bg-orange-500'
     }
   ];
+
+  // ========== ACTION HANDLERS ==========
+
+  const handleAddStudent = () => {
+    setModalData({
+      title: 'Add New Student',
+      fields: [
+        { name: 'name', label: 'Full Name', type: 'text', placeholder: 'Enter student name' },
+        { name: 'email', label: 'Email Address', type: 'email', placeholder: 'student@example.com' },
+        { name: 'course', label: 'Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) },
+        { name: 'enrollmentDate', label: 'Enrollment Date', type: 'date' }
+      ]
+    });
+    setShowModal('addStudent');
+  };
+
+  const handleGenerateCertificate = () => {
+    setModalData({
+      title: 'Generate Certificate',
+      fields: [
+        { name: 'student', label: 'Select Student', type: 'select', options: students.map(s => ({ value: s.id, label: s.name })) },
+        { name: 'course', label: 'Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) },
+        { name: 'issueDate', label: 'Issue Date', type: 'date', value: new Date().toISOString().split('T')[0] },
+        { name: 'grade', label: 'Grade', type: 'text', placeholder: 'Enter grade (e.g., A+, Distinction)' }
+      ]
+    });
+    setShowModal('generateCertificate');
+  };
+
+  const handleCreateCourse = () => {
+    setModalData({
+      title: 'Create New Course',
+      fields: [
+        { name: 'name', label: 'Course Name', type: 'text', placeholder: 'Enter course name' },
+        { name: 'code', label: 'Course Code', type: 'text', placeholder: 'e.g., BIT2024' },
+        { name: 'duration', label: 'Duration (months)', type: 'number', placeholder: '12' },
+        { name: 'fee', label: 'Course Fee ($)', type: 'number', placeholder: '1000' },
+        { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Course description...' }
+      ]
+    });
+    setShowModal('createCourse');
+  };
+
+  const handleBulkUpload = () => {
+    setModalData({
+      title: 'Bulk Upload Students',
+      fields: [
+        { name: 'file', label: 'CSV File', type: 'file', accept: '.csv' },
+        { name: 'course', label: 'Assign to Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) }
+      ]
+    });
+    setShowModal('bulkUpload');
+  };
+
+  const handleGenerateReport = () => {
+    const reportData = {
+      generatedAt: new Date().toLocaleString(),
+      stats: stats,
+      courses: courses.length,
+      students: students.length,
+      certificates: certificates.length
+    };
+    
+    // In a real app, this would generate and download a PDF/CSV
+    console.log('Generating report:', reportData);
+    
+    // For demo, create a downloadable JSON file
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `institute-report-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Report generated and downloaded! Check console for details.');
+  };
+
+  const handleUserProfileClick = () => {
+    // In a real app, this would navigate to user profile or show profile modal
+    console.log('User profile clicked');
+    alert('Profile page would open here. Current user: Institute Admin');
+  };
+
+  const handleCourseManage = (courseId) => {
+    // Navigate to course management page
+    console.log('Managing course:', courseId);
+    alert(`Would navigate to course management for ID: ${courseId}`);
+  };
+
+  const handleModalSubmit = (formData) => {
+    console.log('Form submitted:', formData);
+    
+    switch(showModal) {
+      case 'addStudent':
+        const newStudent = {
+          id: students.length + 1,
+          name: formData.name,
+          email: formData.email,
+          course: formData.course,
+          status: 'active',
+          enrollmentDate: formData.enrollmentDate
+        };
+        setStudents([...students, newStudent]);
+        setStats(prev => ({ ...prev, totalStudents: prev.totalStudents + 1 }));
+        alert(`Student ${formData.name} added successfully!`);
+        break;
+        
+      case 'generateCertificate':
+        const student = students.find(s => s.id === parseInt(formData.student));
+        const newCertificate = {
+          id: certificates.length + 1,
+          studentName: student?.name || 'Unknown Student',
+          course: formData.course,
+          issueDate: formData.issueDate,
+          grade: formData.grade,
+          status: 'issued'
+        };
+        setCertificates([newCertificate, ...certificates]);
+        setStats(prev => ({ ...prev, certificatesIssued: prev.certificatesIssued + 1 }));
+        alert(`Certificate generated for ${student?.name}!`);
+        break;
+        
+      case 'createCourse':
+        const newCourse = {
+          id: courses.length + 1,
+          name: formData.name,
+          code: formData.code,
+          students: 0,
+          certificates: 0,
+          duration: formData.duration,
+          fee: formData.fee
+        };
+        setCourses([...courses, newCourse]);
+        setStats(prev => ({ ...prev, totalCourses: prev.totalCourses + 1 }));
+        alert(`Course ${formData.name} created successfully!`);
+        break;
+        
+      case 'bulkUpload':
+        // Simulate bulk upload processing
+        console.log('Processing bulk upload:', formData);
+        alert(`Bulk upload initiated for course: ${formData.course}\nFile processing would happen in background.`);
+        break;
+    }
+    
+    setShowModal(null);
+  };
+
+  const Modal = ({ show, onClose, title, fields, onSubmit }) => {
+    const [formData, setFormData] = useState({});
+    
+    if (!show) return null;
+    
+    const handleChange = (e) => {
+      const { name, value, files } = e.target;
+      setFormData(prev => ({
+        ...prev,
+        [name]: files ? files[0] : value
+      }));
+    };
+    
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      onSubmit(formData);
+    };
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="p-6">
+            <div className="space-y-4">
+              {fields.map((field) => (
+                <div key={field.name}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.label}
+                  </label>
+                  {field.type === 'select' ? (
+                    <select
+                      name={field.name}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="">Select {field.label}</option>
+                      {field.options.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === 'textarea' ? (
+                    <textarea
+                      name={field.name}
+                      onChange={handleChange}
+                      placeholder={field.placeholder}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows="3"
+                      required
+                    />
+                  ) : field.type === 'file' ? (
+                    <input
+                      type="file"
+                      name={field.name}
+                      onChange={handleChange}
+                      accept={field.accept}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  ) : (
+                    <input
+                      type={field.type}
+                      name={field.name}
+                      onChange={handleChange}
+                      placeholder={field.placeholder}
+                      defaultValue={field.value}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+              >
+                Submit
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,12 +345,18 @@ const InstituteDashboard = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200">
+              <button 
+                onClick={handleGenerateReport}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+              >
                 Generate Report
               </button>
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+              <button 
+                onClick={handleUserProfileClick}
+                className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center hover:bg-gray-400 transition-colors duration-200 cursor-pointer"
+              >
                 <span className="text-sm font-medium text-gray-700">IA</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -235,7 +493,10 @@ const InstituteDashboard = () => {
                         <span className="text-sm text-gray-500">{course.certificates} certificates</span>
                       </div>
                     </div>
-                    <button className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors duration-200">
+                    <button 
+                      onClick={() => handleCourseManage(course.id)}
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                    >
                       Manage
                     </button>
                   </div>
@@ -278,6 +539,15 @@ const InstituteDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal Component */}
+      <Modal
+        show={showModal}
+        onClose={() => setShowModal(null)}
+        title={modalData.title}
+        fields={modalData.fields || []}
+        onSubmit={handleModalSubmit}
+      />
     </div>
   );
 };
