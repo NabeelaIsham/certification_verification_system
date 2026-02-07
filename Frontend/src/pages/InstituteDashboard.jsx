@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const InstituteDashboard = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
   
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [certificates, setCertificates] = useState([]);
-  const [showModal, setShowModal] = useState(null); // 'addStudent', 'generateCertificate', 'createCourse', 'bulkUpload'
+  const [showModal, setShowModal] = useState(null);
   const [modalData, setModalData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalCourses: 0,
@@ -16,36 +22,61 @@ const InstituteDashboard = () => {
     pendingVerifications: 0
   });
 
-  // Mock data - replace with API calls
+  // Authentication check and data fetching
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setCourses([
-        { id: 1, name: 'Bachelor of IT', code: 'BIT2024', students: 450, certificates: 420 },
-        { id: 2, name: 'Diploma in Web Development', code: 'DWD2024', students: 120, certificates: 115 },
-        { id: 3, name: 'Certificate in Data Science', code: 'CDS2024', students: 85, certificates: 80 }
+    const token = localStorage.getItem('token');
+    const userData = JSON.parse(localStorage.getItem('user'));
+
+    if (!token || !userData || userData.userType !== 'institute') {
+      navigate('/login');
+      return;
+    }
+
+    setUser(userData);
+    fetchDashboardData();
+  }, [navigate]);
+
+  const fetchDashboardData = async () => {
+    const token = localStorage.getItem('token');
+    setIsLoading(true);
+
+    try {
+      // Fetch all data in parallel
+      const [coursesRes, studentsRes, certificatesRes, statsRes] = await Promise.all([
+        axios.get(`${API_URL}/courses`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/students`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/certificates`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/institute/stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
       ]);
 
-      setStudents([
-        { id: 1, name: 'John Smith', email: 'john@student.edu', course: 'BIT2024', status: 'active' },
-        { id: 2, name: 'Sarah Johnson', email: 'sarah@student.edu', course: 'DWD2024', status: 'active' },
-        { id: 3, name: 'Mike Davis', email: 'mike@student.edu', course: 'CDS2024', status: 'completed' }
-      ]);
-
-      setCertificates([
-        { id: 1, studentName: 'John Smith', course: 'BIT2024', issueDate: '2024-03-15', status: 'issued' },
-        { id: 2, studentName: 'Sarah Johnson', course: 'DWD2024', issueDate: '2024-03-14', status: 'issued' },
-        { id: 3, studentName: 'Mike Davis', course: 'CDS2024', issueDate: '2024-03-13', status: 'verified' }
-      ]);
-
-      setStats({
-        totalStudents: 1250,
-        totalCourses: 8,
-        certificatesIssued: 845,
-        pendingVerifications: 12
+      setCourses(coursesRes.data.data || []);
+      setStudents(studentsRes.data.data || []);
+      setCertificates(certificatesRes.data.data || []);
+      setStats(statsRes.data.data || {
+        totalStudents: 0,
+        totalCourses: 0,
+        certificatesIssued: 0,
+        pendingVerifications: 0
       });
-    }, 1000);
-  }, []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const quickActions = [
     {
@@ -78,7 +109,7 @@ const InstituteDashboard = () => {
     }
   ];
 
-  // ========== ACTION HANDLERS ==========
+  // ========== ACTION HANDLERS WITH API INTEGRATION ==========
 
   const handleAddStudent = () => {
     setModalData({
@@ -86,7 +117,7 @@ const InstituteDashboard = () => {
       fields: [
         { name: 'name', label: 'Full Name', type: 'text', placeholder: 'Enter student name' },
         { name: 'email', label: 'Email Address', type: 'email', placeholder: 'student@example.com' },
-        { name: 'course', label: 'Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) },
+        { name: 'courseId', label: 'Course', type: 'select', options: courses.map(c => ({ value: c._id, label: c.name })) },
         { name: 'enrollmentDate', label: 'Enrollment Date', type: 'date' }
       ]
     });
@@ -97,8 +128,8 @@ const InstituteDashboard = () => {
     setModalData({
       title: 'Generate Certificate',
       fields: [
-        { name: 'student', label: 'Select Student', type: 'select', options: students.map(s => ({ value: s.id, label: s.name })) },
-        { name: 'course', label: 'Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) },
+        { name: 'studentId', label: 'Select Student', type: 'select', options: students.map(s => ({ value: s._id, label: s.name })) },
+        { name: 'courseId', label: 'Course', type: 'select', options: courses.map(c => ({ value: c._id, label: c.name })) },
         { name: 'issueDate', label: 'Issue Date', type: 'date', value: new Date().toISOString().split('T')[0] },
         { name: 'grade', label: 'Grade', type: 'text', placeholder: 'Enter grade (e.g., A+, Distinction)' }
       ]
@@ -125,103 +156,92 @@ const InstituteDashboard = () => {
       title: 'Bulk Upload Students',
       fields: [
         { name: 'file', label: 'CSV File', type: 'file', accept: '.csv' },
-        { name: 'course', label: 'Assign to Course', type: 'select', options: courses.map(c => ({ value: c.code, label: c.name })) }
+        { name: 'courseId', label: 'Assign to Course', type: 'select', options: courses.map(c => ({ value: c._id, label: c.name })) }
       ]
     });
     setShowModal('bulkUpload');
   };
 
-  const handleGenerateReport = () => {
-    const reportData = {
-      generatedAt: new Date().toLocaleString(),
-      stats: stats,
-      courses: courses.length,
-      students: students.length,
-      certificates: certificates.length
-    };
+  const handleGenerateReport = async () => {
+    const token = localStorage.getItem('token');
     
-    // In a real app, this would generate and download a PDF/CSV
-    console.log('Generating report:', reportData);
-    
-    // For demo, create a downloadable JSON file
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `institute-report-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    alert('Report generated and downloaded! Check console for details.');
+    try {
+      const response = await axios.get(`${API_URL}/reports/institute`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `institute-report-${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
+    }
   };
 
-  const handleUserProfileClick = () => {
-    // In a real app, this would navigate to user profile or show profile modal
-    console.log('User profile clicked');
-    alert('Profile page would open here. Current user: Institute Admin');
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
   };
 
   const handleCourseManage = (courseId) => {
-    // Navigate to course management page
-    console.log('Managing course:', courseId);
-    alert(`Would navigate to course management for ID: ${courseId}`);
+    navigate(`/institute/courses/${courseId}`);
   };
 
-  const handleModalSubmit = (formData) => {
-    console.log('Form submitted:', formData);
+  const handleModalSubmit = async (formData) => {
+    const token = localStorage.getItem('token');
     
-    switch(showModal) {
-      case 'addStudent':
-        const newStudent = {
-          id: students.length + 1,
-          name: formData.name,
-          email: formData.email,
-          course: formData.course,
-          status: 'active',
-          enrollmentDate: formData.enrollmentDate
-        };
-        setStudents([...students, newStudent]);
-        setStats(prev => ({ ...prev, totalStudents: prev.totalStudents + 1 }));
-        alert(`Student ${formData.name} added successfully!`);
-        break;
-        
-      case 'generateCertificate':
-        const student = students.find(s => s.id === parseInt(formData.student));
-        const newCertificate = {
-          id: certificates.length + 1,
-          studentName: student?.name || 'Unknown Student',
-          course: formData.course,
-          issueDate: formData.issueDate,
-          grade: formData.grade,
-          status: 'issued'
-        };
-        setCertificates([newCertificate, ...certificates]);
-        setStats(prev => ({ ...prev, certificatesIssued: prev.certificatesIssued + 1 }));
-        alert(`Certificate generated for ${student?.name}!`);
-        break;
-        
-      case 'createCourse':
-        const newCourse = {
-          id: courses.length + 1,
-          name: formData.name,
-          code: formData.code,
-          students: 0,
-          certificates: 0,
-          duration: formData.duration,
-          fee: formData.fee
-        };
-        setCourses([...courses, newCourse]);
-        setStats(prev => ({ ...prev, totalCourses: prev.totalCourses + 1 }));
-        alert(`Course ${formData.name} created successfully!`);
-        break;
-        
-      case 'bulkUpload':
-        // Simulate bulk upload processing
-        console.log('Processing bulk upload:', formData);
-        alert(`Bulk upload initiated for course: ${formData.course}\nFile processing would happen in background.`);
-        break;
+    try {
+      switch(showModal) {
+        case 'addStudent':
+          await axios.post(`${API_URL}/students`, formData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          alert('Student added successfully!');
+          break;
+          
+        case 'generateCertificate':
+          await axios.post(`${API_URL}/certificates`, formData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          alert('Certificate generated successfully!');
+          break;
+          
+        case 'createCourse':
+          await axios.post(`${API_URL}/courses`, formData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          alert('Course created successfully!');
+          break;
+          
+        case 'bulkUpload': {
+          const uploadData = new FormData();
+          uploadData.append('file', formData.file);
+          uploadData.append('courseId', formData.courseId);
+          
+          await axios.post(`${API_URL}/students/bulk`, uploadData, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          alert('Bulk upload completed successfully!');
+          break;
+        }
+      }
+      
+      // Refresh dashboard data
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert(`Error: ${error.response?.data?.message || error.message}`);
     }
     
     setShowModal(null);
@@ -327,6 +347,16 @@ const InstituteDashboard = () => {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -340,7 +370,7 @@ const InstituteDashboard = () => {
                 </svg>
               </div>
               <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-900">University of Moratuwa</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{user.instituteName}</h1>
                 <p className="text-sm text-gray-500">Institute Administration Panel</p>
               </div>
             </div>
@@ -351,12 +381,29 @@ const InstituteDashboard = () => {
               >
                 Generate Report
               </button>
-              <button 
-                onClick={handleUserProfileClick}
-                className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center hover:bg-gray-400 transition-colors duration-200 cursor-pointer"
-              >
-                <span className="text-sm font-medium text-gray-700">IA</span>
-              </button>
+              <div className="relative group">
+                <button className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center hover:bg-gray-400 transition-colors duration-200 cursor-pointer">
+                  <span className="text-sm font-medium text-gray-700">IA</span>
+                </button>
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 hidden group-hover:block z-10">
+                  <div className="px-4 py-2 border-b">
+                    <p className="font-medium">{user.email}</p>
+                    <p className="text-sm text-gray-500">Institute Admin</p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/institute/profile')}
+                    className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                  >
+                    Profile Settings
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -455,12 +502,14 @@ const InstituteDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {certificates.map((cert) => (
-                  <div key={cert.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                {certificates.slice(0, 3).map((cert) => (
+                  <div key={cert._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
                     <div>
                       <h3 className="font-medium text-gray-900">{cert.studentName}</h3>
-                      <p className="text-sm text-gray-600">{cert.course}</p>
-                      <p className="text-xs text-gray-400">{cert.issueDate}</p>
+                      <p className="text-sm text-gray-600">{cert.courseName}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(cert.issueDate).toLocaleDateString()}
+                      </p>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       cert.status === 'issued' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
@@ -470,6 +519,14 @@ const InstituteDashboard = () => {
                   </div>
                 ))}
               </div>
+              {certificates.length > 3 && (
+                <button
+                  onClick={() => navigate('/institute/certificates')}
+                  className="w-full mt-4 text-center text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  View All Certificates →
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -483,18 +540,18 @@ const InstituteDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {courses.map((course) => (
-                  <div key={course.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                {courses.slice(0, 3).map((course) => (
+                  <div key={course._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div>
                       <h3 className="font-medium text-gray-900">{course.name}</h3>
                       <p className="text-sm text-gray-600">Code: {course.code}</p>
                       <div className="flex space-x-4 mt-2">
-                        <span className="text-sm text-gray-500">{course.students} students</span>
-                        <span className="text-sm text-gray-500">{course.certificates} certificates</span>
+                        <span className="text-sm text-gray-500">{course.studentCount || 0} students</span>
+                        <span className="text-sm text-gray-500">{course.certificateCount || 0} certificates</span>
                       </div>
                     </div>
                     <button 
-                      onClick={() => handleCourseManage(course.id)}
+                      onClick={() => handleCourseManage(course._id)}
                       className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors duration-200"
                     >
                       Manage
@@ -502,6 +559,14 @@ const InstituteDashboard = () => {
                   </div>
                 ))}
               </div>
+              {courses.length > 3 && (
+                <button
+                  onClick={() => navigate('/institute/courses')}
+                  className="w-full mt-4 text-center text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  View All Courses →
+                </button>
+              )}
             </div>
           </div>
 
@@ -513,8 +578,8 @@ const InstituteDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {students.map((student) => (
-                  <div key={student.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                {students.slice(0, 3).map((student) => (
+                  <div key={student._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                         <span className="text-sm font-medium text-gray-700">
@@ -524,7 +589,7 @@ const InstituteDashboard = () => {
                       <div>
                         <h3 className="font-medium text-gray-900">{student.name}</h3>
                         <p className="text-sm text-gray-600">{student.email}</p>
-                        <p className="text-xs text-gray-400">{student.course}</p>
+                        <p className="text-xs text-gray-400">{student.courseName}</p>
                       </div>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -535,6 +600,14 @@ const InstituteDashboard = () => {
                   </div>
                 ))}
               </div>
+              {students.length > 3 && (
+                <button
+                  onClick={() => navigate('/institute/students')}
+                  className="w-full mt-4 text-center text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  View All Students →
+                </button>
+              )}
             </div>
           </div>
         </div>

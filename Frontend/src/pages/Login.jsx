@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+// For Vite projects, use import.meta.env; for Create React App, use process.env
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false,
-    userType: 'institute' // 'institute', 'admin', 'student'
+    userType: 'institute'
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -15,7 +19,6 @@ const Login = () => {
   const userTypes = [
     { value: 'institute', label: 'Institute Admin', description: 'Manage certificates and students' },
     { value: 'superadmin', label: 'Super Admin', description: 'System administration' },
- 
   ];
 
   const handleChange = (e) => {
@@ -45,8 +48,6 @@ const Login = () => {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
     }
 
     setErrors(newErrors);
@@ -63,46 +64,37 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      console.log('Login attempt:', formData);
+      const response = await axios.post(`${API_URL}/auth/login`, formData);
       
-      // Mock successful login
-      setTimeout(() => {
-        setIsLoading(false);
+      if (response.data.success) {
+        // Store token and user data
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
         
         // Redirect based on user type
-        switch (formData.userType) {
+        switch (response.data.user.userType) {
           case 'superadmin':
             navigate('/admin/dashboard');
             break;
           case 'institute':
             navigate('/institute/dashboard');
             break;
-         
           default:
-            navigate('/institute/dashboard');
+            navigate('/dashboard');
         }
-      }, 1500);
-
+      } else {
+        setErrors({ submit: response.data.message || 'Login failed' });
+      }
     } catch (error) {
       setIsLoading(false);
-      setErrors({ submit: 'Login failed. Please check your credentials.' });
+      const errorMessage = error.response?.data?.message || 
+                          error.message || 
+                          'Login failed. Please check your credentials.';
+      setErrors({ submit: errorMessage });
       console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
-  };
-
-  const handleDemoLogin = (userType) => {
-    const demoCredentials = {
-      superadmin: { email: 'superadmin@certverify.com', password: 'demo123' },
-      institute: { email: 'institute@university.edu', password: 'demo123' },
-      
-    };
-
-    setFormData(prev => ({
-      ...prev,
-      ...demoCredentials[userType],
-      userType: userType
-    }));
   };
 
   return (
@@ -284,28 +276,6 @@ const Login = () => {
               </div>
             )}
           </form>
-
-          {/* Demo Login Section */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-4">Quick demo access:</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('superadmin')}
-                className="text-xs bg-purple-100 text-purple-700 py-2 px-1 rounded border border-purple-200 hover:bg-purple-200 transition-colors duration-200"
-              >
-                Super Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('institute')}
-                className="text-xs bg-blue-100 text-blue-700 py-2 px-1 rounded border border-blue-200 hover:bg-blue-200 transition-colors duration-200"
-              >
-                Institute
-              </button>
-              
-            </div>
-          </div>
 
           {/* Registration Link */}
           <div className="mt-6 text-center">
