@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -14,6 +15,8 @@ const Register = () => {
     studentCount: '',
     agreeToTerms: false
   });
+
+  const navigate = useNavigate();
 
   const instituteTypes = [
     'University',
@@ -33,10 +36,33 @@ const Register = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Registration data:', formData);
-    // Handle registration logic here
+    
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    
+    if (!formData.agreeToTerms) {
+      alert('Please agree to the Terms and Conditions');
+      return;
+    }
+    
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/register', formData);
+      
+      if (response.data.success) {
+        // Redirect to OTP verification page
+        navigate('/OTPVerification', {
+          state: { email: formData.email }
+        });
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      alert(error.response?.data?.message || 'Registration failed');
+    }
   };
 
   return (

@@ -16,37 +16,49 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/certverif
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => {
+  console.error('❌ MongoDB connection error:', err);
+  process.exit(1);
+});
+
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
-// Default super admin creation (run once)
-const createSuperAdmin = async () => {
-  const User = require('./models/User');
-  
-  try {
-    const superAdminExists = await User.findOne({ userType: 'superadmin' });
-    
-    if (!superAdminExists) {
-      const superAdmin = new User({
-        email: 'superadmin@certverify.com',
-        password: 'admin123', // Will be hashed automatically
-        userType: 'superadmin',
-        instituteName: 'System Administration'
-      });
-      
-      await superAdmin.save();
-      console.log('Super admin created successfully');
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'Certificate Verification System API',
+    version: '1.0.0',
+    endpoints: {
+      auth: {
+        login: 'POST /api/auth/login',
+        register: 'POST /api/auth/register',
+        'verify-email': 'POST /api/auth/verify-email',
+        'verify-phone': 'POST /api/auth/verify-phone'
+      },
+      admin: {
+        'pending-institutes': 'GET /api/admin/institutes/pending',
+        'approve-institute': 'POST /api/admin/institutes/:id/approve',
+        'reject-institute': 'POST /api/admin/institutes/:id/reject'
+      }
     }
-  } catch (error) {
-    console.error('Error creating super admin:', error);
-  }
-};
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  createSuperAdmin();
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📝 API Documentation: http://localhost:${PORT}/api`);
 });
