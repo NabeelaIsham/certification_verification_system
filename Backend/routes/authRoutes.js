@@ -78,7 +78,14 @@ const sendEmailOTP = async (email, otp) => {
   }
 };
 
-// 1. Register Institute (Simplified and Fixed)
+// Send OTP via SMS (Optional - will be used when Twilio is configured)
+const sendSMSOTP = async (phone, otp) => {
+  // This is a placeholder - implement when you have Twilio configured
+  console.log(`[SMS] Would send OTP ${otp} to ${phone}`);
+  return true;
+};
+
+// 1. Register Institute (Fixed - only generate email OTP initially)
 router.post('/register', async (req, res) => {
   try {
     console.log('Registration request received:', req.body);
@@ -141,14 +148,14 @@ router.post('/register', async (req, res) => {
     await user.save();
     console.log('User saved to database:', user.email);
 
-    // Generate OTP for email verification
+    // Generate OTP for email verification ONLY
     const emailOtp = generateOTP();
     console.log('Generated OTP for email:', emailOtp);
 
     // Delete any existing OTPs for this email
     await OTP.deleteMany({ email, type: 'email' });
 
-    // Save new OTP
+    // Save email OTP only
     await OTP.create({
       email,
       phone: phone || '',
@@ -156,19 +163,17 @@ router.post('/register', async (req, res) => {
       type: 'email'
     });
 
-    console.log('OTP saved to database for email:', email);
+    console.log('Email OTP saved to database');
 
     // Send OTP via email
     let emailSent = false;
     try {
       await sendEmailOTP(email, emailOtp);
       emailSent = true;
+      console.log('Email OTP sent successfully');
     } catch (emailError) {
       console.error('Failed to send email OTP:', emailError.message);
     }
-
-    // For now, skip SMS until you have proper Twilio setup
-    // You can manually verify phone later
 
     // Create notification for super admin
     try {
@@ -195,9 +200,10 @@ router.post('/register', async (req, res) => {
       message: 'Registration successful. Please check your email for OTP verification.',
       userId: user._id,
       email: user.email,
+      nextStep: 'verify-email',
       emailSent: emailSent,
       debug: process.env.NODE_ENV === 'development' ? {
-        otp: emailOtp,
+        emailOtp: emailOtp,
         userId: user._id
       } : undefined
     });
@@ -212,7 +218,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// 2. Verify OTP (Simplified and Fixed)
+// 2. Verify OTP (Updated to handle phone OTP generation)
 router.post('/verify-otp', async (req, res) => {
   try {
     console.log('Verify OTP request received:', req.body);
@@ -229,7 +235,25 @@ router.post('/verify-otp', async (req, res) => {
       });
     }
 
-    // Find OTP (case insensitive for OTP)
+    // If this is email verification and email is already verified
+    if (type === 'email' && user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already verified',
+        nextStep: 'verify-phone'
+      });
+    }
+
+    // If this is phone verification and phone is already verified
+    if (type === 'phone' && user.isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone already verified',
+        nextStep: user.isEmailVerified ? 'pending-approval' : 'verify-email'
+      });
+    }
+
+    // Find OTP
     const otpRecord = await OTP.findOne({
       email: email.toLowerCase(),
       otp: otp.toString().trim(),
@@ -262,7 +286,8 @@ router.post('/verify-otp', async (req, res) => {
       await OTP.deleteOne({ _id: otpRecord._id });
       return res.status(400).json({
         success: false,
-        message: 'OTP has expired. Please request a new one.'
+        message: 'OTP has expired. Please request a new one.',
+        canResend: true
       });
     }
 
@@ -270,50 +295,107 @@ router.post('/verify-otp', async (req, res) => {
     if (type === 'email') {
       user.isEmailVerified = true;
       user.status = user.isPhoneVerified ? 'admin_approval_pending' : 'email_verified';
-    } else if (type === 'phone') {
+      await user.save();
+      
+      console.log('Email verified successfully for:', email);
+      
+      // Delete used OTP
+      await OTP.deleteOne({ _id: otpRecord._id });
+
+      // Check if phone is already verified
+      if (user.isPhoneVerified) {
+        return res.json({
+          success: true,
+          message: 'Email verified successfully. Your account is pending admin approval.',
+          status: user.status,
+          isEmailVerified: true,
+          isPhoneVerified: true,
+          nextStep: 'pending-approval'
+        });
+      } else {
+        // Generate phone OTP automatically after email verification
+        const phoneOtp = generateOTP();
+        
+        // Delete any existing phone OTPs
+        await OTP.deleteMany({ email, type: 'phone' });
+        
+        // Save phone OTP
+        await OTP.create({
+          email,
+          phone: user.phone,
+          otp: phoneOtp,
+          type: 'phone'
+        });
+        
+        console.log('Phone OTP generated automatically:', phoneOtp);
+        
+        // Try to send SMS (will be logged only)
+        await sendSMSOTP(user.phone, phoneOtp);
+        
+        return res.json({
+          success: true,
+          message: 'Email verified successfully. Please verify your phone number.',
+          status: user.status,
+          isEmailVerified: true,
+          isPhoneVerified: false,
+          nextStep: 'verify-phone',
+          phoneOtpGenerated: true,
+          debug: process.env.NODE_ENV === 'development' ? {
+            phoneOtp: phoneOtp
+          } : undefined
+        });
+      }
+    } 
+    else if (type === 'phone') {
       user.isPhoneVerified = true;
       user.status = user.isEmailVerified ? 'admin_approval_pending' : 'phone_verified';
-    }
+      await user.save();
 
-    // If both verified, update status
-    if (user.isEmailVerified && user.isPhoneVerified) {
-      user.status = 'admin_approval_pending';
-      
-      // Send notification to super admin for approval
-      try {
-        const superAdmin = await User.findOne({ userType: 'superadmin' });
-        if (superAdmin) {
-          await Notification.create({
-            recipient: superAdmin._id,
-            type: 'verification_request',
-            title: 'Institute Verification Required',
-            message: `${user.instituteName} has completed OTP verification and is ready for admin approval`,
-            data: {
-              instituteId: user._id,
-              instituteName: user.instituteName,
-              adminName: user.adminName
-            }
-          });
+      // Delete used OTP
+      await OTP.deleteOne({ _id: otpRecord._id });
+
+      console.log('Phone verified successfully for:', email);
+
+      if (user.isEmailVerified) {
+        // Both verified, notify admin
+        try {
+          const superAdmin = await User.findOne({ userType: 'superadmin' });
+          if (superAdmin) {
+            await Notification.create({
+              recipient: superAdmin._id,
+              type: 'verification_request',
+              title: 'Institute Verification Required',
+              message: `${user.instituteName} has completed OTP verification and is ready for admin approval`,
+              data: {
+                instituteId: user._id,
+                instituteName: user.instituteName,
+                adminName: user.adminName
+              }
+            });
+          }
+        } catch (notificationError) {
+          console.error('Notification creation error:', notificationError.message);
         }
-      } catch (notificationError) {
-        console.error('Notification creation error:', notificationError.message);
+
+        return res.json({
+          success: true,
+          message: 'Phone verified successfully. Your account is pending admin approval.',
+          status: user.status,
+          isEmailVerified: true,
+          isPhoneVerified: true,
+          nextStep: 'pending-approval'
+        });
+      } else {
+        return res.json({
+          success: true,
+          message: 'Phone verified successfully. Please verify your email.',
+          status: user.status,
+          isEmailVerified: false,
+          isPhoneVerified: true,
+          nextStep: 'verify-email'
+        });
       }
     }
-
-    await user.save();
-
-    // Delete used OTP
-    await OTP.deleteOne({ _id: otpRecord._id });
-
-    console.log('OTP verification successful for:', email);
-
-    res.json({
-      success: true,
-      message: `${type === 'email' ? 'Email' : 'Phone'} verified successfully`,
-      status: user.status,
-      isEmailVerified: user.isEmailVerified,
-      isPhoneVerified: user.isPhoneVerified
-    });
 
   } catch (error) {
     console.error('OTP verification error:', error);
@@ -325,7 +407,7 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// 3. Login endpoint (Fixed)
+// 3. Login endpoint
 router.post('/login', async (req, res) => {
   try {
     console.log('Login request received:', { email: req.body.email, userType: req.body.userType });
@@ -364,7 +446,6 @@ router.post('/login', async (req, res) => {
         status: user.status
       });
 
-      // Allow login even if not fully verified, but with appropriate message
       if (!user.isEmailVerified) {
         return res.status(403).json({
           success: false,
@@ -455,6 +536,21 @@ router.post('/resend-otp', async (req, res) => {
       });
     }
 
+    // Check if already verified
+    if (type === 'email' && user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email already verified'
+      });
+    }
+
+    if (type === 'phone' && user.isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone already verified'
+      });
+    }
+
     // Generate new OTP
     const otp = generateOTP();
     console.log('Generated new OTP:', otp);
@@ -484,6 +580,10 @@ router.post('/resend-otp', async (req, res) => {
           debug: true
         });
       }
+    } else {
+      // For phone OTP, just log it (SMS not configured)
+      console.log(`Phone OTP for ${user.phone}: ${otp}`);
+      await sendSMSOTP(user.phone, otp);
     }
 
     res.json({
@@ -501,7 +601,97 @@ router.post('/resend-otp', async (req, res) => {
   }
 });
 
-// 5. Debug endpoint to check OTPs
+// 5. Generate Phone OTP separately (for manual request)
+router.post('/generate-phone-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone already verified'
+      });
+    }
+
+    // Generate phone OTP
+    const phoneOtp = generateOTP();
+    
+    // Delete any existing phone OTPs
+    await OTP.deleteMany({ email, type: 'phone' });
+    
+    // Save phone OTP
+    await OTP.create({
+      email,
+      phone: user.phone,
+      otp: phoneOtp,
+      type: 'phone'
+    });
+
+    console.log('Phone OTP generated:', phoneOtp);
+
+    // Log the OTP (since SMS not configured)
+    await sendSMSOTP(user.phone, phoneOtp);
+
+    res.json({
+      success: true,
+      message: 'Phone OTP generated',
+      debug: process.env.NODE_ENV === 'development' ? {
+        phoneOtp: phoneOtp
+      } : undefined
+    });
+
+  } catch (error) {
+    console.error('Generate phone OTP error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate phone OTP'
+    });
+  }
+});
+
+// 6. Check Verification Status
+router.get('/verification-status/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        isEmailVerified: user.isEmailVerified,
+        isPhoneVerified: user.isPhoneVerified,
+        isVerifiedByAdmin: user.isVerifiedByAdmin,
+        status: user.status,
+        userType: user.userType,
+        instituteName: user.instituteName
+      }
+    });
+
+  } catch (error) {
+    console.error('Status check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check verification status'
+    });
+  }
+});
+
+// 7. Debug endpoint to check OTPs
 router.post('/debug-otp', async (req, res) => {
   try {
     const { email } = req.body;
