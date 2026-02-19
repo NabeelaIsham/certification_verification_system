@@ -781,17 +781,23 @@ router.put('/settings', verifySuperAdmin, async (req, res) => {
     await settings.save();
     console.log('Settings saved successfully');
 
-    // Log the settings update
-    await Notification.create({
-      recipient: req.userId,
-      type: 'settings_updated',
-      title: 'Settings Updated',
-      message: 'System settings have been updated successfully',
-      data: {
-        updatedBy: req.user.email,
-        timestamp: new Date()
-      }
-    });
+    // Try to create notification, but don't fail if it doesn't work
+    try {
+      await Notification.create({
+        recipient: req.userId,
+        type: 'settings_updated',
+        title: 'Settings Updated',
+        message: 'System settings have been updated successfully',
+        data: {
+          updatedBy: req.user.email,
+          timestamp: new Date()
+        }
+      });
+      console.log('Notification created successfully');
+    } catch (notifError) {
+      // Log but don't fail the request
+      console.error('Failed to create notification (but settings were saved):', notifError.message);
+    }
 
     // Return settings with masked password
     const settingsObj = settings.toObject();
@@ -824,16 +830,21 @@ router.post('/settings/reset', verifySuperAdmin, async (req, res) => {
     // Create new default settings
     const settings = await Settings.create({});
 
-    await Notification.create({
-      recipient: req.userId,
-      type: 'settings_reset',
-      title: 'Settings Reset',
-      message: 'System settings have been reset to default',
-      data: {
-        resetBy: req.user.email,
-        timestamp: new Date()
-      }
-    });
+    // Try to create notification
+    try {
+      await Notification.create({
+        recipient: req.userId,
+        type: 'settings_reset',
+        title: 'Settings Reset',
+        message: 'System settings have been reset to default',
+        data: {
+          resetBy: req.user.email,
+          timestamp: new Date()
+        }
+      });
+    } catch (notifError) {
+      console.error('Failed to create reset notification:', notifError.message);
+    }
 
     // Mask password in response
     const settingsObj = settings.toObject();
@@ -855,7 +866,7 @@ router.post('/settings/reset', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/settings/test-email - Test email configuration (FIXED VERSION)
+// POST /api/admin/settings/test-email - Test email configuration
 router.post('/settings/test-email', verifySuperAdmin, async (req, res) => {
   try {
     const { email, settings: emailSettings } = req.body;
