@@ -6,34 +6,45 @@ const certificateSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  studentName: {
-    type: String,
-    required: true
-  },
   studentId: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Student',
     required: true
   },
-  courseName: {
-    type: String,
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
     required: true
+  },
+  certificateNumber: {
+    type: String,
+    unique: true
   },
   issueDate: {
     type: Date,
     default: Date.now
   },
-  certificateNumber: {
+  grade: {
     type: String,
-    unique: true,
-    required: true
+    default: ''
   },
   status: {
     type: String,
-    enum: ['active', 'revoked', 'expired'],
-    default: 'active'
+    enum: ['issued', 'revoked'],
+    default: 'issued'
   }
 }, {
   timestamps: true
+});
+
+// Generate certificate number
+certificateSchema.pre('save', async function(next) {
+  if (!this.certificateNumber) {
+    const year = new Date().getFullYear();
+    const count = await mongoose.model('Certificate').countDocuments();
+    this.certificateNumber = `CERT${year}${(count + 1).toString().padStart(6, '0')}`;
+  }
+  next();
 });
 
 module.exports = mongoose.model('Certificate', certificateSchema);

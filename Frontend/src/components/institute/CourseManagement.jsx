@@ -1,157 +1,268 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const CourseManagement = () => {
-  const [courses, setCourses] = useState([])
-  const [showForm, setShowForm] = useState(false)
+const CourseManagement = ({ API_URL }) => {
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingCourse, setEditingCourse] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     duration: '',
+    fee: '',
     description: ''
-  })
+  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1
+  });
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setCourses([
-        { id: 1, name: 'Bachelor of IT', code: 'BIT2024', duration: '4 years', students: 450, status: 'active' },
-        { id: 2, name: 'Diploma in Web Development', code: 'DWD2024', duration: '1 year', students: 120, status: 'active' },
-        { id: 3, name: 'Certificate in Data Science', code: 'CDS2024', duration: '6 months', students: 85, status: 'active' }
-      ])
-    }, 1000)
-  }, [])
+    fetchCourses();
+  }, [pagination.page, searchTerm]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    const newCourse = {
-      id: courses.length + 1,
-      ...formData,
-      students: 0,
-      status: 'active'
+  const fetchCourses = async () => {
+    const token = localStorage.getItem('token');
+    setLoading(true);
+
+    try {
+      const response = await axios.get(`${API_URL}/courses`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          page: pagination.page,
+          limit: pagination.limit,
+          search: searchTerm
+        }
+      });
+
+      if (response.data.success) {
+        setCourses(response.data.data);
+        setPagination(response.data.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      alert('Failed to fetch courses');
+    } finally {
+      setLoading(false);
     }
-    setCourses([...courses, newCourse])
-    setShowForm(false)
-    setFormData({ name: '', code: '', duration: '', description: '' })
-  }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+
+    try {
+      if (editingCourse) {
+        // Update
+        const response = await axios.put(
+          `${API_URL}/courses/${editingCourse._id}`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.data.success) {
+          alert('Course updated successfully!');
+        }
+      } else {
+        // Create
+        const response = await axios.post(
+          `${API_URL}/courses`,
+          formData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.data.success) {
+          alert('Course created successfully!');
+        }
+      }
+
+      setShowModal(false);
+      resetForm();
+      fetchCourses();
+    } catch (error) {
+      console.error('Error saving course:', error);
+      alert(error.response?.data?.message || 'Failed to save course');
+    }
+  };
+
+  const handleEdit = (course) => {
+    setEditingCourse(course);
+    setFormData({
+      name: course.name,
+      code: course.code,
+      duration: course.duration,
+      fee: course.fee,
+      description: course.description || ''
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure?')) return;
+    
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.delete(`${API_URL}/courses/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        alert('Course deleted successfully!');
+        fetchCourses();
+      }
+    } catch (error) {
+      alert(error.response?.data?.message || 'Failed to delete');
+    }
+  };
+
+  const resetForm = () => {
+    setEditingCourse(null);
+    setFormData({ name: '', code: '', duration: '', fee: '', description: '' });
+  };
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Course Management</h1>
-          <p className="text-gray-600">Manage your institute's courses and programs</p>
-        </div>
+        <h1 className="text-2xl font-bold">Course Management</h1>
         <button
-          onClick={() => setShowForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
-          Add New Course
+          + Add Course
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-white p-6 rounded-lg shadow mb-6 border border-gray-200">
-          <h2 className="text-lg font-semibold mb-4">Add New Course</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Course Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Course Code</label>
-              <input
-                type="text"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-              <input
-                type="text"
-                value={formData.duration}
-                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                required
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                rows="3"
-              />
-            </div>
-            <div className="md:col-span-2 flex space-x-2">
-              <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-                Save Course
-              </button>
-              <button type="button" onClick={() => setShowForm(false)} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
-                Cancel
-              </button>
-            </div>
-          </form>
+      {/* Search */}
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search courses..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPagination({ ...pagination, page: 1 });
+          }}
+          className="w-full md:w-96 px-4 py-2 border rounded-lg"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {loading ? (
+          <div className="text-center py-8">Loading...</div>
+        ) : (
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fee</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {courses.map((course) => (
+                <tr key={course._id}>
+                  <td className="px-6 py-4">{course.name}</td>
+                  <td className="px-6 py-4">{course.code}</td>
+                  <td className="px-6 py-4">{course.duration} months</td>
+                  <td className="px-6 py-4">${course.fee}</td>
+                  <td className="px-6 py-4">
+                    <button
+                      onClick={() => handleEdit(course)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(course._id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">
+              {editingCourse ? 'Edit Course' : 'Add Course'}
+            </h2>
+            <form onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Course Name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+                <input
+                  type="text"
+                  placeholder="Course Code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({...formData, code: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="Duration (months)"
+                  value={formData.duration}
+                  onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="Fee ($)"
+                  value={formData.fee}
+                  onChange={(e) => setFormData({...formData, fee: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                />
+                <textarea
+                  placeholder="Description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  rows="3"
+                />
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  {editingCourse ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Course
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Code
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Duration
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Students
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {courses.map((course) => (
-              <tr key={course.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">{course.name}</div>
-                  <div className="text-sm text-gray-500">{course.description}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {course.code}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {course.duration}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {course.students}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button className="text-blue-600 hover:text-blue-900">Edit</button>
-                  <button className="text-red-600 hover:text-red-900">Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
-  )
-}
+  );
+};
 
-export default CourseManagement
+export default CourseManagement;

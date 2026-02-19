@@ -27,6 +27,12 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/certverif
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 
+// In your server.js or app.js
+app.use('/api/institute', require('./routes/instituteRoutes'));
+app.use('/api/courses', require('./routes/instituteRoutes')); // These are handled in the same router
+app.use('/api/students', require('./routes/instituteRoutes'));
+app.use('/api/certificates', require('./routes/instituteRoutes'));
+app.use('/api/reports', require('./routes/instituteRoutes'));
 
 // In your main server.js or app.js, add this after database connection
 const Settings = require('./models/Settings');
