@@ -16,8 +16,8 @@ const notificationSchema = new mongoose.Schema({
       'account_suspended',       // When institute is suspended
       'account_activated',       // When institute is activated
       'password_reset',          // When password is reset
-      'settings_updated',        // WHEN SETTINGS ARE UPDATED (ADD THIS)
-      'settings_reset',          // WHEN SETTINGS ARE RESET (ADD THIS)
+      'settings_updated',        // When settings are updated
+      'settings_reset',          // When settings are reset
       'institute_rejected',      // When institute is rejected
       'certificate_issued',      // When certificate is issued
       'certificate_revoked',     // When certificate is revoked
@@ -34,14 +34,18 @@ const notificationSchema = new mongoose.Schema({
     required: true
   },
   data: {
-    type: mongoose.Schema.Types.Mixed
+    type: mongoose.Schema.Types.Mixed,  // Changed to Mixed type for flexibility
+    default: {}
   },
   isRead: {
     type: Boolean,
     default: false
   }
 }, {
-  timestamps: true
+  timestamps: true  // This will automatically add createdAt and updatedAt
 });
+
+// Index for quick retrieval
+notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);
