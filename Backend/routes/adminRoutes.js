@@ -4,15 +4,35 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const Certificate = require('../models/Certificate');
-const Settings = require('../models/Settings'); // Add this import
+const Settings = require('../models/Settings');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer'); // Add this import
+const nodemailer = require('nodemailer');
 
-// Email sending function (you may already have this in your authRoutes)
+// Email sending function
 const sendEmailOTP = async (email, message) => {
-  // This should be your existing email sending function
-  console.log(`Sending email to ${email}: ${message}`);
-  // Implement your actual email sending logic here
+  try {
+    const settings = await Settings.findOne();
+    const transporter = nodemailer.createTransport({
+      host: settings?.email?.smtpServer || process.env.EMAIL_HOST || 'smtp.gmail.com',
+      port: settings?.email?.smtpPort || parseInt(process.env.EMAIL_PORT) || 587,
+      secure: settings?.email?.smtpPort === 465,
+      auth: {
+        user: settings?.email?.smtpUsername || process.env.EMAIL_USER,
+        pass: settings?.email?.smtpPassword || process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: `"${settings?.email?.fromName || 'Certificate System'}" <${settings?.email?.fromEmail || process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Password Reset - Certificate System',
+      text: message,
+      html: `<p>${message}</p>`
+    });
+  } catch (error) {
+    console.error('Email sending failed:', error);
+    // Don't throw error, just log it
+  }
 };
 
 // Middleware to verify super admin
@@ -62,9 +82,166 @@ const verifySuperAdmin = async (req, res, next) => {
   }
 };
 
-// ============ INSTITUTE MANAGEMENT ENDPOINTS ============
+// ============ DASHBOARD STATS ============
 
-// 1. Get all institutes with filters
+// Get dashboard stats
+router.get('/stats', verifySuperAdmin, async (req, res) => {
+  try {
+    const [
+      totalInstitutes,
+      pendingApprovals,
+      totalCertificates,
+      activeUsers,
+      approvedInstitutes,
+      rejectedInstitutes,
+      suspendedInstitutes,
+      totalUsers,
+      certificatesIssuedToday,
+      certificatesIssuedThisMonth,
+      certificatesRevoked
+    ] = await Promise.all([
+      User.countDocuments({ userType: 'institute' }),
+      User.countDocuments({ 
+        userType: 'institute', 
+        status: 'admin_approval_pending' 
+      }),
+      Certificate.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ 
+        userType: 'institute', 
+        status: 'approved',
+        isActive: true
+      }),
+      User.countDocuments({ 
+        userType: 'institute', 
+        status: 'rejected' 
+      }),
+      User.countDocuments({ 
+        userType: 'institute', 
+        status: 'approved',
+        isActive: false 
+      }),
+      User.countDocuments(),
+      
+      // Today's certificates
+      Certificate.countDocuments({
+        createdAt: { $gte: new Date().setHours(0, 0, 0, 0) }
+      }),
+      
+      // This month's certificates
+      Certificate.countDocuments({
+        createdAt: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
+      }),
+      
+      // Revoked certificates
+      Certificate.countDocuments({ status: 'revoked' })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalInstitutes,
+        pendingApprovals,
+        totalCertificates,
+        activeUsers,
+        approvedInstitutes,
+        rejectedInstitutes,
+        suspendedInstitutes,
+        totalUsers,
+        certificatesIssuedToday,
+        certificatesIssuedThisMonth,
+        certificatesRevoked
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch dashboard stats',
+      error: error.message
+    });
+  }
+});
+
+// Get recent activities
+router.get('/activities', verifySuperAdmin, async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    // Get recent notifications
+    const notifications = await Notification.find()
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .populate('recipient', 'instituteName email');
+
+    // Get recent certificates
+    const recentCertificates = await Certificate.find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('instituteId', 'instituteName')
+      .select('studentName certificateCode status createdAt');
+
+    // Combine and format activities
+    const activities = [
+      ...notifications.map(n => ({
+        _id: n._id,
+        type: n.type,
+        action: n.title,
+        description: n.message,
+        timestamp: n.createdAt,
+        user: n.recipient,
+        icon: getActivityIcon(n.type)
+      })),
+      ...recentCertificates.map(c => ({
+        _id: c._id,
+        type: 'certificate',
+        action: `Certificate ${c.status}`,
+        description: `${c.studentName}'s certificate (${c.certificateCode}) was ${c.status}`,
+        timestamp: c.createdAt,
+        user: c.instituteId,
+        icon: c.status === 'revoked' ? '❌' : '📜'
+      }))
+    ];
+
+    // Sort by timestamp descending
+    activities.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Limit to requested number
+    const limitedActivities = activities.slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      data: limitedActivities
+    });
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch activities'
+    });
+  }
+});
+
+// Helper function for activity icons
+function getActivityIcon(type) {
+  const icons = {
+    'account_approved': '✅',
+    'account_rejected': '❌',
+    'account_suspended': '⚠️',
+    'account_activated': '🟢',
+    'certificate_issued': '📜',
+    'certificate_revoked': '🚫',
+    'password_reset': '🔑',
+    'settings_updated': '⚙️',
+    'new_institute': '🏫',
+    'verification_request': '🔍'
+  };
+  return icons[type] || '📌';
+}
+
+// ============ INSTITUTE MANAGEMENT ============
+
+// Get all institutes with filters
 router.get('/institutes', verifySuperAdmin, async (req, res) => {
   try {
     const { status, page = 1, limit = 10, search = '' } = req.query;
@@ -77,6 +254,7 @@ router.get('/institutes', verifySuperAdmin, async (req, res) => {
         query.status = 'admin_approval_pending';
       } else if (status === 'approved') {
         query.status = 'approved';
+        query.isActive = true;
       } else if (status === 'rejected') {
         query.status = 'rejected';
       } else if (status === 'suspended') {
@@ -103,28 +281,29 @@ router.get('/institutes', verifySuperAdmin, async (req, res) => {
     const total = await User.countDocuments(query);
 
     // Get counts for each status
-    const pendingCount = await User.countDocuments({ 
-      userType: 'institute', 
-      status: 'admin_approval_pending' 
-    });
-    const approvedCount = await User.countDocuments({ 
-      userType: 'institute', 
-      status: 'approved',
-      isActive: true 
-    });
-    const rejectedCount = await User.countDocuments({ 
-      userType: 'institute', 
-      status: 'rejected' 
-    });
-    const suspendedCount = await User.countDocuments({ 
-      userType: 'institute', 
-      status: 'approved',
-      isActive: false 
-    });
+    const [pendingCount, approvedCount, rejectedCount, suspendedCount] = await Promise.all([
+      User.countDocuments({ userType: 'institute', status: 'admin_approval_pending' }),
+      User.countDocuments({ userType: 'institute', status: 'approved', isActive: true }),
+      User.countDocuments({ userType: 'institute', status: 'rejected' }),
+      User.countDocuments({ userType: 'institute', status: 'approved', isActive: false })
+    ]);
+
+    // Get certificate counts for each institute
+    const institutesWithCounts = await Promise.all(
+      institutes.map(async (institute) => {
+        const certificateCount = await Certificate.countDocuments({ 
+          instituteId: institute._id 
+        });
+        return {
+          ...institute.toObject(),
+          certificateCount
+        };
+      })
+    );
 
     res.json({
       success: true,
-      data: institutes,
+      data: institutesWithCounts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -149,7 +328,7 @@ router.get('/institutes', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 2. Get single institute details
+// Get single institute details
 router.get('/institutes/:id', verifySuperAdmin, async (req, res) => {
   try {
     const institute = await User.findById(req.params.id).select('-password');
@@ -161,16 +340,29 @@ router.get('/institutes/:id', verifySuperAdmin, async (req, res) => {
       });
     }
 
-    // Get certificate count for this institute
-    const certificateCount = await Certificate.countDocuments({ 
-      instituteId: institute._id 
-    });
+    // Get certificate statistics for this institute
+    const [certificateCount, issuedCount, revokedCount] = await Promise.all([
+      Certificate.countDocuments({ instituteId: institute._id }),
+      Certificate.countDocuments({ instituteId: institute._id, status: 'issued' }),
+      Certificate.countDocuments({ instituteId: institute._id, status: 'revoked' })
+    ]);
+
+    // Get recent certificates
+    const recentCertificates = await Certificate.find({ instituteId: institute._id })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('studentName certificateCode status createdAt');
 
     res.json({
       success: true,
       data: {
         ...institute.toObject(),
-        certificateCount
+        certificateStats: {
+          total: certificateCount,
+          issued: issuedCount,
+          revoked: revokedCount
+        },
+        recentCertificates
       }
     });
   } catch (error) {
@@ -182,7 +374,7 @@ router.get('/institutes/:id', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 3. Approve institute
+// Approve institute
 router.put('/institutes/:id/approve', verifySuperAdmin, async (req, res) => {
   try {
     const { notes } = req.body;
@@ -219,15 +411,14 @@ router.put('/institutes/:id/approve', verifySuperAdmin, async (req, res) => {
       recipient: institute._id,
       type: 'account_approved',
       title: 'Account Approved',
-      message: 'Your institute account has been approved by the super admin. You can now log in and start using the system.',
+      message: `Your institute account has been approved by the super admin. You can now log in and start using the system.${notes ? ` Notes: ${notes}` : ''}`,
       data: {
         instituteId: institute._id,
-        instituteName: institute.instituteName
+        instituteName: institute.instituteName,
+        approvedBy: req.user.email,
+        notes
       }
     });
-
-    // Log activity
-    console.log(`Institute ${institute.instituteName} approved by admin ${req.user.email}`);
 
     res.json({
       success: true,
@@ -244,7 +435,7 @@ router.put('/institutes/:id/approve', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 4. Reject institute
+// Reject institute
 router.delete('/institutes/:id', verifySuperAdmin, async (req, res) => {
   try {
     const { reason } = req.body;
@@ -258,15 +449,12 @@ router.delete('/institutes/:id', verifySuperAdmin, async (req, res) => {
       });
     }
 
-    // Store rejection reason before deleting
+    // Store data for notification
     const instituteData = {
       id: institute._id,
       name: institute.instituteName,
       email: institute.email
     };
-
-    // Delete the institute
-    await User.findByIdAndDelete(instituteId);
 
     // Create notification for super admin about the rejection
     await Notification.create({
@@ -276,11 +464,24 @@ router.delete('/institutes/:id', verifySuperAdmin, async (req, res) => {
       message: `${instituteData.name} has been rejected. Reason: ${reason || 'No reason provided'}`,
       data: {
         instituteId: instituteData.id,
-        instituteName: instituteData.name
+        instituteName: instituteData.name,
+        rejectedBy: req.user.email,
+        reason
       }
     });
 
-    console.log(`Institute ${instituteData.name} rejected and deleted by admin ${req.user.email}. Reason: ${reason}`);
+    // Send email notification to institute
+    try {
+      await sendEmailOTP(
+        institute.email,
+        `Your institute registration has been rejected. Reason: ${reason || 'No reason provided'}`
+      );
+    } catch (emailError) {
+      console.error('Failed to send rejection email:', emailError);
+    }
+
+    // Delete the institute
+    await User.findByIdAndDelete(instituteId);
 
     res.json({
       success: true,
@@ -296,11 +497,18 @@ router.delete('/institutes/:id', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 5. Suspend/Activate institute
+// Suspend/Activate institute
 router.put('/institutes/:id/toggle-status', verifySuperAdmin, async (req, res) => {
   try {
     const { action } = req.body; // 'suspend' or 'activate'
     const instituteId = req.params.id;
+
+    if (!['suspend', 'activate'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Use "suspend" or "activate"'
+      });
+    }
 
     const institute = await User.findById(instituteId);
     if (!institute || institute.userType !== 'institute') {
@@ -313,14 +521,9 @@ router.put('/institutes/:id/toggle-status', verifySuperAdmin, async (req, res) =
     if (action === 'suspend') {
       institute.isActive = false;
       institute.status = 'suspended';
-    } else if (action === 'activate') {
+    } else {
       institute.isActive = true;
       institute.status = 'approved';
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid action. Use "suspend" or "activate"'
-      });
     }
 
     await institute.save();
@@ -335,13 +538,25 @@ router.put('/institutes/:id/toggle-status', verifySuperAdmin, async (req, res) =
         : 'Your institute account has been activated.',
       data: {
         instituteId: institute._id,
-        instituteName: institute.instituteName
+        instituteName: institute.instituteName,
+        action,
+        performedBy: req.user.email
       }
     });
 
+    // Send email notification
+    try {
+      await sendEmailOTP(
+        institute.email,
+        `Your institute account has been ${action}d.`
+      );
+    } catch (emailError) {
+      console.error('Failed to send status email:', emailError);
+    }
+
     res.json({
       success: true,
-      message: `Institute ${action}ed successfully`,
+      message: `Institute ${action}d successfully`,
       data: institute
     });
 
@@ -354,109 +569,18 @@ router.put('/institutes/:id/toggle-status', verifySuperAdmin, async (req, res) =
   }
 });
 
-// 6. Get dashboard stats
-router.get('/stats', verifySuperAdmin, async (req, res) => {
-  try {
-    const [
-      totalInstitutes,
-      pendingApprovals,
-      totalCertificates,
-      activeUsers,
-      approvedInstitutes,
-      rejectedInstitutes,
-      suspendedInstitutes,
-      totalUsers
-    ] = await Promise.all([
-      User.countDocuments({ userType: 'institute' }),
-      User.countDocuments({ 
-        userType: 'institute', 
-        status: 'admin_approval_pending' 
-      }),
-      Certificate.countDocuments(),
-      User.countDocuments({ 
-        isActive: true 
-      }),
-      User.countDocuments({ 
-        userType: 'institute', 
-        status: 'approved',
-        isActive: true
-      }),
-      User.countDocuments({ 
-        userType: 'institute', 
-        status: 'rejected' 
-      }),
-      User.countDocuments({ 
-        userType: 'institute', 
-        status: 'approved',
-        isActive: false 
-      }),
-      User.countDocuments()
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        totalInstitutes,
-        pendingApprovals,
-        totalCertificates,
-        activeUsers,
-        approvedInstitutes,
-        rejectedInstitutes,
-        suspendedInstitutes,
-        totalUsers
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch dashboard stats',
-      error: error.message
-    });
-  }
-});
-
-// 7. Get recent activities
-router.get('/activities', verifySuperAdmin, async (req, res) => {
-  try {
-    // Get recent notifications and actions
-    const recentActivities = await Notification.find()
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .populate('recipient', 'instituteName email');
-
-    const activities = recentActivities.map(activity => ({
-      _id: activity._id,
-      type: activity.type,
-      action: activity.title,
-      description: activity.message,
-      timestamp: activity.createdAt,
-      user: activity.recipient
-    }));
-
-    res.json({
-      success: true,
-      data: activities
-    });
-  } catch (error) {
-    console.error('Error fetching activities:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch activities'
-    });
-  }
-});
-
-// 8. Get pending institutes (specific for quick view)
-router.get('/institutes/pending', verifySuperAdmin, async (req, res) => {
+// Get pending institutes (for quick view)
+router.get('/institutes/pending/list', verifySuperAdmin, async (req, res) => {
   try {
     const pendingInstitutes = await User.find({
       userType: 'institute',
       status: 'admin_approval_pending',
       isEmailVerified: true,
-      isPhoneVerified: true,
-      isVerifiedByAdmin: false
-    }).select('-password').limit(10);
+      isPhoneVerified: true
+    })
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .limit(10);
 
     res.json({
       success: true,
@@ -472,57 +596,9 @@ router.get('/institutes/pending', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 9. Generate system report
-router.get('/reports/system', verifySuperAdmin, async (req, res) => {
-  try {
-    const [
-      totalInstitutes,
-      totalCertificates,
-      totalUsers,
-      recentRegistrations
-    ] = await Promise.all([
-      User.countDocuments({ userType: 'institute' }),
-      Certificate.countDocuments(),
-      User.countDocuments(),
-      User.find({ userType: 'institute' })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select('instituteName email createdAt status')
-    ]);
+// ============ USER MANAGEMENT ============
 
-    const report = {
-      generatedAt: new Date(),
-      summary: {
-        totalInstitutes,
-        totalCertificates,
-        totalUsers,
-        activeInstitutes: await User.countDocuments({ userType: 'institute', isActive: true }),
-        pendingApprovals: await User.countDocuments({ userType: 'institute', status: 'admin_approval_pending' })
-      },
-      recentRegistrations,
-      systemHealth: {
-        database: 'connected',
-        server: 'running',
-        lastBackup: new Date().toISOString().split('T')[0]
-      }
-    };
-
-    res.json({
-      success: true,
-      data: report
-    });
-  } catch (error) {
-    console.error('Error generating report:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate report'
-    });
-  }
-});
-
-// ============ USER MANAGEMENT ENDPOINTS ============
-
-// 10. Get all users (with filters and pagination)
+// Get all users (with filters)
 router.get('/users', verifySuperAdmin, async (req, res) => {
   try {
     const { role, status, page = 1, limit = 10, search = '' } = req.query;
@@ -564,11 +640,13 @@ router.get('/users', verifySuperAdmin, async (req, res) => {
     const total = await User.countDocuments(query);
 
     // Get counts for stats
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: true });
-    const pendingUsers = await User.countDocuments({ status: 'admin_approval_pending' });
-    const instituteCount = await User.countDocuments({ userType: 'institute' });
-    const superAdminCount = await User.countDocuments({ userType: 'superadmin' });
+    const [totalUsers, activeUsers, pendingUsers, instituteCount, superAdminCount] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ status: 'admin_approval_pending' }),
+      User.countDocuments({ userType: 'institute' }),
+      User.countDocuments({ userType: 'superadmin' })
+    ]);
 
     res.json({
       success: true,
@@ -597,11 +675,18 @@ router.get('/users', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 11. Toggle user active status
+// Toggle user active status
 router.put('/users/:id/toggle-status', verifySuperAdmin, async (req, res) => {
   try {
     const { active } = req.body;
     const userId = req.params.id;
+
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'Active status must be a boolean'
+      });
+    }
 
     const user = await User.findById(userId);
     if (!user) {
@@ -639,7 +724,7 @@ router.put('/users/:id/toggle-status', verifySuperAdmin, async (req, res) => {
       data: {
         userId: user._id,
         action: active ? 'activated' : 'suspended',
-        performedBy: req.userId
+        performedBy: req.user.email
       }
     });
 
@@ -657,7 +742,7 @@ router.put('/users/:id/toggle-status', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// 12. Reset user password
+// Reset user password
 router.post('/users/:id/reset-password', verifySuperAdmin, async (req, res) => {
   try {
     const userId = req.params.id;
@@ -693,7 +778,7 @@ router.post('/users/:id/reset-password', verifySuperAdmin, async (req, res) => {
       message: 'Your password has been reset by super admin. Check your email for temporary password.',
       data: {
         userId: user._id,
-        performedBy: req.userId
+        performedBy: req.user.email
       }
     });
 
@@ -711,9 +796,392 @@ router.post('/users/:id/reset-password', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// ============ SYSTEM SETTINGS ENDPOINTS ============
+// ============ CERTIFICATE MANAGEMENT ============
 
-// GET /api/admin/settings - Get system settings
+// Get all certificates (with filters)
+router.get('/certificates', verifySuperAdmin, async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      search = '', 
+      instituteId,
+      status,
+      startDate,
+      endDate 
+    } = req.query;
+    
+    const query = {};
+    
+    // Filter by institute
+    if (instituteId) {
+      query.instituteId = instituteId;
+    }
+    
+    // Filter by status
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    // Filter by date range
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+    
+    // Search by certificate code or student name
+    if (search) {
+      query.$or = [
+        { certificateCode: { $regex: search, $options: 'i' } },
+        { studentName: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const certificates = await Certificate.find(query)
+      .populate('instituteId', 'instituteName email')
+      .populate('studentId', 'name email')
+      .populate('courseId', 'courseName courseCode')
+      .sort({ createdAt: -1 })
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .limit(parseInt(limit));
+
+    const total = await Certificate.countDocuments(query);
+
+    // Get statistics
+    const [totalCertificates, issuedCount, revokedCount, pendingCount] = await Promise.all([
+      Certificate.countDocuments(),
+      Certificate.countDocuments({ status: 'issued' }),
+      Certificate.countDocuments({ status: 'revoked' }),
+      Certificate.countDocuments({ status: 'pending' })
+    ]);
+
+    res.json({
+      success: true,
+      data: certificates,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      },
+      stats: {
+        total: totalCertificates,
+        issued: issuedCount,
+        revoked: revokedCount,
+        pending: pendingCount
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching certificates:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch certificates',
+      error: error.message
+    });
+  }
+});
+
+// Get single certificate details
+router.get('/certificates/:id', verifySuperAdmin, async (req, res) => {
+  try {
+    const certificate = await Certificate.findById(req.params.id)
+      .populate('instituteId', 'instituteName email phone address')
+      .populate('studentId', 'name email phone')
+      .populate('courseId', 'courseName courseCode description')
+      .populate('templateId', 'templateName layout');
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: certificate
+    });
+  } catch (error) {
+    console.error('Error fetching certificate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch certificate details'
+    });
+  }
+});
+
+// Revoke certificate
+router.put('/certificates/:id/revoke', verifySuperAdmin, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    const certificateId = req.params.id;
+
+    const certificate = await Certificate.findById(certificateId)
+      .populate('instituteId', 'instituteName email');
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
+      });
+    }
+
+    if (certificate.status === 'revoked') {
+      return res.status(400).json({
+        success: false,
+        message: 'Certificate is already revoked'
+      });
+    }
+
+    // Update certificate status
+    certificate.status = 'revoked';
+    certificate.revokedAt = new Date();
+    certificate.revokedBy = req.userId;
+    certificate.revocationReason = reason || 'Revoked by super admin';
+
+    await certificate.save();
+
+    // Create notification for the institute
+    await Notification.create({
+      recipient: certificate.instituteId._id,
+      type: 'certificate_revoked',
+      title: 'Certificate Revoked',
+      message: `Certificate ${certificate.certificateCode} for ${certificate.studentName} has been revoked by super admin. Reason: ${reason || 'No reason provided'}`,
+      data: {
+        certificateId: certificate._id,
+        certificateCode: certificate.certificateCode,
+        instituteId: certificate.instituteId._id,
+        instituteName: certificate.instituteId.instituteName,
+        revokedBy: req.user.email,
+        reason
+      }
+    });
+
+    // Send email notification to institute
+    try {
+      await sendEmailOTP(
+        certificate.instituteId.email,
+        `Certificate ${certificate.certificateCode} for ${certificate.studentName} has been revoked. Reason: ${reason || 'No reason provided'}`
+      );
+    } catch (emailError) {
+      console.error('Failed to send revocation email:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Certificate revoked successfully',
+      data: certificate
+    });
+  } catch (error) {
+    console.error('Error revoking certificate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to revoke certificate'
+    });
+  }
+});
+
+// Bulk revoke certificates
+router.post('/certificates/bulk-revoke', verifySuperAdmin, async (req, res) => {
+  try {
+    const { certificateIds, reason } = req.body;
+
+    if (!certificateIds || !certificateIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'No certificates selected'
+      });
+    }
+
+    const certificates = await Certificate.find({
+      _id: { $in: certificateIds }
+    }).populate('instituteId', 'instituteName email');
+
+    const results = {
+      successful: [],
+      failed: []
+    };
+
+    for (const cert of certificates) {
+      try {
+        if (cert.status === 'revoked') {
+          results.failed.push({
+            id: cert._id,
+            code: cert.certificateCode,
+            error: 'Already revoked'
+          });
+          continue;
+        }
+
+        cert.status = 'revoked';
+        cert.revokedAt = new Date();
+        cert.revokedBy = req.userId;
+        cert.revocationReason = reason || 'Bulk revoked by super admin';
+        
+        await cert.save();
+
+        // Create notification for each institute
+        await Notification.create({
+          recipient: cert.instituteId._id,
+          type: 'certificate_revoked',
+          title: 'Certificate Revoked',
+          message: `Certificate ${cert.certificateCode} for ${cert.studentName} has been revoked by super admin.`,
+          data: {
+            certificateId: cert._id,
+            certificateCode: cert.certificateCode,
+            instituteId: cert.instituteId._id,
+            instituteName: cert.instituteId.instituteName,
+            revokedBy: req.user.email
+          }
+        });
+
+        results.successful.push({
+          id: cert._id,
+          code: cert.certificateCode
+        });
+      } catch (error) {
+        results.failed.push({
+          id: cert._id,
+          code: cert.certificateCode,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${results.successful.length} certificate(s) revoked successfully, ${results.failed.length} failed`,
+      data: results
+    });
+  } catch (error) {
+    console.error('Error bulk revoking certificates:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to revoke certificates'
+    });
+  }
+});
+
+// Get certificate statistics by institute
+router.get('/certificates/stats/by-institute', verifySuperAdmin, async (req, res) => {
+  try {
+    const stats = await Certificate.aggregate([
+      {
+        $group: {
+          _id: '$instituteId',
+          totalCertificates: { $sum: 1 },
+          issued: {
+            $sum: { $cond: [{ $eq: ['$status', 'issued'] }, 1, 0] }
+          },
+          revoked: {
+            $sum: { $cond: [{ $eq: ['$status', 'revoked'] }, 1, 0] }
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'institute'
+        }
+      },
+      {
+        $unwind: '$institute'
+      },
+      {
+        $project: {
+          'institute.password': 0,
+          _id: 1,
+          totalCertificates: 1,
+          issued: 1,
+          revoked: 1,
+          pending: 1,
+          institute: {
+            _id: '$institute._id',
+            instituteName: '$institute.instituteName',
+            email: '$institute.email'
+          }
+        }
+      },
+      {
+        $sort: { totalCertificates: -1 }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('Error fetching certificate stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch certificate statistics'
+    });
+  }
+});
+
+// Export certificates data
+router.get('/certificates/export/all', verifySuperAdmin, async (req, res) => {
+  try {
+    const { format = 'json', instituteId, startDate, endDate } = req.query;
+    
+    const query = {};
+    if (instituteId) query.instituteId = instituteId;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const certificates = await Certificate.find(query)
+      .populate('instituteId', 'instituteName email')
+      .populate('studentId', 'name email')
+      .populate('courseId', 'courseName courseCode')
+      .sort({ createdAt: -1 });
+
+    if (format === 'csv') {
+      // Convert to CSV format
+      const csvData = certificates.map(cert => ({
+        'Certificate Code': cert.certificateCode,
+        'Student Name': cert.studentName,
+        'Student Email': cert.studentId?.email || '',
+        'Course Name': cert.courseName,
+        'Award Date': new Date(cert.awardDate).toLocaleDateString(),
+        'Institute': cert.instituteId?.instituteName || '',
+        'Status': cert.status,
+        'Issued Date': new Date(cert.createdAt).toLocaleDateString(),
+        'Revoked Date': cert.revokedAt ? new Date(cert.revokedAt).toLocaleDateString() : ''
+      }));
+
+      res.json({
+        success: true,
+        data: csvData,
+        format: 'csv'
+      });
+    } else {
+      res.json({
+        success: true,
+        data: certificates
+      });
+    }
+  } catch (error) {
+    console.error('Error exporting certificates:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export certificates'
+    });
+  }
+});
+
+// ============ SYSTEM SETTINGS ============
+
+// Get system settings
 router.get('/settings', verifySuperAdmin, async (req, res) => {
   try {
     let settings = await Settings.findOne();
@@ -723,7 +1191,7 @@ router.get('/settings', verifySuperAdmin, async (req, res) => {
       settings = await Settings.create({});
     }
 
-    // Mask sensitive data for frontend
+    // Mask sensitive data
     const settingsObj = settings.toObject();
     if (settingsObj.email?.smtpPassword) {
       settingsObj.email.smtpPassword = '********';
@@ -743,11 +1211,9 @@ router.get('/settings', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// PUT /api/admin/settings - Update system settings (FIXED VERSION)
+// Update system settings
 router.put('/settings', verifySuperAdmin, async (req, res) => {
   try {
-    console.log('Received settings update request:', JSON.stringify(req.body, null, 2));
-    
     const newSettings = req.body;
     
     let settings = await Settings.findOne();
@@ -756,48 +1222,43 @@ router.put('/settings', verifySuperAdmin, async (req, res) => {
       settings = new Settings();
     }
 
-    // Handle email password specially
-    if (newSettings.email) {
-      // If password is '********', keep the existing password
-      if (newSettings.email.smtpPassword === '********') {
-        newSettings.email.smtpPassword = settings.email?.smtpPassword || '';
-      }
-    }
-
-    // Update settings with new values
-    Object.keys(newSettings).forEach(key => {
-      if (settings[key] && typeof settings[key] === 'object' && typeof newSettings[key] === 'object') {
-        // Deep merge for nested objects
-        Object.assign(settings[key], newSettings[key]);
-      } else if (newSettings[key] !== undefined) {
-        // Direct assignment for top-level fields
-        settings[key] = newSettings[key];
-      }
-    });
-
-    settings.updatedBy = req.userId;
-    settings.updatedAt = new Date();
-    
-    await settings.save();
-    console.log('Settings saved successfully');
-
-    // Try to create notification, but don't fail if it doesn't work
-    try {
-      await Notification.create({
-        recipient: req.userId,
-        type: 'settings_updated',
-        title: 'Settings Updated',
-        message: 'System settings have been updated successfully',
-        data: {
-          updatedBy: req.user.email,
-          timestamp: new Date()
+    // Handle nested objects properly
+    const updateNested = (target, source) => {
+      Object.keys(source).forEach(key => {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+          if (!target[key]) target[key] = {};
+          updateNested(target[key], source[key]);
+        } else {
+          target[key] = source[key];
         }
       });
-      console.log('Notification created successfully');
-    } catch (notifError) {
-      // Log but don't fail the request
-      console.error('Failed to create notification (but settings were saved):', notifError.message);
+    };
+
+    // Apply updates
+    updateNested(settings, newSettings);
+
+    // Handle email password specially (if it's masked, keep existing)
+    if (settings.email && settings.email.smtpPassword === '********') {
+      const existingSettings = await Settings.findOne();
+      if (existingSettings && existingSettings.email) {
+        settings.email.smtpPassword = existingSettings.email.smtpPassword;
+      }
     }
+
+    settings.updatedBy = req.userId;
+    await settings.save();
+
+    // Create notification
+    await Notification.create({
+      recipient: req.userId,
+      type: 'settings_updated',
+      title: 'Settings Updated',
+      message: 'System settings have been updated successfully',
+      data: {
+        updatedBy: req.user.email,
+        timestamp: new Date()
+      }
+    });
 
     // Return settings with masked password
     const settingsObj = settings.toObject();
@@ -815,13 +1276,12 @@ router.put('/settings', verifySuperAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to save settings',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 });
 
-// POST /api/admin/settings/reset - Reset settings to default
+// Reset settings to default
 router.post('/settings/reset', verifySuperAdmin, async (req, res) => {
   try {
     // Delete existing settings
@@ -830,21 +1290,17 @@ router.post('/settings/reset', verifySuperAdmin, async (req, res) => {
     // Create new default settings
     const settings = await Settings.create({});
 
-    // Try to create notification
-    try {
-      await Notification.create({
-        recipient: req.userId,
-        type: 'settings_reset',
-        title: 'Settings Reset',
-        message: 'System settings have been reset to default',
-        data: {
-          resetBy: req.user.email,
-          timestamp: new Date()
-        }
-      });
-    } catch (notifError) {
-      console.error('Failed to create reset notification:', notifError.message);
-    }
+    // Create notification
+    await Notification.create({
+      recipient: req.userId,
+      type: 'settings_reset',
+      title: 'Settings Reset',
+      message: 'System settings have been reset to default',
+      data: {
+        resetBy: req.user.email,
+        timestamp: new Date()
+      }
+    });
 
     // Mask password in response
     const settingsObj = settings.toObject();
@@ -866,12 +1322,10 @@ router.post('/settings/reset', verifySuperAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/settings/test-email - Test email configuration
+// Test email configuration
 router.post('/settings/test-email', verifySuperAdmin, async (req, res) => {
   try {
     const { email, settings: emailSettings } = req.body;
-    
-    console.log('Test email request received for:', email || req.user.email);
     
     // Get current settings if not provided
     let testSettings = emailSettings;
@@ -880,10 +1334,9 @@ router.post('/settings/test-email', verifySuperAdmin, async (req, res) => {
       testSettings = settings?.email || {};
     }
 
-    // Handle password - if it's '********', use env var or existing
+    // Handle password - if it's '********', get from DB
     let smtpPassword = testSettings.smtpPassword;
     if (smtpPassword === '********') {
-      // Try to get from settings in database
       const dbSettings = await Settings.findOne();
       smtpPassword = dbSettings?.email?.smtpPassword || process.env.EMAIL_PASS;
     }
@@ -900,27 +1353,20 @@ router.post('/settings/test-email', verifySuperAdmin, async (req, res) => {
     });
 
     // Send test email
-    const info = await testTransporter.sendMail({
+    await testTransporter.sendMail({
       from: `"${testSettings.fromName || 'Certificate System'}" <${testSettings.fromEmail || process.env.EMAIL_USER}>`,
       to: email || req.user.email,
       subject: 'Test Email - Certificate Verification System',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #4F46E5; border-bottom: 2px solid #4F46E5; padding-bottom: 10px;">Test Email</h2>
+          <h2 style="color: #4F46E5;">Test Email</h2>
           <p>This is a test email from your Certificate Verification System.</p>
           <p>If you're receiving this, your email configuration is working correctly!</p>
-          <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Server:</strong> ${testSettings.smtpServer}</p>
-            <p style="margin: 5px 0;"><strong>Port:</strong> ${testSettings.smtpPort}</p>
-            <p style="margin: 5px 0;"><strong>Username:</strong> ${testSettings.smtpUsername}</p>
-          </div>
           <hr>
           <p style="color: #666; font-size: 12px;">Sent at: ${new Date().toLocaleString()}</p>
         </div>
       `
     });
-
-    console.log('Test email sent successfully:', info.messageId);
 
     res.json({
       success: true,
@@ -932,6 +1378,78 @@ router.post('/settings/test-email', verifySuperAdmin, async (req, res) => {
       success: false,
       message: 'Failed to send test email',
       error: error.message
+    });
+  }
+});
+
+// Generate system report
+router.get('/reports/system', verifySuperAdmin, async (req, res) => {
+  try {
+    const [
+      totalInstitutes,
+      totalCertificates,
+      totalUsers,
+      recentRegistrations,
+      certificatesByMonth
+    ] = await Promise.all([
+      User.countDocuments({ userType: 'institute' }),
+      Certificate.countDocuments(),
+      User.countDocuments(),
+      User.find({ userType: 'institute' })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('instituteName email createdAt status'),
+      Certificate.aggregate([
+        {
+          $group: {
+            _id: {
+              year: { $year: '$createdAt' },
+              month: { $month: '$createdAt' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': -1, '_id.month': -1 } },
+        { $limit: 6 }
+      ])
+    ]);
+
+    const report = {
+      generatedAt: new Date(),
+      generatedBy: req.user.email,
+      summary: {
+        totalInstitutes,
+        totalCertificates,
+        totalUsers,
+        activeInstitutes: await User.countDocuments({ userType: 'institute', isActive: true }),
+        pendingApprovals: await User.countDocuments({ userType: 'institute', status: 'admin_approval_pending' }),
+        certificatesIssuedToday: await Certificate.countDocuments({
+          createdAt: { $gte: new Date().setHours(0, 0, 0, 0) }
+        }),
+        certificatesRevoked: await Certificate.countDocuments({ status: 'revoked' })
+      },
+      recentRegistrations,
+      certificatesByMonth: certificatesByMonth.map(item => ({
+        month: `${item._id.year}-${item._id.month}`,
+        count: item.count
+      })),
+      systemHealth: {
+        database: 'connected',
+        server: 'running',
+        lastBackup: 'Not configured',
+        uptime: process.uptime()
+      }
+    };
+
+    res.json({
+      success: true,
+      data: report
+    });
+  } catch (error) {
+    console.error('Error generating report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate report'
     });
   }
 });

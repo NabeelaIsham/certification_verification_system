@@ -3,23 +3,23 @@ const mongoose = require('mongoose');
 const studentSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Institute',
     required: true
   },
   name: {
     type: String,
-    required: [true, 'Student name is required'],
+    required: true,
     trim: true
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: true,
     lowercase: true,
     trim: true
   },
   phone: {
     type: String,
-    default: ''
+    trim: true
   },
   courseId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -32,28 +32,26 @@ const studentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'graduated'],
+    enum: ['active', 'completed', 'inactive'],
     default: 'active'
   },
-  studentId: {
-    type: String,
-    unique: true
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Generate student ID before saving
-studentSchema.pre('save', async function(next) {
-  if (!this.studentId) {
-    const year = new Date().getFullYear();
-    const count = await mongoose.model('Student').countDocuments();
-    this.studentId = `STU${year}${(count + 1).toString().padStart(5, '0')}`;
-  }
+// Compound index to ensure unique student per course
+studentSchema.index({ instituteId: 1, email: 1, courseId: 1 }, { unique: true });
+
+// Update timestamp on save
+studentSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
   next();
 });
-
-// Ensure unique email per institute
-studentSchema.index({ email: 1, instituteId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Student', studentSchema);

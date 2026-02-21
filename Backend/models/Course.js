@@ -3,45 +3,55 @@ const mongoose = require('mongoose');
 const courseSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Institute',
     required: true
   },
-  name: {
+  courseName: {
     type: String,
-    required: [true, 'Course name is required'],
+    required: true,
     trim: true
   },
-  code: {
+  courseCode: {
     type: String,
-    required: [true, 'Course code is required'],
-    unique: true,
+    required: true,
     uppercase: true,
     trim: true
   },
-  duration: {
-    type: Number,
-    required: [true, 'Duration is required'],
-    min: [1, 'Duration must be at least 1 month']
-  },
-  fee: {
-    type: Number,
-    required: [true, 'Fee is required'],
-    min: [0, 'Fee cannot be negative']
+  certificateTemplateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CertificateTemplate',
+    default: null
   },
   description: {
     type: String,
-    default: ''
+    trim: true
+  },
+  duration: {
+    type: String,
+    trim: true
   },
   status: {
     type: String,
     enum: ['active', 'inactive'],
     default: 'active'
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Ensure unique course code per institute (compound index)
-courseSchema.index({ code: 1, instituteId: 1 }, { unique: true });
+// Compound index to ensure courseCode is unique per institute
+courseSchema.index({ instituteId: 1, courseCode: 1 }, { unique: true });
+
+// Update timestamp on save
+courseSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
 
 module.exports = mongoose.model('Course', courseSchema);

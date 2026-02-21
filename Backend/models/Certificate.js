@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const certificateSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'Institute',
     required: true
   },
   studentId: {
@@ -16,34 +16,77 @@ const certificateSchema = new mongoose.Schema({
     ref: 'Course',
     required: true
   },
-  certificateNumber: {
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CertificateTemplate',
+    required: true
+  },
+  certificateCode: {
     type: String,
+    required: true,
     unique: true
   },
-  issueDate: {
+  studentName: {
+    type: String,
+    required: true
+  },
+  courseName: {
+    type: String,
+    required: true
+  },
+  awardDate: {
+    type: Date,
+    required: true
+  },
+  qrCode: {
+    type: String,
+    required: true
+  },
+  qrCodeData: {
+    type: String,
+    required: true
+  },
+  certificateUrl: String,
+  emailSent: {
+    type: Boolean,
+    default: false
+  },
+  emailSentAt: Date,
+  status: {
+    type: String,
+    enum: ['issued', 'revoked', 'pending'],
+    default: 'issued'
+  },
+  revokedAt: Date,
+  revokedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  revocationReason: String,
+  metadata: {
+    issuedBy: String,
+    issuedAt: Date,
+    verificationUrl: String
+  },
+  createdAt: {
     type: Date,
     default: Date.now
   },
-  grade: {
-    type: String,
-    default: ''
-  },
-  status: {
-    type: String,
-    enum: ['issued', 'revoked'],
-    default: 'issued'
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
-// Generate certificate number
-certificateSchema.pre('save', async function(next) {
-  if (!this.certificateNumber) {
-    const year = new Date().getFullYear();
-    const count = await mongoose.model('Certificate').countDocuments();
-    this.certificateNumber = `CERT${year}${(count + 1).toString().padStart(6, '0')}`;
-  }
+// Indexes for better query performance
+certificateSchema.index({ certificateCode: 1 });
+certificateSchema.index({ instituteId: 1, createdAt: -1 });
+certificateSchema.index({ studentId: 1 });
+certificateSchema.index({ status: 1 });
+
+// Update timestamp on save
+certificateSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
   next();
 });
 
