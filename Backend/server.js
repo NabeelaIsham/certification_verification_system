@@ -29,6 +29,16 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/certverif
   process.exit(1);
 });
 
+// Import models in correct order (User first, then others)
+require('./models/User');
+require('./models/Notification');
+require('./models/Course');
+require('./models/Student');
+require('./models/CertificateTemplate');
+require('./models/Certificate');
+require('./models/Settings');
+require('./models/OTP');
+
 // Import routes (using require instead of import)
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');

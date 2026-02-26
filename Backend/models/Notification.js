@@ -3,25 +3,25 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
   recipient: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'User', // Changed from 'Institute' to 'User'
     required: true
   },
   type: {
     type: String,
     enum: [
-      'new_institute',           // When new institute registers
-      'verification_request',     // When institute requests verification
-      'account_approved',        // When institute is approved
-      'account_rejected',        // When institute is rejected
-      'account_suspended',       // When institute is suspended
-      'account_activated',       // When institute is activated
-      'password_reset',          // When password is reset
-      'settings_updated',        // When settings are updated
-      'settings_reset',          // When settings are reset
-      'institute_rejected',      // When institute is rejected
-      'certificate_issued',      // When certificate is issued
-      'certificate_revoked',     // When certificate is revoked
-      'system_alert'             // System alerts
+      'new_institute',
+      'verification_request',
+      'account_approved',
+      'account_rejected',
+      'account_suspended',
+      'account_activated',
+      'password_reset',
+      'settings_updated',
+      'settings_reset',
+      'institute_rejected',
+      'certificate_issued',
+      'certificate_revoked',
+      'system_alert'
     ],
     required: true
   },
@@ -34,7 +34,7 @@ const notificationSchema = new mongoose.Schema({
     required: true
   },
   data: {
-    type: mongoose.Schema.Types.Mixed,  // Changed to Mixed type for flexibility
+    type: mongoose.Schema.Types.Mixed,
     default: {}
   },
   isRead: {
@@ -42,7 +42,7 @@ const notificationSchema = new mongoose.Schema({
     default: false
   }
 }, {
-  timestamps: true  // This will automatically add createdAt and updatedAt
+  timestamps: true
 });
 
 // Index for quick retrieval

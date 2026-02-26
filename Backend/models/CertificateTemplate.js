@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const certificateTemplateSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Institute',
+     ref: 'User',
     required: true
   },
   templateName: {
