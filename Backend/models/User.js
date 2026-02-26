@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     default: 'institute'
   },
   
-  // Institute Information
+  // Institute Information (only for institutes)
   instituteName: {
     type: String,
     required: function() {
@@ -59,6 +59,18 @@ const userSchema = new mongoose.Schema({
     },
     min: 0
   },
+  logo: {
+    type: String,
+    default: ''
+  },
+  
+  // Super Admin Information (only for superadmins)
+  adminName: {
+    type: String,
+    required: function() {
+      return this.userType === 'superadmin';
+    }
+  },
   
   // Verification Status
   isEmailVerified: {
@@ -81,7 +93,7 @@ const userSchema = new mongoose.Schema({
   // Status Tracking
   status: {
     type: String,
-    enum: ['pending', 'email_verified', 'phone_verified', 'admin_approval_pending', 'approved', 'rejected'],
+    enum: ['pending', 'email_verified', 'phone_verified', 'admin_approval_pending', 'approved', 'rejected', 'suspended'],
     default: 'pending'
   },
   
@@ -89,6 +101,10 @@ const userSchema = new mongoose.Schema({
   adminNotes: String,
   verifiedAt: Date,
   adminVerifiedAt: Date,
+  verifiedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   
   // Timestamps
   createdAt: {

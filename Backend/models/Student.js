@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const studentSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Institute',
+    ref: 'User',
     required: true
   },
   name: {
@@ -45,8 +45,15 @@ const studentSchema = new mongoose.Schema({
   }
 });
 
-// Compound index to ensure unique student per course
-studentSchema.index({ instituteId: 1, email: 1, courseId: 1 }, { unique: true });
+// CORRECT INDEX: Unique constraint for student per institute and course
+studentSchema.index({ instituteId: 1, email: 1, courseId: 1 }, { 
+  unique: true,
+  name: 'instituteId_1_email_1_courseId_1'
+});
+
+// Additional index for faster queries
+studentSchema.index({ instituteId: 1, courseId: 1 });
+studentSchema.index({ instituteId: 1, status: 1 });
 
 // Update timestamp on save
 studentSchema.pre('save', function(next) {
@@ -54,4 +61,27 @@ studentSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Student', studentSchema);
+// Clean up legacy indexes on startup
+studentSchema.statics.cleanIndexes = async function() {
+  try {
+    const collection = this.collection;
+    const indexes = await collection.indexes();
+    
+    for (const index of indexes) {
+      // Drop any index that starts with 'studentId_' (legacy)
+      if (index.name.startsWith('studentId_')) {
+        console.log(`Dropping legacy student index: ${index.name}`);
+        await collection.dropIndex(index.name);
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning student indexes:', error);
+  }
+};
+
+const Student = mongoose.model('Student', studentSchema);
+
+// Call this when the app starts
+Student.cleanIndexes().catch(console.error);
+
+module.exports = Student;

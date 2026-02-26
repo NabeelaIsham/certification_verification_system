@@ -1,4 +1,8 @@
 const express = require('express');
+const router = express.Router();
+const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware.js');
+
+// Import all course controllers
 const {
   createCourse,
   getCourses,
@@ -7,10 +11,7 @@ const {
   deleteCourse,
   toggleCourseStatus,
   getCoursesByTemplate
-} = require('../controllers/courseController.js');
-const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware.js');
-
-const router = express.Router();
+} = require('../controllers/courseController');
 
 // All course routes are protected
 router.use(authenticateToken, authorizeInstitute);

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import CourseManagement from '../components/institute/CourseManagement';
 import StudentManagement from '../components/institute/StudentManagement';
-import CertificateManagement from '../components/institute/CertificateTemplates';
+import CertificateManagement from '../components/institute/CertificateManagement'; // Changed this line
 import BulkUpload from '../components/institute/BulkUpload';
 import InstituteSettings from '../components/institute/InstituteSettings';
 

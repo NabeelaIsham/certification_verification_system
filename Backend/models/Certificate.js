@@ -23,8 +23,8 @@ const certificateSchema = new mongoose.Schema({
   },
   certificateCode: {
     type: String,
-    required: true,
-    unique: true
+    unique: true,
+    sparse: true
   },
   studentName: {
     type: String,
@@ -38,15 +38,9 @@ const certificateSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  qrCode: {
-    type: String,
-    required: true
-  },
-  qrCodeData: {
-    type: String,
-    required: true
-  },
-  certificateUrl: String,
+  generatedCertificateImage: String,
+  qrCodeImage: String,
+  verificationUrl: String,
   emailSent: {
     type: Boolean,
     default: false
@@ -54,19 +48,11 @@ const certificateSchema = new mongoose.Schema({
   emailSentAt: Date,
   status: {
     type: String,
-    enum: ['issued', 'revoked', 'pending'],
-    default: 'issued'
+    enum: ['draft', 'issued', 'revoked'],
+    default: 'draft'
   },
-  revokedAt: Date,
-  revokedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  revocationReason: String,
-  metadata: {
-    issuedBy: String,
-    issuedAt: Date,
-    verificationUrl: String
+  previewData: {
+    type: mongoose.Schema.Types.Mixed
   },
   createdAt: {
     type: Date,
@@ -78,14 +64,33 @@ const certificateSchema = new mongoose.Schema({
   }
 });
 
-// Indexes for better query performance
-certificateSchema.index({ certificateCode: 1 });
-certificateSchema.index({ instituteId: 1, createdAt: -1 });
-certificateSchema.index({ studentId: 1 });
-certificateSchema.index({ status: 1 });
-
-// Update timestamp on save
-certificateSchema.pre('save', function(next) {
+// Generate unique certificate code before saving
+certificateSchema.pre('save', async function(next) {
+  if (!this.certificateCode) {
+    try {
+      const institute = await mongoose.model('User').findById(this.instituteId);
+      const instituteCode = institute?.instituteName?.substring(0, 3).toUpperCase() || 'INS';
+      const date = new Date();
+      const year = date.getFullYear().toString().slice(-2);
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      
+      let code = `${instituteCode}-${year}${month}${day}-${random}`;
+      let exists = await mongoose.model('Certificate').findOne({ certificateCode: code });
+      
+      while (exists) {
+        const newRandom = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        code = `${instituteCode}-${year}${month}${day}-${newRandom}`;
+        exists = await mongoose.model('Certificate').findOne({ certificateCode: code });
+      }
+      
+      this.certificateCode = code;
+    } catch (error) {
+      console.error('Error generating certificate code:', error);
+      this.certificateCode = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+    }
+  }
   this.updatedAt = new Date();
   next();
 });

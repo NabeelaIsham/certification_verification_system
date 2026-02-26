@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const courseSchema = new mongoose.Schema({
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Institute',
+    ref: 'User',
     required: true
   },
   courseName: {
@@ -45,8 +45,12 @@ const courseSchema = new mongoose.Schema({
   }
 });
 
-// Compound index to ensure courseCode is unique per institute
-courseSchema.index({ instituteId: 1, courseCode: 1 }, { unique: true });
+// IMPORTANT: This is the ONLY index we want
+// It ensures courseCode is unique per institute
+courseSchema.index({ instituteId: 1, courseCode: 1 }, { 
+  unique: true,
+  name: 'instituteId_1_courseCode_1' // Give it a clear name
+});
 
 // Update timestamp on save
 courseSchema.pre('save', function(next) {
@@ -54,4 +58,27 @@ courseSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Course', courseSchema);
+// Drop any legacy indexes when the model is initialized
+courseSchema.statics.ensureIndexes = async function() {
+  try {
+    const collection = this.collection;
+    const indexes = await collection.indexes();
+    
+    // Drop any index that starts with 'code_' (legacy)
+    for (const index of indexes) {
+      if (index.name.startsWith('code_')) {
+        console.log(`Dropping legacy index: ${index.name}`);
+        await collection.dropIndex(index.name);
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning indexes:', error);
+  }
+};
+
+const Course = mongoose.model('Course', courseSchema);
+
+// Call this when the app starts
+Course.ensureIndexes().catch(console.error);
+
+module.exports = Course;

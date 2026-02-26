@@ -1,4 +1,8 @@
 const express = require('express');
+const router = express.Router();
+const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware.js');
+
+// Import all student controllers
 const {
   createStudent,
   getStudents,
@@ -9,10 +13,7 @@ const {
   getStudentsByCourse,
   updateStudentStatus,
   exportStudents
-} = require('../controllers/studentController.js');
-const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware.js');
-
-const router = express.Router();
+} = require('../controllers/studentController');
 
 // All student routes are protected
 router.use(authenticateToken, authorizeInstitute);

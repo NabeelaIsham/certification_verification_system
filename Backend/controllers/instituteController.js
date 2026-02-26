@@ -1,119 +1,32 @@
-const Institute = require('../models/Institute');
+const User = require('../models/User');
 const Course = require('../models/Course');
 const Student = require('../models/Student');
 const Certificate = require('../models/Certificate');
 const CertificateTemplate = require('../models/CertificateTemplate');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
-// Register a new institute
-const register = async (req, res) => {
+// Get institute profile
+const getProfile = async (req, res) => {
   try {
-    const { instituteName, email, password, phone, address } = req.body;
-
-    // Check if institute already exists
-    const existingInstitute = await Institute.findOne({ email });
-    if (existingInstitute) {
-      return res.status(400).json({ success: false, message: 'Institute already exists' });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new institute
-    const institute = new Institute({
-      instituteName,
-      email,
-      password: hashedPassword,
-      phone,
-      address
-    });
-
-    await institute.save();
-
-    // Generate token
-    const token = jwt.sign(
-      { id: institute._id, email: institute.email, userType: 'institute' },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Institute registered successfully',
-      data: {
-        token,
-        user: {
-          id: institute._id,
-          instituteName: institute.instituteName,
-          email: institute.email,
-          userType: 'institute'
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Registration failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-// Login institute
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Find institute
-    const institute = await Institute.findOne({ email });
+    const instituteId = req.userId;
+    
+    const institute = await User.findById(instituteId).select('-password');
+    
     if (!institute) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Check password
-    const isValidPassword = await bcrypt.compare(password, institute.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    }
-
-    // Check if institute is active
-    if (!institute.isActive) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Account is deactivated. Please contact administrator.' 
+      return res.status(404).json({
+        success: false,
+        message: 'Institute not found'
       });
     }
 
-    // Generate token
-    const token = jwt.sign(
-      { id: institute._id, email: institute.email, userType: 'institute' },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
-
     res.json({
       success: true,
-      message: 'Login successful',
-      data: {
-        token,
-        user: {
-          id: institute._id,
-          instituteName: institute.instituteName,
-          email: institute.email,
-          userType: 'institute',
-          phone: institute.phone,
-          address: institute.address
-        }
-      }
+      data: institute
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Login failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    console.error('Profile fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch profile'
     });
   }
 };
@@ -121,20 +34,22 @@ const login = async (req, res) => {
 // Get institute statistics
 const getStats = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.userId;
 
     const [
       totalStudents, 
       totalCourses, 
       certificatesIssued,
       activeCourses,
-      completedStudents
+      completedStudents,
+      totalTemplates
     ] = await Promise.all([
       Student.countDocuments({ instituteId }),
       Course.countDocuments({ instituteId }),
       Certificate.countDocuments({ instituteId }),
       Course.countDocuments({ instituteId, status: 'active' }),
-      Student.countDocuments({ instituteId, status: 'completed' })
+      Student.countDocuments({ instituteId, status: 'completed' }),
+      CertificateTemplate.countDocuments({ instituteId })
     ]);
 
     res.json({
@@ -145,7 +60,8 @@ const getStats = async (req, res) => {
         certificatesIssued,
         activeCourses,
         completedStudents,
-        pendingVerifications: 0 // You can implement this based on your requirements
+        totalTemplates,
+        pendingVerifications: 0
       }
     });
   } catch (error) {
@@ -161,15 +77,20 @@ const getStats = async (req, res) => {
 // Update institute settings
 const updateSettings = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.userId;
     const updates = req.body;
 
     // Remove sensitive fields from updates
     delete updates.password;
     delete updates._id;
     delete updates.userType;
+    delete updates.email;
+    delete updates.isEmailVerified;
+    delete updates.isPhoneVerified;
+    delete updates.isVerifiedByAdmin;
+    delete updates.status;
 
-    const institute = await Institute.findByIdAndUpdate(
+    const institute = await User.findByIdAndUpdate(
       instituteId,
       { $set: updates },
       { new: true, runValidators: true }
@@ -197,40 +118,27 @@ const updateSettings = async (req, res) => {
   }
 };
 
-// Get institute profile
-const getProfile = async (req, res) => {
-  try {
-    const instituteId = req.user.id;
-    
-    const institute = await Institute.findById(instituteId).select('-password');
-    
-    if (!institute) {
-      return res.status(404).json({
-        success: false,
-        message: 'Institute not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: institute
-    });
-  } catch (error) {
-    console.error('Profile fetch error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch profile'
-    });
-  }
-};
-
 // Change password
 const changePassword = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.userId;
     const { currentPassword, newPassword } = req.body;
 
-    const institute = await Institute.findById(instituteId);
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    const institute = await User.findById(instituteId);
     
     if (!institute) {
       return res.status(404).json({
@@ -240,7 +148,7 @@ const changePassword = async (req, res) => {
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, institute.password);
+    const isValidPassword = await institute.comparePassword(currentPassword);
     if (!isValidPassword) {
       return res.status(401).json({
         success: false,
@@ -248,9 +156,8 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    institute.password = hashedPassword;
+    // Set new password (will be hashed by pre-save hook)
+    institute.password = newPassword;
     await institute.save();
 
     res.json({
@@ -268,10 +175,8 @@ const changePassword = async (req, res) => {
 
 // Export all functions
 module.exports = {
-  register,
-  login,
+  getProfile,
   getStats,
   updateSettings,
-  getProfile,
   changePassword
 };

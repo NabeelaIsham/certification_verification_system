@@ -23,7 +23,8 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    if (!user.isActive) {
+    // Check if account is active (for institutes)
+    if (user.userType === 'institute' && !user.isActive) {
       return res.status(403).json({ 
         success: false, 
         message: 'Account is deactivated' 
@@ -32,17 +33,40 @@ const authenticateToken = async (req, res, next) => {
 
     req.user = user;
     req.userId = user._id;
+    req.userType = user.userType;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    return res.status(403).json({ 
+    
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Invalid token' 
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Token expired' 
+      });
+    }
+    
+    return res.status(500).json({ 
       success: false, 
-      message: 'Invalid or expired token' 
+      message: 'Authentication failed' 
     });
   }
 };
 
 const authorizeInstitute = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'User not authenticated' 
+    });
+  }
+  
   if (req.user.userType !== 'institute') {
     return res.status(403).json({ 
       success: false, 
@@ -53,6 +77,13 @@ const authorizeInstitute = (req, res, next) => {
 };
 
 const authorizeSuperAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'User not authenticated' 
+    });
+  }
+  
   if (req.user.userType !== 'superadmin') {
     return res.status(403).json({ 
       success: false, 

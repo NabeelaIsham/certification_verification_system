@@ -6,46 +6,62 @@ const certificateTemplateSchema = new mongoose.Schema({
     ref: 'Institute',
     required: true
   },
-  templateId: {
-    type: String,
-    required: true
-  },
   templateName: {
     type: String,
     required: true
   },
-  courseName: String,
-  layout: {
-    type: String,
-    enum: ['standard', 'premium', 'simple'],
-    default: 'standard'
+  courseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+    required: true
   },
-  design: {
-    backgroundColor: {
+  templateImage: {
+    type: String,
+    required: true
+  },
+  fields: [{
+    fieldName: {
       type: String,
-      default: '#ffffff'
+      enum: ['studentName', 'awardDate', 'certificateCode', 'courseName'],
+      required: true
+    },
+    x: {
+      type: Number,
+      required: true
+    },
+    y: {
+      type: Number,
+      required: true
+    },
+    fontSize: {
+      type: Number,
+      default: 24
+    },
+    fontColor: {
+      type: String,
+      default: '#000000'
     },
     fontFamily: {
       type: String,
-      default: 'Arial, sans-serif'
+      default: 'Arial'
     },
-    borderStyle: {
+    textAlign: {
       type: String,
-      default: '2px solid #2563eb'
-    },
-    logo: String,
-    signature: String
-  },
-  fields: [{
-    fieldName: String,
-    xPosition: Number,
-    yPosition: Number,
-    fontSize: Number,
-    fontFamily: String
+      enum: ['left', 'center', 'right'],
+      default: 'center'
+    }
   }],
-  isDefault: {
+  qrCodePosition: {
+    x: Number,
+    y: Number,
+    size: {
+      type: Number,
+      default: 100
+    }
+  },
+  isActive: {
     type: Boolean,
-    default: false
+    default: true
   },
   createdAt: {
     type: Date,
@@ -56,9 +72,6 @@ const certificateTemplateSchema = new mongoose.Schema({
     default: Date.now
   }
 });
-
-// Compound index to ensure templateId is unique per institute
-certificateTemplateSchema.index({ instituteId: 1, templateId: 1 }, { unique: true });
 
 // Update timestamp on save
 certificateTemplateSchema.pre('save', function(next) {

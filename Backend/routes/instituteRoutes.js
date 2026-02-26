@@ -1,23 +1,21 @@
 const express = require('express');
-const { 
-  register, 
-  login, 
-  getStats, 
-  updateSettings,
-  getProfile,
-  changePassword
-} = require('../controllers/instituteController.js');
+const router = express.Router();
 const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware.js');
 
-const router = express.Router();
+// Import all institute controllers
+const { 
+  getProfile,
+  getStats, 
+  updateSettings,
+  changePassword
+} = require('../controllers/instituteController');
 
-// Public routes
-router.post('/register', register);
-router.post('/login', login);
+// Public routes (if any) - none for institute dashboard
 
-// Protected routes (require authentication)
+// Protected routes - all require authentication
 router.use(authenticateToken, authorizeInstitute);
 
+// Profile routes
 router.get('/profile', getProfile);
 router.get('/stats', getStats);
 router.put('/settings', updateSettings);
