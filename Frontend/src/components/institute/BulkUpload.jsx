@@ -3,10 +3,6 @@ import axios from 'axios';
 
 const BulkUpload = ({ API_URL }) => {
   const [activeTab, setActiveTab] = useState('students');
-  const [students, setStudents] = useState([]);
-  const [certificates, setCertificates] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [formData, setFormData] = useState({
@@ -18,68 +14,64 @@ const BulkUpload = ({ API_URL }) => {
   });
 
   useEffect(() => {
-    fetchCourses();
     fetchTemplates();
   }, []);
-
-  const fetchCourses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data.success) {
-        setCourses(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-    }
-  };
 
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/certificate-templates`, {
+      await axios.get(`${API_URL}/certificate-templates`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (response.data.success) {
-        setTemplates(response.data.data);
-      }
     } catch (error) {
       console.error('Error fetching templates:', error);
     }
   };
 
   const handleStudentsUpload = async () => {
-    try {
-      const students = formData.studentData.split('\n').map(line => {
-        const [name, email, phone, courseCode, enrollmentDate] = line.split(',');
-        return { name, email, phone, courseCode, enrollmentDate };
-      }).filter(s => s.name && s.email && s.courseCode);
-
-      if (students.length === 0) {
-        alert('Please enter valid student data');
-        return;
-      }
-
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/students/bulk-upload`, { students }, {
-        headers: { Authorization: `Bearer ${token}` }
+  try {
+    // Parse the textarea content
+    const lines = formData.studentData.trim().split('\n');
+    const students = [];
+    
+    lines.forEach((line) => {
+      // Skip empty lines
+      if (!line.trim()) return;
+      
+      // Split by comma and trim each value
+      const [name, email, phone, courseCode, enrollmentDate] = line.split(',').map(s => s.trim());
+      
+      students.push({
+        name,
+        email,
+        phone: phone || '',
+        courseCode,
+        enrollmentDate: enrollmentDate || new Date().toISOString().split('T')[0]
       });
+    });
 
-      if (response.data.success) {
-        setResults(response.data.data);
-        alert(response.data.message);
-      }
-    } catch (error) {
-      console.error('Error in bulk upload:', error);
-      alert(error.response?.data?.message || 'Error in bulk upload');
-    } finally {
-      setLoading(false);
+    console.log('Parsed students:', students);
+
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/students/bulk-upload`, 
+      { students }, 
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    console.log('Upload response:', response.data);
+    
+    if (response.data.success) {
+      setResults(response.data.data);
+      alert(response.data.message);
     }
-  };
-
+  } catch (error) {
+    console.error('Error in bulk upload:', error);
+    alert(error.response?.data?.message || 'Error in bulk upload');
+  } finally {
+    setLoading(false);
+  }
+};
   const handleCertificatesUpload = async () => {
     try {
       const certificates = formData.certificateData.split('\n').map(line => {

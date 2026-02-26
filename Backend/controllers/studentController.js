@@ -302,12 +302,17 @@ const bulkUploadStudents = async (req, res) => {
     const instituteId = req.user.id;
     const { students } = req.body;
 
+    console.log('Bulk upload received:', JSON.stringify(students, null, 2));
+
     if (!students || !Array.isArray(students) || students.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Please provide an array of students'
       });
     }
+
+    // Log the first student to check format
+    console.log('First student data:', students[0]);
 
     const results = {
       successful: [],
@@ -316,43 +321,66 @@ const bulkUploadStudents = async (req, res) => {
 
     // Get all courses for this institute for quick lookup
     const courses = await Course.find({ instituteId });
+    console.log(`Found ${courses.length} courses for institute`);
+    
     const courseMap = {};
     courses.forEach(course => {
-      courseMap[course.courseCode] = course;
+      courseMap[course.courseCode.toUpperCase()] = course;
     });
+    console.log('Available course codes:', Object.keys(courseMap));
 
-    for (const studentData of students) {
+    for (let i = 0; i < students.length; i++) {
+      const studentData = students[i];
+      console.log(`Processing student ${i + 1}:`, studentData);
+
       try {
+        // Check if this is actually a header row
+        if (studentData.name && studentData.name.toLowerCase().includes('name')) {
+          console.log('Skipping possible header row:', studentData.name);
+          continue;
+        }
+
         // Validate required fields
         if (!studentData.name || !studentData.email || !studentData.courseCode) {
           results.failed.push({
             ...studentData,
-            error: 'Missing required fields (name, email, courseCode)'
+            error: `Missing required fields. Got: name="${studentData.name}", email="${studentData.email}", courseCode="${studentData.courseCode}"`
           });
           continue;
         }
 
+        // Clean up the data
+        const name = studentData.name.trim();
+        const email = studentData.email.trim().toLowerCase();
+        const courseCode = studentData.courseCode.trim().toUpperCase();
+        const phone = studentData.phone ? studentData.phone.trim() : '';
+        const enrollmentDate = studentData.enrollmentDate ? new Date(studentData.enrollmentDate) : new Date();
+
+        console.log(`Looking for course with code: "${courseCode}"`);
+
         // Find course by course code
-        const course = courseMap[studentData.courseCode];
+        const course = courseMap[courseCode];
         if (!course) {
           results.failed.push({
             ...studentData,
-            error: `Course with code ${studentData.courseCode} not found`
+            error: `Course with code "${courseCode}" not found. Available codes: ${Object.keys(courseMap).join(', ')}`
           });
           continue;
         }
+
+        console.log(`Found course: ${course.courseName} (${course._id})`);
 
         // Check if student already exists
         const existingStudent = await Student.findOne({
           instituteId,
-          email: studentData.email.toLowerCase(),
+          email: email,
           courseId: course._id
         });
 
         if (existingStudent) {
           results.failed.push({
             ...studentData,
-            error: 'Student already enrolled in this course'
+            error: `Student with email ${email} already enrolled in this course`
           });
           continue;
         }
@@ -360,22 +388,23 @@ const bulkUploadStudents = async (req, res) => {
         // Create student
         const student = new Student({
           instituteId,
-          name: studentData.name,
-          email: studentData.email.toLowerCase(),
-          phone: studentData.phone || '',
+          name,
+          email,
+          phone,
           courseId: course._id,
-          enrollmentDate: studentData.enrollmentDate || new Date(),
-          status: studentData.status || 'active'
+          enrollmentDate
         });
 
         await student.save();
+        console.log(`✅ Student created: ${name} (${email})`);
         
         results.successful.push({
           name: student.name,
           email: student.email,
-          courseCode: studentData.courseCode
+          courseCode: course.courseCode
         });
       } catch (error) {
+        console.error(`Error processing student ${i + 1}:`, error);
         results.failed.push({
           ...studentData,
           error: error.message
@@ -383,6 +412,8 @@ const bulkUploadStudents = async (req, res) => {
       }
     }
 
+    console.log(`Bulk upload complete: ${results.successful.length} successful, ${results.failed.length} failed`);
+    
     res.json({
       success: true,
       message: `Bulk upload completed: ${results.successful.length} successful, ${results.failed.length} failed`,
@@ -393,7 +424,7 @@ const bulkUploadStudents = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to process bulk upload',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      error: error.message
     });
   }
 };
