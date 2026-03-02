@@ -285,29 +285,43 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
-// Login
+// Login - UPDATED to handle all user types including teacher
 router.post('/login', async (req, res) => {
   try {
-    console.log('Login request received:', { email: req.body.email });
+    console.log('Login request received:', { email: req.body.email, userType: req.body.userType });
     
-    const { email, password, userType = 'institute' } = req.body;
+    const { email, password, userType } = req.body;
 
-    const user = await User.findOne({ email: email.toLowerCase(), userType });
+    // Find user based on userType
+    let user = null;
+    const query = { email: email.toLowerCase() };
+    
+    if (userType) {
+      query.userType = userType;
+    }
+    
+    user = await User.findOne(query);
+
     if (!user) {
+      console.log('User not found with query:', query);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
+
+    console.log('User found:', { id: user._id, email: user.email, userType: user.userType });
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      console.log('Password mismatch for user:', user.email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
+    // Check account status based on user type
     if (user.userType === 'institute') {
       if (!user.isEmailVerified) {
         return res.status(403).json({
@@ -332,15 +346,17 @@ router.post('/login', async (req, res) => {
           pendingAdminApproval: true
         });
       }
-
-      if (!user.isActive) {
-        return res.status(403).json({
-          success: false,
-          message: 'Your account is not active. Please contact administrator.'
-        });
-      }
     }
 
+    // Check if account is active for all user types
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is not active. Please contact administrator.'
+      });
+    }
+
+    // Generate JWT token
     const token = jwt.sign(
       { 
         userId: user._id, 
@@ -351,28 +367,48 @@ router.post('/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Prepare user data based on user type
+    const userData = {
+      id: user._id,
+      email: user.email,
+      userType: user.userType,
+      isActive: user.isActive
+    };
+
+    // Add type-specific fields
+    if (user.userType === 'institute') {
+      userData.instituteName = user.instituteName;
+      userData.adminName = user.adminName;
+      userData.isEmailVerified = user.isEmailVerified;
+      userData.isPhoneVerified = user.isPhoneVerified;
+      userData.isVerifiedByAdmin = user.isVerifiedByAdmin;
+      userData.status = user.status;
+    } else if (user.userType === 'teacher') {
+      userData.firstName = user.firstName;
+      userData.lastName = user.lastName;
+      userData.employeeId = user.employeeId;
+      userData.department = user.department;
+      userData.designation = user.designation;
+      userData.permissions = user.permissions;
+      userData.instituteId = user.instituteId;
+    } else if (user.userType === 'superadmin') {
+      userData.adminName = user.adminName || user.superAdminName;
+    }
+
+    console.log('Login successful for:', user.email, 'as', user.userType);
+
     res.json({
       success: true,
       token,
-      user: {
-        id: user._id,
-        email: user.email,
-        userType: user.userType,
-        instituteName: user.instituteName,
-        adminName: user.adminName,
-        isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: user.isPhoneVerified,
-        isVerifiedByAdmin: user.isVerifiedByAdmin,
-        isActive: user.isActive,
-        status: user.status
-      }
+      user: userData
     });
 
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({
       success: false,
-      message: 'Login failed'
+      message: 'Login failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

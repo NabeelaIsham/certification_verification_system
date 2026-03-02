@@ -23,8 +23,8 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    // Check if account is active (for institutes)
-    if (user.userType === 'institute' && !user.isActive) {
+    // Check if account is active (for institutes and teachers)
+    if ((user.userType === 'institute' || user.userType === 'teacher') && !user.isActive) {
       return res.status(403).json({ 
         success: false, 
         message: 'Account is deactivated' 
@@ -93,8 +93,47 @@ const authorizeSuperAdmin = (req, res, next) => {
   next();
 };
 
+// NEW: Authorize Teacher middleware
+const authorizeTeacher = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'User not authenticated' 
+    });
+  }
+  
+  if (req.user.userType !== 'teacher') {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Access denied. Teacher only.' 
+    });
+  }
+  next();
+};
+
+// NEW: Authorize Teacher OR Institute (for shared resources)
+const authorizeTeacherOrInstitute = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'User not authenticated' 
+    });
+  }
+  
+  if (req.user.userType !== 'teacher' && req.user.userType !== 'institute') {
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Access denied. Teacher or Institute only.' 
+    });
+  }
+  next();
+};
+
+// Export all middleware functions
 module.exports = {
   authenticateToken,
   authorizeInstitute,
-  authorizeSuperAdmin
+  authorizeSuperAdmin,
+  authorizeTeacher,           // Add this
+  authorizeTeacherOrInstitute // Add this
 };

@@ -39,6 +39,7 @@ require('./models/Certificate');
 require('./models/Settings');
 require('./models/OTP');
 
+
 // Import routes (using require instead of import)
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -47,11 +48,14 @@ const courseRoutes = require('./routes/courseRoutes');
 const certificateTemplateRoutes = require('./routes/certificateTemplateRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
+const teacherRoutes = require('./routes/teacherRoutes');
+
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/institute', instituteRoutes);
+app.use('/api/teachers', teacherRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/certificate-templates', certificateTemplateRoutes);
 app.use('/api/students', studentRoutes);

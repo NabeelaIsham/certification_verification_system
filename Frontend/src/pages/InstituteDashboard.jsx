@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import CourseManagement from '../components/institute/CourseManagement';
 import StudentManagement from '../components/institute/StudentManagement';
+import TeacherManagement from '../components/institute/TeacherManagement';
 import CertificateManagement from '../components/institute/CertificateManagement'; // Changed this line
 import BulkUpload from '../components/institute/BulkUpload';
 import InstituteSettings from '../components/institute/InstituteSettings';
@@ -25,6 +26,7 @@ const InstituteDashboard = () => {
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'courses', name: 'Courses', icon: '📚' },
     { id: 'students', name: 'Students', icon: '👨‍🎓' },
+    { id: 'teachers', name: 'Teachers', icon: '👨‍🏫' },
     { id: 'certificates', name: 'Certificates', icon: '📜' },
     { id: 'bulk-upload', name: 'Bulk Upload', icon: '📁' },
     { id: 'settings', name: 'Settings', icon: '⚙️' }
@@ -212,6 +214,7 @@ const InstituteDashboard = () => {
 
         {activeTab === 'courses' && <CourseManagement API_URL={API_URL} />}
         {activeTab === 'students' && <StudentManagement API_URL={API_URL} />}
+        {activeTab === 'teachers' && <TeacherManagement API_URL={API_URL} />}
         {activeTab === 'certificates' && <CertificateManagement API_URL={API_URL} />}
         {activeTab === 'bulk-upload' && <BulkUpload API_URL={API_URL} />}
         {activeTab === 'settings' && <InstituteSettings API_URL={API_URL} user={user} />}

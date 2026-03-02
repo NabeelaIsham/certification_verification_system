@@ -17,8 +17,9 @@ const Login = () => {
   const navigate = useNavigate();
 
   const userTypes = [
-    { value: 'institute', label: 'Institute Admin', description: 'Manage certificates and students' },
-    { value: 'superadmin', label: 'Super Admin', description: 'System administration' },
+    { value: 'institute', label: 'Institute Admin', description: 'Manage certificates and students', icon: '🏢' },
+    { value: 'superadmin', label: 'Super Admin', description: 'System administration', icon: '👑' },
+    { value: 'teacher', label: 'Teacher', description: 'Manage students and issue certificates', icon: '👨‍🏫' },
   ];
 
   const handleChange = (e) => {
@@ -62,14 +63,23 @@ const Login = () => {
     }
 
     setIsLoading(true);
+    setErrors({});
 
     try {
-      const response = await axios.post(`${API_URL}/auth/login`, formData);
+      console.log('Login attempt with:', { email: formData.email, userType: formData.userType });
+      
+      const response = await axios.post(`${API_URL}/auth/login`, {
+        email: formData.email,
+        password: formData.password,
+        userType: formData.userType
+      });
       
       if (response.data.success) {
         // Store token and user data
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        console.log('Login successful, user type:', response.data.user.userType);
         
         // Redirect based on user type
         switch (response.data.user.userType) {
@@ -79,6 +89,9 @@ const Login = () => {
           case 'institute':
             navigate('/institute/dashboard');
             break;
+          case 'teacher':
+            navigate('/teacher/dashboard');
+            break;
           default:
             navigate('/dashboard');
         }
@@ -86,15 +99,20 @@ const Login = () => {
         setErrors({ submit: response.data.message || 'Login failed' });
       }
     } catch (error) {
-      setIsLoading(false);
+      console.error('Login error:', error);
       const errorMessage = error.response?.data?.message || 
                           error.message || 
                           'Login failed. Please check your credentials.';
       setErrors({ submit: errorMessage });
-      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Get icon for selected user type
+  const getSelectedTypeIcon = () => {
+    const selected = userTypes.find(t => t.value === formData.userType);
+    return selected?.icon || '🔐';
   };
 
   return (
@@ -103,22 +121,20 @@ const Login = () => {
         {/* Logo and Header */}
         <div className="flex justify-center">
           <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+            <span className="text-2xl text-white">{getSelectedTypeIcon()}</span>
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Welcome Back
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link 
-            to="/register" 
-            className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
-          >
-            create a new institute account
-          </Link>
+          {formData.userType === 'teacher' ? (
+            <>Sign in to access your teaching dashboard</>
+          ) : formData.userType === 'institute' ? (
+            <>Sign in to manage your institute</>
+          ) : (
+            <>Sign in to manage the system</>
+          )}
         </p>
       </div>
 
@@ -129,19 +145,20 @@ const Login = () => {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Login as
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {userTypes.map((type) => (
                 <button
                   key={type.value}
                   type="button"
                   onClick={() => setFormData(prev => ({ ...prev, userType: type.value }))}
-                  className={`p-2 text-xs text-center rounded-lg border transition-all duration-200 ${
+                  className={`p-3 text-center rounded-lg border transition-all duration-200 ${
                     formData.userType === type.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-200'
                       : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  <div className="font-medium">{type.label}</div>
+                  <div className="text-2xl mb-1">{type.icon}</div>
+                  <div className="text-xs font-medium">{type.label}</div>
                 </button>
               ))}
             </div>
@@ -255,7 +272,7 @@ const Login = () => {
                     Signing in...
                   </>
                 ) : (
-                  'Sign in to your account'
+                  `Sign in as ${userTypes.find(t => t.value === formData.userType)?.label || 'User'}`
                 )}
               </button>
             </div>
@@ -277,18 +294,29 @@ const Login = () => {
             )}
           </form>
 
-          {/* Registration Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link 
-                to="/register" 
-                className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
-              >
-                Register your institute
-              </Link>
-            </p>
-          </div>
+          {/* Registration Link - Only show for institutes */}
+          {formData.userType === 'institute' && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Don't have an account?{' '}
+                <Link 
+                  to="/register" 
+                  className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+                >
+                  Register your institute
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {/* Teacher Help Text */}
+          {formData.userType === 'teacher' && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-xs text-blue-700">
+                <span className="font-medium">Note:</span> Teachers can only login after being added by their institute. Contact your institute admin if you don't have access.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Features Highlight */}

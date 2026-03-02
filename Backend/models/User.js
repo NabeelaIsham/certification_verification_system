@@ -16,18 +16,28 @@ const userSchema = new mongoose.Schema({
   },
   userType: {
     type: String,
-    enum: ['superadmin', 'institute'],
+    enum: ['superadmin', 'institute', 'teacher'],
     default: 'institute'
   },
   
-  // Institute Information (only for institutes)
-  instituteName: {
+  // Common fields (used by multiple user types)
+  firstName: {
     type: String,
     required: function() {
-      return this.userType === 'institute';
+      return this.userType === 'teacher';
     }
   },
-  phone: {
+  lastName: {
+    type: String,
+    required: function() {
+      return this.userType === 'teacher';
+    }
+  },
+  phone: String,
+  profileImage: String,
+  
+  // Institute Information (only for institutes)
+  instituteName: {
     type: String,
     required: function() {
       return this.userType === 'institute';
@@ -64,8 +74,48 @@ const userSchema = new mongoose.Schema({
     default: ''
   },
   
+  // Teacher specific fields
+  employeeId: {
+    type: String,
+    required: function() {
+      return this.userType === 'teacher';
+    }
+  },
+  department: {
+    type: String,
+    required: function() {
+      return this.userType === 'teacher';
+    }
+  },
+  designation: String,
+  qualification: String,
+  joiningDate: {
+    type: Date,
+    default: Date.now
+  },
+  instituteId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: function() {
+      return this.userType === 'teacher';
+    }
+  },
+  assignedCourses: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course'
+  }],
+  permissions: {
+    canCreateStudents: { type: Boolean, default: true },
+    canEditStudents: { type: Boolean, default: true },
+    canDeleteStudents: { type: Boolean, default: false },
+    canIssueCertificates: { type: Boolean, default: true },
+    canBulkUpload: { type: Boolean, default: false },
+    canCreateCourses: { type: Boolean, default: false },
+    canEditCourses: { type: Boolean, default: false }
+  },
+  
   // Super Admin Information (only for superadmins)
-  adminName: {
+  superAdminName: {
     type: String,
     required: function() {
       return this.userType === 'superadmin';
@@ -115,6 +165,13 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
+});
+
+// Compound index to ensure employeeId is unique per institute
+userSchema.index({ instituteId: 1, employeeId: 1 }, { 
+  unique: true, 
+  sparse: true,
+  partialFilterExpression: { employeeId: { $type: 'string' } }
 });
 
 // Update timestamp on save
