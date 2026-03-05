@@ -95,9 +95,20 @@ const userSchema = new mongoose.Schema({
   },
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: 'User', // References the institute in User collection
     required: function() {
       return this.userType === 'teacher';
+    },
+    validate: {
+      validator: async function(value) {
+        if (this.userType !== 'teacher') return true;
+        const institute = await mongoose.model('User').findOne({
+          _id: value,
+          userType: 'institute'
+        });
+        return !!institute;
+      },
+      message: 'Invalid institute ID: Institute does not exist'
     }
   },
   assignedCourses: [{
@@ -171,8 +182,12 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ instituteId: 1, employeeId: 1 }, { 
   unique: true, 
   sparse: true,
-  partialFilterExpression: { employeeId: { $type: 'string' } }
+  partialFilterExpression: { employeeId: { $exists: true, $type: 'string' } }
 });
+
+// Index for faster queries
+userSchema.index({ userType: 1, instituteId: 1 });
+userSchema.index({ userType: 1, email: 1 });
 
 // Update timestamp on save
 userSchema.pre('save', function(next) {
@@ -196,6 +211,13 @@ userSchema.pre('save', async function(next) {
 // Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Method to get safe user object (without password)
+userSchema.methods.toSafeObject = function() {
+  const obj = this.toObject();
+  delete obj.password;
+  return obj;
 };
 
 module.exports = mongoose.model('User', userSchema);

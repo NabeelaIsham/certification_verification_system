@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 
-const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
+const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, onCertificateIssued }) => {
   const [searchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -12,45 +12,66 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [awardDate, setAwardDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    fetchTeacherCourses();
-  }, [teacher]);
+    if (instituteId) {
+      fetchCourses();
+    } else {
+      console.log('Waiting for institute ID...');
+    }
+  }, [instituteId]);
 
   useEffect(() => {
     if (selectedCourse) {
-      fetchStudents();
-      fetchTemplates();
+      fetchStudentsForCourse();
+      fetchTemplatesForCourse();
+    } else {
+      setTemplates([]);
+      setSelectedTemplate('');
     }
   }, [selectedCourse]);
 
-  const fetchTeacherCourses = async () => {
+  const fetchCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/teachers/profile/me`, {
+      console.log('Fetching courses from:', `${API_URL}/teachers/courses/my`);
+      
+      const response = await axios.get(`${API_URL}/teachers/courses/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('Courses response:', response.data);
+      
       if (response.data.success) {
-        setCourses(response.data.data?.assignedCourses || []);
+        setCourses(response.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
+      setError('Failed to load courses');
     }
   };
 
-  const fetchStudents = async () => {
+  const fetchStudentsForCourse = async () => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Fetching students for course:', selectedCourse);
+      
       const response = await axios.get(`${API_URL}/teachers/students/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('Students response:', response.data);
+      
       if (response.data.success) {
+        // Filter students by selected course and without certificates
         const filtered = response.data.data.filter(
           s => s.courseId?._id === selectedCourse && !s.hasCertificate
         );
+        console.log(`Found ${filtered.length} eligible students for course`);
         setStudents(filtered);
         
         // If student was pre-selected via URL, verify they're in the list
@@ -66,17 +87,37 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
     }
   };
 
-  const fetchTemplates = async () => {
+  const fetchTemplatesForCourse = async () => {
+    if (!selectedCourse) return;
+    
+    setTemplatesLoading(true);
+    setError('');
+    
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/certificate-templates?courseId=${selectedCourse}`, {
+      const url = `${API_URL}/teachers/templates/course/${selectedCourse}`;
+      console.log('Fetching templates from:', url);
+      
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('Templates response:', response.data);
+      
       if (response.data.success) {
         setTemplates(response.data.data || []);
+        if (response.data.data.length === 0) {
+          setError('No templates found for this course. Please contact your institute admin.');
+        } else {
+          setError('');
+        }
       }
     } catch (error) {
       console.error('Error fetching templates:', error);
+      setError(error.response?.data?.message || 'Failed to load templates');
+      setTemplates([]);
+    } finally {
+      setTemplatesLoading(false);
     }
   };
 
@@ -93,7 +134,10 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/certificates`, {
+      const url = `${API_URL}/teachers/certificates/issue`;
+      console.log('Issuing certificate to:', url);
+      
+      const response = await axios.post(url, {
         studentId: selectedStudent,
         courseId: selectedCourse,
         templateId: selectedTemplate,
@@ -102,12 +146,19 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      console.log('Issue response:', response.data);
+
       if (response.data.success) {
         setSuccess('Certificate issued successfully!');
-        setPreview(response.data.data);
+        setPreview({
+          ...response.data.data,
+          awardDate,
+          studentName: students.find(s => s._id === selectedStudent)?.name,
+          courseName: courses.find(c => c._id === selectedCourse)?.courseName
+        });
         
         // Refresh student list
-        await fetchStudents();
+        await fetchStudentsForCourse();
         
         // Notify parent component
         if (onCertificateIssued) {
@@ -122,25 +173,22 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
     }
   };
 
-  const handleSendEmail = async (certificateId) => {
-    try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/certificates/${certificateId}/send-email`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setSuccess('Email sent successfully!');
-    } catch (error) {
-      console.error('Error sending email:', error);
-      setError('Failed to send email');
-    }
-  };
-
   const resetForm = () => {
     setSelectedStudent('');
     setSelectedTemplate('');
     setAwardDate(new Date().toISOString().split('T')[0]);
     setPreview(null);
+    setError('');
+    setSuccess('');
   };
+
+  if (!instituteId) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <p className="text-gray-500">Loading institute information...</p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -180,7 +228,7 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
                 <option value="">Choose a course</option>
                 {courses.map(course => (
                   <option key={course._id} value={course._id}>
-                    {course.courseName} ({course.courseCode})
+                    {course.courseName} ({course.courseCode}) - {course.pendingCount || 0} pending
                   </option>
                 ))}
               </select>
@@ -195,7 +243,7 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
                 onChange={(e) => setSelectedStudent(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 required
-                disabled={!selectedCourse}
+                disabled={!selectedCourse || students.length === 0}
               >
                 <option value="">Choose a student</option>
                 {students.map(student => (
@@ -215,20 +263,32 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Certificate Template *
               </label>
-              <select
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                required
-                disabled={!selectedCourse}
-              >
-                <option value="">Choose a template</option>
-                {templates.map(template => (
-                  <option key={template._id} value={template._id}>
-                    {template.templateName}
-                  </option>
-                ))}
-              </select>
+              {templatesLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                  <span className="ml-2 text-sm text-gray-500">Loading templates...</span>
+                </div>
+              ) : (
+                <select
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                  required
+                  disabled={!selectedCourse || templates.length === 0}
+                >
+                  <option value="">Choose a template</option>
+                  {templates.map(template => (
+                    <option key={template._id} value={template._id}>
+                      {template.templateName}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {selectedCourse && templates.length === 0 && !templatesLoading && (
+                <p className="text-sm text-yellow-600 mt-1">
+                  No templates available for this course
+                </p>
+              )}
             </div>
 
             <div>
@@ -247,7 +307,7 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
             <div className="flex space-x-3">
               <button
                 type="submit"
-                disabled={loading || students.length === 0}
+                disabled={loading || students.length === 0 || templates.length === 0}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {loading ? 'Issuing...' : 'Issue Certificate'}
@@ -263,6 +323,15 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
               )}
             </div>
           </form>
+
+          {/* Assigned Courses Info */}
+          {assignedCourses.length === 0 && (
+            <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-700">
+                You don't have any courses assigned. Contact your institute admin.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Preview Section */}
@@ -270,28 +339,22 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
           <h3 className="text-lg font-semibold mb-4">Certificate Preview</h3>
           {preview ? (
             <div>
-              <div className="mb-4 border rounded-lg overflow-hidden">
-                <img 
-                  src={preview.generatedCertificateUrl} 
-                  alt="Certificate Preview"
-                  className="w-full h-auto"
-                />
-              </div>
-              <div className="space-y-2 mb-4 p-4 bg-gray-50 rounded-lg">
-                <p><span className="font-medium">Certificate Code:</span> {preview.certificateCode}</p>
-                <p><span className="font-medium">Student:</span> {preview.studentName}</p>
-                <p><span className="font-medium">Course:</span> {preview.courseName}</p>
-                <p><span className="font-medium">Award Date:</span> {new Date(preview.awardDate).toLocaleDateString()}</p>
-                <p><span className="font-medium">Status:</span> 
-                  <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                    preview.status === 'issued' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {preview.status}
-                  </span>
-                </p>
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="font-medium text-gray-900 mb-2">Certificate Details</p>
+                <div className="space-y-2">
+                  <p><span className="font-medium">Student:</span> {preview.studentName}</p>
+                  <p><span className="font-medium">Course:</span> {preview.courseName}</p>
+                  <p><span className="font-medium">Award Date:</span> {new Date(awardDate).toLocaleDateString()}</p>
+                  <p><span className="font-medium">Certificate Code:</span></p>
+                  <p className="font-mono text-sm bg-white p-2 rounded border break-all">
+                    {preview.certificateCode}
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => handleSendEmail(preview._id)}
+                onClick={() => {
+                  alert('Email functionality will be implemented');
+                }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Send Email to Student
@@ -299,8 +362,13 @@ const TeacherIssueCertificate = ({ API_URL, teacher, onCertificateIssued }) => {
             </div>
           ) : (
             <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-              <p className="mb-2">📜</p>
-              <p>Fill the form and issue a certificate to see preview</p>
+              <p className="text-4xl mb-2">📜</p>
+              <p>Fill the form to generate a certificate</p>
+              {selectedCourse && templates.length === 0 && !templatesLoading && (
+                <p className="text-sm text-yellow-600 mt-2">
+                  No templates available. Please contact your institute admin.
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -28,6 +28,9 @@ import OTPVerification from './pages/OTPVerification'
 import TeacherManagement from './components/institute/TeacherManagement'
 import TeacherDashboard from './components/teacher/TeacherDashboard'
 
+// Define API_URL here so it can be used throughout the app
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedUserType }) => {
   const token = localStorage.getItem('token');
@@ -77,7 +80,7 @@ function App() {
                 path="/admin/dashboard" 
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
-                    <SuperAdminDashboard />
+                    <SuperAdminDashboard API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -85,7 +88,7 @@ function App() {
                 path="/system-logs" 
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
-                    <SystemLogs />
+                    <SystemLogs API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -93,7 +96,7 @@ function App() {
                 path="/InstituteManagement" 
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
-                    <InstituteManagement />
+                    <InstituteManagement API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -103,7 +106,7 @@ function App() {
                 path="/institute/dashboard" 
                 element={
                   <ProtectedRoute allowedUserType="institute">
-                    <InstituteDashboard />
+                    <InstituteDashboard API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -111,7 +114,7 @@ function App() {
                 path="/CertificateTemplates" 
                 element={
                   <ProtectedRoute allowedUserType="institute">
-                    <CertificateTemplates />
+                    <CertificateTemplates API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -119,7 +122,7 @@ function App() {
                 path="/CourseManagement" 
                 element={
                   <ProtectedRoute allowedUserType="institute">
-                    <CourseManagement />
+                    <CourseManagement API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -127,7 +130,7 @@ function App() {
                 path="/teacher-management" 
                 element={
                   <ProtectedRoute allowedUserType="institute">
-                    <TeacherManagement />
+                    <TeacherManagement API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -137,7 +140,7 @@ function App() {
                 path="/teacher/dashboard" 
                 element={
                   <ProtectedRoute allowedUserType="teacher">
-                    <TeacherDashboard />
+                    <TeacherDashboard API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />
@@ -147,7 +150,7 @@ function App() {
                 path="/student/dashboard" 
                 element={
                   <ProtectedRoute allowedUserType="student">
-                    <StudentDashboard />
+                    <StudentDashboard API_URL={API_URL} />
                   </ProtectedRoute>
                 } 
               />

@@ -14,7 +14,10 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
     certificatesIssued: 0,
     pendingCertificates: 0
   });
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [teacherData, setTeacherData] = useState(teacher);
+  const [error, setError] = useState('');
 
   const tabs = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
@@ -24,26 +27,32 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
   ];
 
   useEffect(() => {
-    if (activeTab === 'dashboard') {
-      fetchDashboardStats();
-    }
-  }, [activeTab]);
+    fetchDashboardData();
+  }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
       
-      // Fetch fresh teacher data
-      const teacherRes = await axios.get(`${API_URL}/teachers/profile/me`, {
+      // Fetch teacher profile with courses
+      const profileRes = await axios.get(`${API_URL}/teachers/profile/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      if (teacherRes.data.success) {
-        setTeacherData(teacherRes.data.data);
+      if (profileRes.data.success) {
+        setTeacherData(profileRes.data.data);
+        console.log('Teacher data loaded:', profileRes.data.data);
       }
 
-      // Fetch students with certificate status
+      // Fetch students
       const studentsRes = await axios.get(`${API_URL}/teachers/students/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Fetch courses with stats
+      const coursesRes = await axios.get(`${API_URL}/teachers/courses/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -53,13 +62,20 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
         
         setStats({
           totalStudents: students.length,
-          totalCourses: teacherRes.data.data?.assignedCourses?.length || 0,
+          totalCourses: coursesRes.data.data?.length || 0,
           certificatesIssued: issuedCount,
           pendingCertificates: students.length - issuedCount
         });
       }
+
+      if (coursesRes.data.success) {
+        setCourses(coursesRes.data.data || []);
+      }
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data. Please refresh.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,6 +84,14 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
     localStorage.removeItem('user');
     navigate('/login');
   };
+
+  if (loading && !teacherData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -86,6 +110,9 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
                 <p className="text-sm text-gray-500">
                   {teacherData?.designation} • {teacherData?.department}
                 </p>
+                <p className="text-xs text-gray-400">
+                  Institute: {teacherData?.instituteId?.instituteName || 'Loading...'}
+                </p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -99,12 +126,12 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex space-x-1 -mb-px">
+          <div className="flex space-x-1 -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-green-600 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -120,6 +147,12 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+
         {activeTab === 'dashboard' && (
           <div>
             {/* Stats Cards */}
@@ -142,7 +175,7 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
                     <span className="text-2xl">👨‍🎓</span>
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Total Students</p>
+                    <p className="text-sm text-gray-600">My Students</p>
                     <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
                   </div>
                 </div>
@@ -166,80 +199,103 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
                     <span className="text-2xl">⏳</span>
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm text-gray-600">Pending</p>
+                    <p className="text-sm text-gray-600">Pending Certificates</p>
                     <p className="text-2xl font-bold text-gray-900">{stats.pendingCertificates}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* My Courses */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* My Courses with Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold mb-4">My Assigned Courses</h3>
-                {teacherData?.assignedCourses?.length > 0 ? (
-                  <div className="space-y-3">
-                    {teacherData.assignedCourses.map(course => (
+                {courses.length > 0 ? (
+                  <div className="space-y-3 max-h-80 overflow-y-auto">
+                    {courses.map(course => (
                       <div key={course._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div>
                           <p className="font-medium">{course.courseName}</p>
                           <p className="text-sm text-gray-500">{course.courseCode}</p>
                         </div>
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                          Active
-                        </span>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">
+                            Students: {course.studentCount || 0}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            Issued: {course.certificateCount || 0}
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500">No courses assigned yet</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <p className="text-gray-500">No courses assigned yet</p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Contact your institute admin to assign courses
+                    </p>
+                  </div>
                 )}
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-4">Recent Students</h3>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {stats.totalStudents > 0 ? (
-                    <p className="text-sm text-gray-600 mb-2">
-                      Go to "My Students" tab to view all {stats.totalStudents} students
-                    </p>
-                  ) : (
-                    <p className="text-gray-500">No students assigned yet</p>
-                  )}
+                <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setActiveTab('students')}
+                    className="w-full p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-2xl mr-3">👨‍🎓</span>
+                      <div>
+                        <p className="font-medium">View My Students</p>
+                        <p className="text-sm text-gray-600">
+                          {stats.totalStudents} students in your courses
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('issue')}
+                    className="w-full p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-2xl mr-3">📜</span>
+                      <div>
+                        <p className="font-medium">Issue Certificate</p>
+                        <p className="text-sm text-gray-600">
+                          {stats.pendingCertificates} students need certificates
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-full p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center">
+                      <span className="text-2xl mr-3">👤</span>
+                      <div>
+                        <p className="font-medium">Update Profile</p>
+                        <p className="text-sm text-gray-600">
+                          Manage your personal information
+                        </p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  onClick={() => setActiveTab('students')}
-                  className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-left"
-                >
-                  <div className="text-2xl mb-2">👨‍🎓</div>
-                  <h4 className="font-medium">View My Students</h4>
-                  <p className="text-sm text-gray-600">See all students in your courses</p>
-                </button>
-                <button
-                  onClick={() => setActiveTab('issue')}
-                  className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-left"
-                >
-                  <div className="text-2xl mb-2">📜</div>
-                  <h4 className="font-medium">Issue Certificate</h4>
-                  <p className="text-sm text-gray-600">Issue new certificates to students</p>
-                </button>
-                <button
-                  onClick={() => setActiveTab('profile')}
-                  className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-left"
-                >
-                  <div className="text-2xl mb-2">👤</div>
-                  <h4 className="font-medium">Update Profile</h4>
-                  <p className="text-sm text-gray-600">Manage your profile information</p>
-                </button>
+            {/* Institute Info Card */}
+            {teacherData?.instituteId && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-2">Institute Information</h3>
+                <p className="text-gray-700">{teacherData.instituteId.instituteName}</p>
+                <p className="text-sm text-gray-500 mt-1">{teacherData.instituteId.email}</p>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -247,7 +303,8 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
           <TeacherStudents 
             API_URL={API_URL} 
             teacherId={teacherData?._id}
-            instituteId={teacherData?.instituteId}
+            assignedCourses={teacherData?.assignedCourses || []}
+            instituteId={teacherData?.instituteId?._id || teacherData?.instituteId}
           />
         )}
         
@@ -255,9 +312,10 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
           <TeacherIssueCertificate 
             API_URL={API_URL} 
             teacher={teacherData}
+            assignedCourses={teacherData?.assignedCourses || []}
+            instituteId={teacherData?.instituteId?._id || teacherData?.instituteId}
             onCertificateIssued={() => {
-              fetchDashboardStats();
-              setActiveTab('students');
+              fetchDashboardData();
             }}
           />
         )}

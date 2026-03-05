@@ -26,6 +26,9 @@ const TeacherProfile = ({ API_URL, teacher, onProfileUpdate }) => {
     });
   };
 
+  console.log('TeacherProfile received API_URL:', API_URL);
+console.log('Teacher data:', teacher);
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -33,7 +36,7 @@ const TeacherProfile = ({ API_URL, teacher, onProfileUpdate }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/teachers/${teacher.id}`, {
+      const response = await axios.put(`${API_URL}/teachers/profile/me`, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
@@ -94,7 +97,7 @@ const TeacherProfile = ({ API_URL, teacher, onProfileUpdate }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/auth/change-password`, {
+      const response = await axios.post(`${API_URL}/teachers/change-password`, {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword
       }, {
@@ -344,19 +347,21 @@ const TeacherProfile = ({ API_URL, teacher, onProfileUpdate }) => {
       </div>
 
       {/* Institute Information Card */}
-      <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold mb-4">Institute Information</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Institute Name</p>
-            <p className="font-medium">{teacher?.instituteName || 'N/A'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Institute ID</p>
-            <p className="font-medium">{teacher?.instituteId || 'N/A'}</p>
+      {teacher?.instituteId && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold mb-4">Institute Information</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-500">Institute Name</p>
+              <p className="font-medium">{teacher.instituteId.instituteName || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Institute Email</p>
+              <p className="font-medium">{teacher.instituteId.email || 'N/A'}</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

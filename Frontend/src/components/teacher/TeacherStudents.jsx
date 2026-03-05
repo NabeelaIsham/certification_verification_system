@@ -1,58 +1,76 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const TeacherStudents = ({ API_URL }) => {
+const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId }) => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('all');
   const [courses, setCourses] = useState([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchStudents();
-    fetchCourses();
-  }, []);
+    if (instituteId) {
+      fetchStudents();
+      fetchCourseDetails();
+    } else {
+      console.log('Waiting for institute ID...');
+    }
+  }, [instituteId, teacherId]);
+
+  const fetchCourseDetails = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/teachers/courses/my`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setCourses(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+      setError('Failed to load courses');
+    }
+  };
 
   const fetchStudents = async () => {
     setLoading(true);
+    setError('');
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/teachers/students/my`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
       if (response.data.success) {
+        console.log(`Loaded ${response.data.data.length} students for institute ${instituteId}`);
         setStudents(response.data.data || []);
       }
     } catch (error) {
       console.error('Error fetching students:', error);
+      setError('Failed to load students');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCourses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/teachers/profile/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (response.data.success) {
-        setCourses(response.data.data?.assignedCourses || []);
-      }
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-    }
-  };
-
   const filteredStudents = students.filter(student => {
     const matchesSearch = 
-      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      (student.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (student.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     
     const matchesCourse = selectedCourse === 'all' || student.courseId?._id === selectedCourse;
     
     return matchesSearch && matchesCourse;
   });
+
+  if (!instituteId) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+        <p className="text-gray-500">Loading institute information...</p>
+      </div>
+    );
+  }
 
   if (loading && students.length === 0) {
     return (
@@ -66,7 +84,24 @@ const TeacherStudents = ({ API_URL }) => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">My Students</h2>
+        <div className="flex items-center space-x-4">
+          <p className="text-sm text-gray-500">
+            Total: {students.length} students
+          </p>
+          <button
+            onClick={fetchStudents}
+            className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+          >
+            🔄 Refresh
+          </button>
+        </div>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -85,74 +120,73 @@ const TeacherStudents = ({ API_URL }) => {
           <option value="all">All Courses</option>
           {courses.map(course => (
             <option key={course._id} value={course._id}>
-              {course.courseName} ({course.courseCode})
+              {course.courseName} ({course.courseCode}) - {course.studentCount || 0} students
             </option>
           ))}
         </select>
       </div>
 
       {/* Students Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredStudents.map((student) => (
-          <div key={student._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <span className="text-xl">👨‍🎓</span>
+      {filteredStudents.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredStudents.map((student) => (
+            <div key={student._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-xl">👨‍🎓</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{student.name}</h3>
+                    <p className="text-sm text-gray-500">{student.email}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{student.name}</h3>
-                  <p className="text-sm text-gray-500">{student.email}</p>
-                </div>
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  student.status === 'active' 
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {student.status}
+                </span>
               </div>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                student.status === 'active' 
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {student.status}
-              </span>
-            </div>
 
-            <div className="mt-4 space-y-2">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Course:</span> {student.courseId?.courseName}
-              </p>
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Enrolled:</span> {new Date(student.enrollmentDate).toLocaleDateString()}
-              </p>
-              {student.phone && (
+              <div className="mt-4 space-y-2">
                 <p className="text-sm text-gray-600">
-                  <span className="font-medium">Phone:</span> {student.phone}
+                  <span className="font-medium">Course:</span> {student.courseId?.courseName || 'N/A'}
                 </p>
-              )}
-            </div>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Course Code:</span> {student.courseId?.courseCode || 'N/A'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Enrolled:</span> {new Date(student.enrollmentDate).toLocaleDateString()}
+                </p>
+              </div>
 
-            <div className="mt-4 flex justify-between items-center">
-              <div>
+              <div className="mt-4 pt-4 border-t border-gray-100">
                 {student.hasCertificate ? (
-                  <span className="text-xs text-green-600 font-medium">
-                    ✓ Certificate Issued
-                  </span>
+                  <div className="bg-green-50 p-3 rounded-lg">
+                    <p className="text-xs text-green-700 font-medium">✓ Certificate Issued</p>
+                    <p className="text-xs font-mono text-gray-600 mt-1 break-all">
+                      {student.certificateCode}
+                    </p>
+                  </div>
                 ) : (
-                  <span className="text-xs text-gray-400">
-                    No certificate
-                  </span>
+                  <div className="bg-yellow-50 p-3 rounded-lg">
+                    <p className="text-xs text-yellow-700">No certificate issued</p>
+                  </div>
                 )}
               </div>
-              {student.hasCertificate && (
-                <span className="text-xs font-mono text-gray-500">
-                  {student.certificateCode}
-                </span>
-              )}
             </div>
-          </div>
-        ))}
-      </div>
-
-      {filteredStudents.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No students found</p>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+          <p className="text-gray-500 mb-2">No students found in your assigned courses</p>
+          {assignedCourses.length === 0 && (
+            <p className="text-sm text-gray-400">
+              You don't have any courses assigned. Contact your institute admin.
+            </p>
+          )}
         </div>
       )}
     </div>
