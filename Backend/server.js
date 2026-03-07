@@ -61,6 +61,9 @@ app.use('/api/certificate-templates', certificateTemplateRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/certificates', certificateRoutes);
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 const certificatesDir = path.join(uploadsDir, 'certificates');
