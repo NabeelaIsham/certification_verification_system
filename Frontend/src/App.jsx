@@ -73,6 +73,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/verify" element={<VerificationPortal />} />
+              <Route path="/verify/:code" element={<VerificationPortal />} />
               <Route path='/OTPVerification' element={<OTPVerification />} />
 
               {/* Super Admin Routes */}

@@ -1,10 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import {
+  Html5QrcodeScanner,
+  Html5QrcodeScanType,
+  Html5QrcodeSupportedFormats
+} from 'html5-qrcode';
+import { useParams } from 'react-router-dom';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const VerificationPortal = () => {
+  const { code: routeCode } = useParams();
   const [certificateCode, setCertificateCode] = useState('');
   const [verificationResult, setVerificationResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -14,17 +20,76 @@ const VerificationPortal = () => {
   const [imageError, setImageError] = useState(false);
   const scannerRef = useRef(null);
   const certificateRef = useRef(null);
+  const lastScannerErrorLogRef = useRef(0);
+
+  const getCameraErrorMessage = (err) => {
+    const errorName = err?.name || '';
+
+    if (!window.isSecureContext) {
+      return 'Camera access requires HTTPS (or http://localhost). Open the site on a secure URL.';
+    }
+
+    if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
+      return 'Camera permission was blocked. Allow camera access in your browser settings and try again.';
+    }
+
+    if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+      return 'No camera was found on this device. You can still upload a QR image for verification.';
+    }
+
+    if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
+      return 'Camera is in use by another app. Close other camera apps and try again.';
+    }
+
+    return 'Unable to start camera. You can still upload a QR image to verify the certificate.';
+  };
+
+  const startScanning = async () => {
+    setError('');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setError('This browser does not support camera access. You can still upload a QR image.');
+      setScanMode(true);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        }
+      });
+
+      stream.getTracks().forEach((track) => track.stop());
+      setScanMode(true);
+    } catch (err) {
+      console.error('Camera pre-check failed:', err);
+      setError(getCameraErrorMessage(err));
+      // Still show scanner UI so users can use image upload fallback.
+      setScanMode(true);
+    }
+  };
 
   useEffect(() => {
     // Initialize scanner when scanMode becomes true
     if (scanMode) {
       const scanner = new Html5QrcodeScanner(
         "qr-reader",
-        { 
-          fps: 10, 
-          qrbox: { width: 250, height: 250 },
-          rememberLastUsedCamera: true,
-          showTorchButtonIfSupported: true
+        {
+          fps: 15,
+          qrbox: { width: 280, height: 280 },
+          aspectRatio: 1,
+          rememberLastUsedCamera: false,
+          showTorchButtonIfSupported: true,
+          showZoomSliderIfSupported: true,
+          supportedScanTypes: [
+            Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+            Html5QrcodeScanType.SCAN_TYPE_FILE
+          ],
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          videoConstraints: {
+            facingMode: { ideal: 'environment' }
+          }
         },
         false
       );
@@ -33,17 +98,37 @@ const VerificationPortal = () => {
         (decodedText) => {
           // Success callback
           console.log('Scanned QR code:', decodedText);
-          setCertificateCode(decodedText);
+          const normalizedCode = extractCertificateCode(decodedText);
+          if (!normalizedCode) {
+            setError('Scanned QR code is invalid. Please scan a valid certificate QR code.');
+            return;
+          }
+          setCertificateCode(normalizedCode);
           setScanMode(false);
           scanner.clear();
           // Automatically verify after scan
           setTimeout(() => {
-            verifyCertificate(decodedText);
+            verifyCertificate(normalizedCode);
           }, 500);
         },
         (errorMessage) => {
           // Error callback
-          console.warn('QR Scan Error:', errorMessage);
+          const normalizedError = (errorMessage || '').toLowerCase();
+
+          // Ignore expected frame-by-frame "not found" messages to avoid browser slowdown.
+          if (
+            normalizedError.includes('not found') ||
+            normalizedError.includes('no multiformat readers were able to detect') ||
+            normalizedError.includes('no qr code found')
+          ) {
+            return;
+          }
+
+          const now = Date.now();
+          if (now - lastScannerErrorLogRef.current > 5000) {
+            console.warn('QR scanner warning:', errorMessage);
+            lastScannerErrorLogRef.current = now;
+          }
         }
       );
       
@@ -52,14 +137,62 @@ const VerificationPortal = () => {
       // Cleanup on unmount
       return () => {
         if (scannerRef.current) {
-          scannerRef.current.clear().catch(console.error);
+          scannerRef.current.clear().catch((clearError) => {
+            console.error('Scanner cleanup error:', clearError);
+          });
+          scannerRef.current = null;
         }
       };
     }
   }, [scanMode]);
 
-  const verifyCertificate = async (code) => {
-    if (!code) {
+  useEffect(() => {
+    if (!routeCode) return;
+
+    const normalizedCode = extractCertificateCode(routeCode);
+    if (!normalizedCode) {
+      setError('Invalid certificate code in verification link.');
+      return;
+    }
+
+    setCertificateCode(normalizedCode);
+    verifyCertificate(normalizedCode);
+  }, [routeCode]);
+
+  const extractCertificateCode = (input) => {
+    if (!input || typeof input !== 'string') {
+      return '';
+    }
+
+    const value = input.trim();
+    if (!value) {
+      return '';
+    }
+
+    try {
+      const url = new URL(value);
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      const verifyIndex = pathSegments.findIndex((segment) => segment.toLowerCase() === 'verify');
+
+      if (verifyIndex >= 0 && pathSegments[verifyIndex + 1]) {
+        return decodeURIComponent(pathSegments[verifyIndex + 1]).trim().toUpperCase();
+      }
+
+      const codeParam = url.searchParams.get('code');
+      if (codeParam) {
+        return decodeURIComponent(codeParam).trim().toUpperCase();
+      }
+    } catch (_) {
+      // Continue with plain code parsing when value is not a full URL.
+    }
+
+    return decodeURIComponent(value).trim().toUpperCase();
+  };
+
+  async function verifyCertificate(codeInput) {
+    const normalizedCode = extractCertificateCode(codeInput);
+
+    if (!normalizedCode) {
       setError('Please enter a certificate code');
       return;
     }
@@ -70,13 +203,14 @@ const VerificationPortal = () => {
     setImageError(false);
 
     try {
-      console.log('Verifying certificate:', code);
-      const response = await axios.get(`${API_URL}/certificates/verify/${code}`);
+      console.log('Verifying certificate:', normalizedCode);
+      const response = await axios.get(`${API_URL}/certificates/verify/${encodeURIComponent(normalizedCode)}`);
       
       console.log('Verification response:', response.data);
       
       if (response.data.success) {
         setVerificationResult(response.data.data);
+        setCertificateCode(normalizedCode);
       } else {
         setError(response.data.message || 'Certificate not found');
       }
@@ -89,7 +223,7 @@ const VerificationPortal = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleVerify = (e) => {
     e.preventDefault();
@@ -261,7 +395,10 @@ const VerificationPortal = () => {
   const stopScanning = () => {
     setScanMode(false);
     if (scannerRef.current) {
-      scannerRef.current.clear().catch(console.error);
+      scannerRef.current.clear().catch((clearError) => {
+        console.error('Failed to stop scanner:', clearError);
+      });
+      scannerRef.current = null;
     }
   };
 
@@ -320,7 +457,7 @@ const VerificationPortal = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setScanMode(true)}
+                    onClick={startScanning}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 shadow-md"
                   >
                     <span className="flex items-center justify-center">

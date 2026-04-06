@@ -380,7 +380,8 @@ const getCertificateById = async (req, res) => {
 // Get certificate by certificate code (public verification) - FIXED VERSION
 const verifyCertificate = async (req, res) => {
   try {
-    const { code } = req.params;
+    const rawCode = req.params.code || '';
+    const code = decodeURIComponent(rawCode).trim().toUpperCase();
 
     console.log('Verifying certificate with code:', code);
 
@@ -409,21 +410,25 @@ const verifyCertificate = async (req, res) => {
 
     // Construct proper URLs for images
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
+    const instituteId = certificate.instituteId?._id || certificate.instituteId;
+    const instituteIdString = instituteId ? instituteId.toString() : null;
     
     // Build image URLs using certificate code and institute ID
     let certificateImageUrl = null;
-    if (certificate.generatedCertificateImage) {
-      certificateImageUrl = `${baseUrl}/uploads/generated/${certificate.instituteId}/${certificate.certificateCode}.jpg`;
+    if (certificate.generatedCertificateImage && instituteIdString) {
+      certificateImageUrl = `${baseUrl}/uploads/generated/${instituteIdString}/${certificate.certificateCode}.jpg`;
     }
 
     let qrCodeUrl = null;
-    if (certificate.qrCodeImage) {
-      qrCodeUrl = `${baseUrl}/uploads/qrcodes/${certificate.instituteId}/${certificate.certificateCode}.png`;
+    if (certificate.qrCodeImage && instituteIdString) {
+      qrCodeUrl = `${baseUrl}/uploads/qrcodes/${instituteIdString}/${certificate.certificateCode}.png`;
     }
 
     // Check if files actually exist (optional but good for debugging)
-    const imagePath = path.join(__dirname, '../uploads/generated', certificate.instituteId.toString(), `${certificate.certificateCode}.jpg`);
-    const imageExists = fs.existsSync(imagePath);
+    const imagePath = instituteIdString
+      ? path.join(__dirname, '../uploads/generated', instituteIdString, `${certificate.certificateCode}.jpg`)
+      : null;
+    const imageExists = imagePath ? fs.existsSync(imagePath) : false;
     
     if (!imageExists) {
       console.warn(`Certificate image file missing: ${imagePath}`);

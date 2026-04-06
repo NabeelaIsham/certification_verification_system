@@ -9,18 +9,11 @@ const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    rememberMe: false,
-    userType: 'institute'
+    rememberMe: false
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
-
-  const userTypes = [
-    { value: 'institute', label: 'Institute Admin', description: 'Manage certificates and students', icon: '🏢' },
-    { value: 'superadmin', label: 'Super Admin', description: 'System administration', icon: '👑' },
-    { value: 'teacher', label: 'Teacher', description: 'Manage students and issue certificates', icon: '👨‍🏫' },
-  ];
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -66,12 +59,11 @@ const Login = () => {
     setErrors({});
 
     try {
-      console.log('Login attempt with:', { email: formData.email, userType: formData.userType });
+      console.log('Login attempt with:', { email: formData.email });
       
       const response = await axios.post(`${API_URL}/auth/login`, {
         email: formData.email,
-        password: formData.password,
-        userType: formData.userType
+        password: formData.password
       });
       
       if (response.data.success) {
@@ -121,49 +113,19 @@ const Login = () => {
         {/* Logo and Header */}
         <div className="flex justify-center">
           <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-2xl text-white">{getSelectedTypeIcon()}</span>
+            <span className="text-2xl text-white">🔐</span>
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Welcome Back
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          {formData.userType === 'teacher' ? (
-            <>Sign in to access your teaching dashboard</>
-          ) : formData.userType === 'institute' ? (
-            <>Sign in to manage your institute</>
-          ) : (
-            <>Sign in to manage the system</>
-          )}
+          Sign in to your account to access your dashboard
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
-          {/* User Type Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Login as
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {userTypes.map((type) => (
-                <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, userType: type.value }))}
-                  className={`p-3 text-center rounded-lg border transition-all duration-200 ${
-                    formData.userType === type.value
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-200'
-                      : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-2xl mb-1">{type.icon}</div>
-                  <div className="text-xs font-medium">{type.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Email Field */}
             <div>
@@ -272,7 +234,7 @@ const Login = () => {
                     Signing in...
                   </>
                 ) : (
-                  `Sign in as ${userTypes.find(t => t.value === formData.userType)?.label || 'User'}`
+                  'Sign in'
                 )}
               </button>
             </div>
@@ -293,30 +255,6 @@ const Login = () => {
               </div>
             )}
           </form>
-
-          {/* Registration Link - Only show for institutes */}
-          {formData.userType === 'institute' && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
-                <Link 
-                  to="/register" 
-                  className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
-                >
-                  Register your institute
-                </Link>
-              </p>
-            </div>
-          )}
-
-          {/* Teacher Help Text */}
-          {formData.userType === 'teacher' && (
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs text-blue-700">
-                <span className="font-medium">Note:</span> Teachers can only login after being added by their institute. Contact your institute admin if you don't have access.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Features Highlight */}
