@@ -5,35 +5,7 @@ const User = require('../models/User');
 const OTP = require('../models/OTP');
 const Notification = require('../models/Notification');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
-
-// Test endpoint
-router.post('/test-json', (req, res) => {
-  console.log('Test JSON endpoint called');
-  console.log('Request body:', req.body);
-  
-  res.json({
-    success: true,
-    receivedBody: req.body,
-    message: 'JSON parsing is working'
-  });
-});
-
-// Configure email transporter
-let transporter;
-try {
-  transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
-  });
-  console.log('Email transporter initialized successfully');
-} catch (error) {
-  console.error('Email transporter initialization error:', error.message);
-  transporter = null;
-}
+const { sendOtpEmail } = require('../utils/emailService');
 
 // Generate OTP
 const generateOTP = () => {
@@ -42,29 +14,8 @@ const generateOTP = () => {
 
 // Send OTP to Email
 const sendEmailOTP = async (email, otp) => {
-  if (!transporter) {
-    console.error('Email transporter not configured');
-    throw new Error('Email service not available');
-  }
-
-  const mailOptions = {
-    from: `"Certificate Verification System" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Verify Your Email',
-    html: `
-      <div style="font-family: Arial, sans-serif;">
-        <h2>Email Verification</h2>
-        <p>Your OTP for email verification is:</p>
-        <h1 style="background: #f4f4f4; padding: 15px; text-align: center; letter-spacing: 5px;">
-          ${otp}
-        </h1>
-        <p>This OTP will expire in 5 minutes.</p>
-      </div>
-    `
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
+    await sendOtpEmail({ to: email, otp, purpose: 'verification' });
     console.log(`Email OTP sent successfully to ${email}`);
     return true;
   } catch (error) {
@@ -77,6 +28,12 @@ const sendEmailOTP = async (email, otp) => {
 const sendSMSOTP = async (phone, otp) => {
   console.log(`[SMS] Would send OTP ${otp} to ${phone}`);
   return true;
+};
+
+const isOtpExpired = (otpRecord) => {
+  const now = new Date();
+  const otpAge = now - otpRecord.createdAt;
+  return otpAge > 5 * 60 * 1000;
 };
 
 // Register Institute
@@ -206,11 +163,7 @@ router.post('/verify-otp', async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const otpAge = now - otpRecord.createdAt;
-    const fiveMinutes = 5 * 60 * 1000;
-    
-    if (otpAge > fiveMinutes) {
+    if (isOtpExpired(otpRecord)) {
       await OTP.deleteOne({ _id: otpRecord._id });
       return res.status(400).json({
         success: false,
@@ -281,6 +234,109 @@ router.post('/verify-otp', async (req, res) => {
       success: false,
       message: 'OTP verification failed',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const email = req.body.email?.toLowerCase().trim();
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found for this email'
+      });
+    }
+
+    const otp = generateOTP();
+
+    await OTP.deleteMany({ email, type: 'reset_password' });
+    await OTP.create({
+      email,
+      phone: user.phone || '',
+      otp,
+      type: 'reset_password'
+    });
+
+    await sendOtpEmail({ to: email, otp, purpose: 'reset_password' });
+
+    res.json({
+      success: true,
+      message: 'Password reset OTP sent to your email'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to send password reset OTP'
+    });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const email = req.body.email?.toLowerCase().trim();
+    const otp = req.body.otp?.toString().trim();
+    const newPassword = req.body.newPassword;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, OTP, and new password are required'
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const otpRecord = await OTP.findOne({
+      email,
+      otp,
+      type: 'reset_password'
+    });
+
+    if (!otpRecord) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    if (isOtpExpired(otpRecord)) {
+      await OTP.deleteOne({ _id: otpRecord._id });
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please request a new one.'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    await OTP.deleteMany({ email, type: 'reset_password' });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reset password'
     });
   }
 });

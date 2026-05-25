@@ -1,32 +1,94 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { authService } from '../services/auth';
 
 const ForgotPassword = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false); // Fixed: Changed from setIsSubmitted to setIsSubmitted
-  const [currentStep, setCurrentStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  const handleEmailSubmit = (e) => {
-    e.preventDefault();
-    // Send OTP to email logic here
-    console.log('OTP sent to:', email);
-    setIsSubmitted(true);
-    setCurrentStep(2);
+  const clearFeedback = () => {
+    setError('');
+    setMessage('');
   };
 
-  const handleOtpSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    // Verify OTP logic here
-    console.log('Verifying OTP...');
+    clearFeedback();
+    setIsLoading(true);
+
+    try {
+      const response = await authService.forgotPassword(email);
+      setMessage(response.message || 'Verification code sent to your email.');
+      setCurrentStep(2);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e) => {
+    e.preventDefault();
+    clearFeedback();
+
+    if (otp.trim().length !== 6) {
+      setError('Please enter the 6-digit OTP');
+      return;
+    }
+
+    setMessage('OTP captured. You can now set a new password.');
     setCurrentStep(3);
   };
 
-  const handlePasswordReset = (e) => {
+  const handlePasswordReset = async (e) => {
     e.preventDefault();
-    // Reset password logic here
-    console.log('Resetting password...');
-    setIsSubmitted(true);
-    // You might want to redirect to login or show success message here
+    clearFeedback();
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await authService.resetPassword({
+        email,
+        otp,
+        newPassword
+      });
+
+      navigate('/login', {
+        state: {
+          message: response.message || 'Password reset successfully. Please sign in.'
+        }
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reset password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    clearFeedback();
+    setIsLoading(true);
+
+    try {
+      const response = await authService.forgotPassword(email);
+      setMessage(response.message || 'A new verification code has been sent.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend verification code');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,14 +112,12 @@ const ForgotPassword = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          
-          {/* Step 1: Email Input */}
           {currentStep === 1 && (
             <div>
               <p className="text-sm text-gray-600 mb-6 text-center">
-                Enter your email address and we'll send you a verification code to reset your password.
+                Enter your email address and we&apos;ll send you a verification code to reset your password.
               </p>
-              
+
               <form className="space-y-6" onSubmit={handleEmailSubmit}>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -78,34 +138,23 @@ const ForgotPassword = () => {
                   </div>
                 </div>
 
-                <div>
-                  <button
-                    type="submit"
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Send Verification Code
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
+                >
+                  {isLoading ? 'Sending...' : 'Send Verification Code'}
+                </button>
               </form>
             </div>
           )}
 
-          {/* Step 2: OTP Verification */}
           {currentStep === 2 && (
             <div>
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-blue-700">
-                      We've sent a 6-digit verification code to <strong>{email}</strong>
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm text-blue-700">
+                  We&apos;ve sent a 6-digit verification code to <strong>{email}</strong>
+                </p>
               </div>
 
               <form className="space-y-6" onSubmit={handleOtpSubmit}>
@@ -120,13 +169,12 @@ const ForgotPassword = () => {
                       type="text"
                       maxLength="6"
                       required
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                       className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-center text-lg tracking-widest"
                       placeholder="000000"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Enter the 6-digit code sent to your email
-                  </p>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -139,40 +187,31 @@ const ForgotPassword = () => {
                   </button>
                   <button
                     type="button"
-                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
+                    disabled={isLoading}
+                    onClick={handleResendCode}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:text-blue-300"
                   >
                     Resend code
                   </button>
                 </div>
 
-                <div>
-                  <button
-                    type="submit"
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Verify Code
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
+                >
+                  Continue
+                </button>
               </form>
             </div>
           )}
 
-          {/* Step 3: New Password */}
           {currentStep === 3 && (
             <div>
               <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">
-                      Email verified successfully! Now set your new password.
-                    </p>
-                  </div>
-                </div>
+                <p className="text-sm text-green-700">
+                  Enter your new password to finish the reset.
+                </p>
               </div>
 
               <form className="space-y-6" onSubmit={handlePasswordReset}>
@@ -186,13 +225,12 @@ const ForgotPassword = () => {
                       name="newPassword"
                       type="password"
                       required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
                       className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter new password"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Must be at least 8 characters with uppercase, lowercase, and number
-                  </p>
                 </div>
 
                 <div>
@@ -205,49 +243,30 @@ const ForgotPassword = () => {
                       name="confirmPassword"
                       type="password"
                       required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                       className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Re-enter new password"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <button
-                    type="submit"
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  >
-                    Reset Password
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-green-400"
+                >
+                  {isLoading ? 'Resetting...' : 'Reset Password'}
+                </button>
               </form>
             </div>
           )}
 
-          {/* Progress Indicator */}
-          <div className="mt-6">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className={`flex items-center ${currentStep >= 1 ? 'text-blue-600' : ''}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 1 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
-                  1
-                </div>
-                <span className="ml-2">Enter Email</span>
-              </div>
-              <div className="flex-1 h-0.5 bg-gray-300 mx-2"></div>
-              <div className={`flex items-center ${currentStep >= 2 ? 'text-blue-600' : ''}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 2 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
-                  2
-                </div>
-                <span className="ml-2">Verify Code</span>
-              </div>
-              <div className="flex-1 h-0.5 bg-gray-300 mx-2"></div>
-              <div className={`flex items-center ${currentStep >= 3 ? 'text-blue-600' : ''}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${currentStep >= 3 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
-                  3
-                </div>
-                <span className="ml-2">New Password</span>
-              </div>
+          {(error || message) && (
+            <div className={`mt-6 text-sm text-center ${error ? 'text-red-600' : 'text-green-600'}`}>
+              {error || message}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

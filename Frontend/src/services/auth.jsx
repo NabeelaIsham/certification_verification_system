@@ -16,8 +16,8 @@ export const authService = {
     return response.data
   },
 
-  async resetPassword(token, newPassword) {
-    const response = await api.post('/auth/reset-password', { token, newPassword })
+  async resetPassword({ email, otp, newPassword }) {
+    const response = await api.post('/auth/reset-password', { email, otp, newPassword })
     return response.data
   },
 
@@ -26,8 +26,8 @@ export const authService = {
     return response.data
   },
 
-  async verifyOTP(email, otp) {
-    const response = await api.post('/auth/verify-otp', { email, otp })
+  async verifyOTP(email, otp, type = 'email') {
+    const response = await api.post('/auth/verify-otp', { email, otp, type })
     return response.data
   }
 }
