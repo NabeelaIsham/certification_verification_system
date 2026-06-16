@@ -49,7 +49,12 @@ const certificateTemplateRoutes = require('./routes/certificateTemplateRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const certificateRoutes = require('./routes/certificateRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
+const emailRoutes = require('./routes/emailRoutes');
+const verificationRoutes = require('./routes/verificationRoutes');
+const { logger, errorLogger } = require('./utils/logger');
 
+// Request logging middleware
+app.use(logger);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -59,6 +64,8 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/certificate-templates', certificateTemplateRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/certificates/verify', verificationRoutes);
 app.use('/api/certificates', certificateRoutes);
 
 // Serve static files from uploads directory
@@ -161,10 +168,12 @@ app.get('/api', (req, res) => {
     }
   });
 });
+// Error logging middleware
+app.use(errorLogger);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
+  console.error('Error:', err.stack || err);
   res.status(500).json({
     success: false,
     message: 'Something went wrong!',

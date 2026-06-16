@@ -7,16 +7,12 @@ const {
   issueCertificate,
   getCertificates,
   getCertificateById,
-  verifyCertificate,
   updateCertificateStatus,
   sendCertificateEmail,
   regenerateCertificateImage,
   bulkIssueCertificates,
-  getCertificateImage  // Make sure this is exported from your controller
+  getCertificateImage
 } = require('../controllers/certificateController');
-
-// Public route for verification
-router.get('/verify/:code', verifyCertificate);
 
 // Public route for serving certificate images (no auth required)
 router.get('/image/:instituteId/:filename', getCertificateImage);
