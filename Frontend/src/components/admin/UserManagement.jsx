@@ -43,8 +43,8 @@ const UserManagement = ({ API_URL, user }) => {
       const response = await axios.get(`${API_URL}/admin/users`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
-          role: selectedRole,
-          status: selectedStatus,
+          userType: selectedRole !== 'all' ? selectedRole : undefined,
+          status: selectedStatus !== 'all' ? selectedStatus : undefined,
           page: pagination.page,
           limit: pagination.limit
         }

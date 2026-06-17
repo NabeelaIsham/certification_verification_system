@@ -23,7 +23,7 @@ export const authService = {
 
   async getCurrentUser() {
     const response = await api.get('/auth/me')
-    return response.data
+    return response.data.data
   },
 
   async verifyOTP(email, otp, type = 'email') {

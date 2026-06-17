@@ -1,7 +1,17 @@
 import { Navigate, Outlet } from 'react-router-dom';
 
+const getStoredUser = () => {
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.error('Failed to parse stored user data:', error);
+    return null;
+  }
+};
+
 const ProtectedRoute = ({ allowedRoles }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
+  const user = getStoredUser();
   const token = localStorage.getItem('token');
 
   if (!token || !user) {

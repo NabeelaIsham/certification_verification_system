@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-
-// For Vite projects, use import.meta.env; for Create React App, use process.env
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { authService } from '../services/auth';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -60,21 +57,19 @@ const Login = () => {
 
     try {
       console.log('Login attempt with:', { email: formData.email });
-      
-      const response = await axios.post(`${API_URL}/auth/login`, {
+
+      const response = await authService.login({
         email: formData.email,
         password: formData.password
       });
-      
-      if (response.data.success) {
-        // Store token and user data
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-        
-        console.log('Login successful, user type:', response.data.user.userType);
-        
-        // Redirect based on user type
-        switch (response.data.user.userType) {
+
+      if (response.success) {
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+
+        console.log('Login successful, user type:', response.user.userType);
+
+        switch (response.user.userType) {
           case 'superadmin':
             navigate('/admin/dashboard');
             break;
@@ -88,12 +83,12 @@ const Login = () => {
             navigate('/dashboard');
         }
       } else {
-        setErrors({ submit: response.data.message || 'Login failed' });
+        setErrors({ submit: response.message || 'Login failed' });
       }
     } catch (error) {
       console.error('Login error:', error);
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
+      const errorMessage = error.response?.data?.message ||
+                          error.message ||
                           'Login failed. Please check your credentials.';
       setErrors({ submit: errorMessage });
     } finally {

@@ -266,6 +266,22 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const getCurrentUser = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+
+    const safeUser = req.user.toObject();
+    delete safeUser.password;
+
+    res.json({ success: true, data: safeUser });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch current user', error: error.message });
+  }
+};
+
 const login = async (req, res) => {
   try {
     const { email, password, userType } = req.body;
@@ -303,7 +319,7 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Your account is not active. Please contact administrator.' });
     }
 
-    const token = jwt.sign({ userId: user._id, email: user.email, userType: user.userType }, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: '24h' });
+    const token = jwt.sign({ userId: user._id, email: user.email, userType: user.userType }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '24h' });
 
     const userData = {
       id: user._id,
@@ -370,6 +386,7 @@ module.exports = {
   resendOtp,
   forgotPassword,
   resetPassword,
+  getCurrentUser,
   login,
   verificationStatus
 };

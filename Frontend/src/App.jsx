@@ -32,9 +32,19 @@ import TeacherDashboard from './components/teacher/TeacherDashboard'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Protected Route Component
+const getStoredUser = () => {
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    console.error('Failed to parse stored user data:', error);
+    return null;
+  }
+};
+
 const ProtectedRoute = ({ children, allowedUserType }) => {
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user'));
+  const user = getStoredUser();
 
   if (!token || !user) {
     return <Navigate to="/login" replace />;

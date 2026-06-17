@@ -30,6 +30,7 @@ const getStats = async (req, res) => {
       success: true,
       data: {
         totalInstitutes,
+        pendingApprovals: pendingInstitutes,
         pendingInstitutes,
         approvedInstitutes,
         rejectedInstitutes,
@@ -61,13 +62,19 @@ const getActivities = async (req, res) => {
 const getInstitutes = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.status) {
+    // Ignore 'all' status filter coming from frontend
+    if (req.query.status && req.query.status !== 'all') {
       filter.status = req.query.status;
     }
+
+    // Debug: log incoming query and authenticated user info
+    console.log('Admin getInstitutes called by:', req.user?.email || req.userId, 'query:', req.query);
 
     const institutes = await User.find({ userType: 'institute', ...filter })
       .select('-password')
       .sort({ createdAt: -1 });
+
+    console.log(`Found ${institutes.length} institutes for filter:`, filter);
 
     res.json({ success: true, data: institutes });
   } catch (error) {
@@ -199,8 +206,22 @@ const toggleInstituteStatus = async (req, res) => {
 const getUsers = async (req, res) => {
   try {
     const filter = {};
-    if (req.query.userType) {
-      filter.userType = req.query.userType;
+    const userType = req.query.userType || req.query.role;
+    if (userType && userType !== 'all') {
+      filter.userType = userType;
+    }
+
+    if (req.query.status && req.query.status !== 'all') {
+      const statusFilter = req.query.status;
+      if (statusFilter === 'active') {
+        filter.isActive = true;
+      } else if (statusFilter === 'inactive') {
+        filter.isActive = false;
+      } else if (statusFilter === 'pending') {
+        filter.status = { $in: ['pending', 'email_verified', 'phone_verified', 'admin_approval_pending'] };
+      } else {
+        filter.status = statusFilter;
+      }
     }
 
     const users = await User.find(filter)

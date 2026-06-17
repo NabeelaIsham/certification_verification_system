@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import InstituteManagement from '../components/admin/InstituteManagement.jsx';
 import Analytics from '../components/admin/Analytics.jsx';
 import SystemLogs from '../components/admin/SystemLogs.jsx';
@@ -26,10 +26,20 @@ const SuperAdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showUserProfile, setShowUserProfile] = useState(false);
 
+  const getStoredUser = () => {
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      console.error('Failed to parse stored user data:', error);
+      return null;
+    }
+  };
+
   // Authentication check
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user'));
+    const userData = getStoredUser();
 
     if (!token || !userData || userData.userType !== 'superadmin') {
       navigate('/login');
@@ -44,16 +54,23 @@ const SuperAdminDashboard = () => {
     const token = localStorage.getItem('token');
     
     try {
-      const response = await axios.get(`${API_URL}/admin/stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/admin/stats');
 
       if (response.data.success) {
-        setStats(response.data.data);
+        const data = response.data.data || {};
+        setStats({
+          totalInstitutes: data.totalInstitutes ?? 0,
+          pendingApprovals: data.pendingApprovals ?? data.pendingInstitutes ?? 0,
+          totalCertificates: data.totalCertificates ?? 0,
+          activeUsers: data.activeUsers ?? 0,
+          approvedInstitutes: data.approvedInstitutes ?? 0,
+          rejectedInstitutes: data.rejectedInstitutes ?? 0,
+          suspendedInstitutes: data.suspendedInstitutes ?? 0
+        });
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
         handleLogout();
       }
     } finally {

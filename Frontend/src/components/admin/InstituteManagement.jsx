@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 
 const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
   const [institutes, setInstitutes] = useState([]);
@@ -24,27 +24,30 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
 
   useEffect(() => {
     fetchInstitutes();
-  }, [selectedStatus, pagination.page, searchTerm]);
+  }, [selectedStatus, pagination?.page ?? 1, searchTerm]);
 
   const fetchInstitutes = async () => {
-    const token = localStorage.getItem('token');
     setLoading(true);
 
     try {
-      const response = await axios.get(`${API_URL}/admin/institutes`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.get('/admin/institutes', {
         params: {
           status: selectedStatus,
-          page: pagination.page,
-          limit: pagination.limit,
+          page: pagination?.page ?? 1,
+          limit: pagination?.limit ?? 10,
           search: searchTerm
         }
       });
 
       if (response.data.success) {
         setInstitutes(response.data.data || []);
-        setPagination(response.data.pagination);
-        setCounts(response.data.counts);
+        setPagination(response.data.pagination || {
+          page: pagination?.page ?? 1,
+          limit: pagination?.limit ?? 10,
+          total: response.data.pagination?.total ?? (response.data.data?.length || 0),
+          pages: response.data.pagination?.pages ?? Math.ceil((response.data.data?.length || 0) / (pagination?.limit ?? 10))
+        });
+        setCounts(response.data.counts || counts);
       }
     } catch (error) {
       console.error('Error fetching institutes:', error);
@@ -57,15 +60,12 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
   const handleApprove = async (instituteId) => {
     if (!window.confirm('Are you sure you want to approve this institute?')) return;
 
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.put(
-        `${API_URL}/admin/institutes/${instituteId}/approve`,
-        { notes: 'Approved by super admin' },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const response = await api.put(
+        `/admin/institutes/${instituteId}/approve`,
+        { notes: 'Approved by super admin' }
       );
-      
+
       if (response.data.success) {
         alert('Institute approved successfully!');
         fetchInstitutes();
@@ -83,14 +83,11 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
 
     if (!window.confirm('Are you sure you want to reject this institute? This action cannot be undone.')) return;
 
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.delete(`${API_URL}/admin/institutes/${instituteId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.delete(`/admin/institutes/${instituteId}`, {
         data: { reason }
       });
-      
+
       if (response.data.success) {
         alert('Institute rejected successfully!');
         fetchInstitutes();
@@ -110,15 +107,12 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
 
     if (!window.confirm(message)) return;
 
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.put(
-        `${API_URL}/admin/institutes/${instituteId}/toggle-status`,
-        { action },
-        { headers: { Authorization: `Bearer ${token}` } }
+      const response = await api.put(
+        `/admin/institutes/${instituteId}/toggle-status`,
+        { action }
       );
-      
+
       if (response.data.success) {
         alert(`Institute ${action}ed successfully!`);
         fetchInstitutes();
@@ -131,13 +125,9 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
   };
 
   const handleViewDetails = async (instituteId) => {
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.get(`${API_URL}/admin/institutes/${instituteId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
+      const response = await api.get(`/admin/institutes/${instituteId}`);
+
       if (response.data.success) {
         setSelectedInstitute(response.data.data);
         setShowDetails(true);
@@ -370,17 +360,17 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
         )}
 
         {/* Pagination */}
-        {pagination.pages > 1 && (
+        {((pagination?.pages ?? 1) > 1) && (
           <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-gray-600 mb-4 sm:mb-0">
-              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
+              Showing {(((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10)) + 1} to {Math.min((pagination?.page ?? 1) * (pagination?.limit ?? 10), pagination?.total ?? 0)} of {pagination?.total ?? 0} results
             </p>
             <div className="flex space-x-2">
               <button
-                onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                disabled={pagination.page === 1}
+                onClick={() => setPagination({ ...pagination, page: (pagination?.page ?? 1) - 1 })}
+                disabled={(pagination?.page ?? 1) === 1}
                 className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                  pagination.page === 1
+                  (pagination?.page ?? 1) === 1
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
@@ -388,10 +378,10 @@ const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
                 Previous
               </button>
               <button
-                onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                disabled={pagination.page === pagination.pages}
+                onClick={() => setPagination({ ...pagination, page: (pagination?.page ?? 1) + 1 })}
+                disabled={(pagination?.page ?? 1) === (pagination?.pages ?? 1)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium ${
-                  pagination.page === pagination.pages
+                  (pagination?.page ?? 1) === (pagination?.pages ?? 1)
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
