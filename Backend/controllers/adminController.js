@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const Certificate = require('../models/Certificate');
 const Settings = require('../models/Settings');
+const ActivityLog = require('../models/ActivityLog');
 const { sendEmail } = require('../utils/emailService');
 
 const getStats = async (req, res) => {
@@ -48,11 +49,30 @@ const getStats = async (req, res) => {
 
 const getActivities = async (req, res) => {
   try {
-    const activities = await Notification.find({})
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const filter = req.query.action ? { action: req.query.action } : {};
 
-    res.json({ success: true, data: activities });
+    const [activities, total] = await Promise.all([
+      ActivityLog.find(filter)
+        .populate('user', 'name email userType')
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit),
+      ActivityLog.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: activities,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Admin getActivities error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch activities', error: error.message });
@@ -130,13 +150,23 @@ const approveInstitute = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Institute not found' });
     }
 
-    await Notification.create({
-      recipient: institute._id,
-      type: 'account_approved',
-      title: 'Institute Approved',
-      message: 'Your institute account has been approved by the administrator.',
-      data: { approvedBy: req.userId }
-    });
+    await Promise.all([
+      Notification.create({
+        recipient: institute._id,
+        type: 'account_approved',
+        title: 'Institute Approved',
+        message: 'Your institute account has been approved by the administrator.',
+        data: { approvedBy: req.userId }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: 'APPROVE_INSTITUTE',
+        details: { instituteId: institute._id, instituteName: institute.instituteName },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: 'Institute approved successfully', data: institute });
   } catch (error) {
@@ -163,13 +193,23 @@ const rejectInstitute = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Institute not found' });
     }
 
-    await Notification.create({
-      recipient: institute._id,
-      type: 'account_rejected',
-      title: 'Institute Rejected',
-      message: `Your institute account has been rejected. Reason: ${reason || 'No reason provided'}`,
-      data: { rejectedBy: req.userId, reason }
-    });
+    await Promise.all([
+      Notification.create({
+        recipient: institute._id,
+        type: 'account_rejected',
+        title: 'Institute Rejected',
+        message: `Your institute account has been rejected. Reason: ${reason || 'No reason provided'}`,
+        data: { rejectedBy: req.userId, reason }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: 'REJECT_INSTITUTE',
+        details: { instituteId: institute._id, instituteName: institute.instituteName, reason },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: 'Institute rejected successfully', data: institute });
   } catch (error) {
@@ -188,13 +228,24 @@ const toggleInstituteStatus = async (req, res) => {
     institute.status = institute.isActive ? 'approved' : 'suspended';
     await institute.save();
 
-    await Notification.create({
-      recipient: institute._id,
-      type: institute.isActive ? 'account_activated' : 'account_suspended',
-      title: institute.isActive ? 'Institute Activated' : 'Institute Suspended',
-      message: institute.isActive ? 'Your institute account was activated.' : 'Your institute account was suspended.',
-      data: { changedBy: req.userId }
-    });
+    const action = institute.isActive ? 'ACTIVATE_INSTITUTE' : 'SUSPEND_INSTITUTE';
+    await Promise.all([
+      Notification.create({
+        recipient: institute._id,
+        type: institute.isActive ? 'account_activated' : 'account_suspended',
+        title: institute.isActive ? 'Institute Activated' : 'Institute Suspended',
+        message: institute.isActive ? 'Your institute account was activated.' : 'Your institute account was suspended.',
+        data: { changedBy: req.userId }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: action,
+        details: { instituteId: institute._id, instituteName: institute.instituteName, status: institute.isActive ? 'activated' : 'suspended' },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: `Institute ${institute.isActive ? 'activated' : 'suspended'} successfully`, data: institute });
   } catch (error) {
@@ -248,13 +299,24 @@ const toggleUserStatus = async (req, res) => {
     }
     await user.save();
 
-    await Notification.create({
-      recipient: user._id,
-      type: user.isActive ? 'account_activated' : 'account_suspended',
-      title: user.isActive ? 'Account Activated' : 'Account Suspended',
-      message: user.isActive ? 'Your account has been activated.' : 'Your account has been suspended.',
-      data: { changedBy: req.userId }
-    });
+    const action = user.isActive ? 'ACTIVATE_USER' : 'SUSPEND_USER';
+    await Promise.all([
+      Notification.create({
+        recipient: user._id,
+        type: user.isActive ? 'account_activated' : 'account_suspended',
+        title: user.isActive ? 'Account Activated' : 'Account Suspended',
+        message: user.isActive ? 'Your account has been activated.' : 'Your account has been suspended.',
+        data: { changedBy: req.userId }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: action,
+        details: { targetUserId: user._id, targetUserEmail: user.email, userType: user.userType, status: user.isActive ? 'activated' : 'suspended' },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: `User ${user.isActive ? 'activated' : 'suspended'} successfully`, data: user });
   } catch (error) {
@@ -274,13 +336,23 @@ const resetUserPassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
-    await Notification.create({
-      recipient: user._id,
-      type: 'password_reset',
-      title: 'Password Reset',
-      message: 'Your password was reset by the administrator.',
-      data: { changedBy: req.userId }
-    });
+    await Promise.all([
+      Notification.create({
+        recipient: user._id,
+        type: 'password_reset',
+        title: 'Password Reset',
+        message: 'Your password was reset by the administrator.',
+        data: { changedBy: req.userId }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: 'RESET_USER_PASSWORD',
+        details: { targetUserId: user._id, targetUserEmail: user.email },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({
       success: true,
@@ -358,13 +430,23 @@ const revokeCertificate = async (req, res) => {
       }
     }
 
-    await Notification.create({
-      recipient: certificate.instituteId?._id || null,
-      type: 'certificate_revoked',
-      title: 'Certificate Revoked',
-      message: `Certificate ${certificate.certificateCode} has been revoked.`,
-      data: { revokedBy: req.userId, reason }
-    });
+    await Promise.all([
+      Notification.create({
+        recipient: certificate.instituteId?._id || null,
+        type: 'certificate_revoked',
+        title: 'Certificate Revoked',
+        message: `Certificate ${certificate.certificateCode} has been revoked.`,
+        data: { revokedBy: req.userId, reason }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: 'REVOKE_CERTIFICATE',
+        details: { certificateId: certificate._id, certificateCode: certificate.certificateCode, reason },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: 'Certificate revoked successfully', data: certificate });
   } catch (error) {
@@ -429,13 +511,23 @@ const updateSettings = async (req, res) => {
       settingsObj.email.smtpPassword = '********';
     }
 
-    await Notification.create({
-      recipient: req.userId,
-      type: 'settings_updated',
-      title: 'Settings Updated',
-      message: 'System settings have been updated successfully.',
-      data: { updatedBy: req.user.email }
-    });
+    await Promise.all([
+      Notification.create({
+        recipient: req.userId,
+        type: 'settings_updated',
+        title: 'Settings Updated',
+        message: 'System settings have been updated successfully.',
+        data: { updatedBy: req.user.email }
+      }),
+      ActivityLog.create({
+        user: req.userId,
+        userEmail: req.user?.email,
+        action: 'UPDATE_SETTINGS',
+        details: { settingsUpdated: Object.keys(updates) },
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      })
+    ]);
 
     res.json({ success: true, message: 'Settings updated successfully', data: settingsObj });
   } catch (error) {
@@ -457,6 +549,15 @@ const testEmail = async (req, res) => {
       to: recipient,
       subject: 'Test Email from Certificate Verification System',
       html: `<p>This is a test email from the Certificate Verification System.</p><p>If you receive this, your email settings are working.</p>`
+    });
+
+    await ActivityLog.create({
+      user: req.userId,
+      userEmail: req.user?.email,
+      action: 'TEST_EMAIL',
+      details: { testEmailSentTo: recipient },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
     });
 
     res.json({ success: true, message: 'Test email sent successfully.' });

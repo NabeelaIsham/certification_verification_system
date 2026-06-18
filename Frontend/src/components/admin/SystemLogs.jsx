@@ -5,23 +5,32 @@ const SystemLogs = ({ API_URL }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const [dateRange, setDateRange] = useState('today');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pagination, setPagination] = useState(null);
 
   useEffect(() => {
     fetchLogs();
-  }, [filter, dateRange]);
+  }, [filter, page]);
 
   const fetchLogs = async () => {
     const token = localStorage.getItem('token');
     setLoading(true);
 
     try {
-      const response = await axios.get(`${API_URL}/admin/activities`, {
+      let url = `${API_URL}/admin/activities?page=${page}&limit=50`;
+      if (filter !== 'all') {
+        url += `&action=${filter}`;
+      }
+
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       if (response.data.success) {
         setLogs(response.data.data || []);
+        setPagination(response.data.pagination);
+        setTotalPages(response.data.pagination?.pages || 1);
       }
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -30,26 +39,54 @@ const SystemLogs = ({ API_URL }) => {
     }
   };
 
-  const getLogIcon = (type) => {
-    switch(type) {
-      case 'approve': return '✅';
-      case 'reject': return '❌';
-      case 'register': return '📝';
-      case 'suspend': return '⚠️';
-      case 'activate': return '▶️';
-      default: return '📋';
+  const getActionIcon = (action) => {
+    switch(action) {
+      case 'APPROVE_INSTITUTE': return '✅';
+      case 'REJECT_INSTITUTE': return '❌';
+      case 'SUSPEND_INSTITUTE': return '⛔';
+      case 'ACTIVATE_INSTITUTE': return '▶️';
+      case 'SUSPEND_USER': return '⛔';
+      case 'ACTIVATE_USER': return '▶️';
+      case 'RESET_USER_PASSWORD': return '🔑';
+      case 'REVOKE_CERTIFICATE': return '📋';
+      case 'UPDATE_SETTINGS': return '⚙️';
+      case 'TEST_EMAIL': return '📧';
+      default: return '📝';
     }
   };
 
-  const getLogColor = (type) => {
-    switch(type) {
-      case 'approve': return 'bg-green-100 text-green-800';
-      case 'reject': return 'bg-red-100 text-red-800';
-      case 'register': return 'bg-blue-100 text-blue-800';
-      case 'suspend': return 'bg-orange-100 text-orange-800';
-      case 'activate': return 'bg-purple-100 text-purple-800';
+  const getActionColor = (action) => {
+    switch(action) {
+      case 'APPROVE_INSTITUTE':
+      case 'ACTIVATE_INSTITUTE':
+      case 'ACTIVATE_USER':
+        return 'bg-green-100 text-green-800';
+      case 'REJECT_INSTITUTE':
+      case 'REVOKE_CERTIFICATE':
+        return 'bg-red-100 text-red-800';
+      case 'SUSPEND_INSTITUTE':
+      case 'SUSPEND_USER':
+        return 'bg-orange-100 text-orange-800';
+      case 'RESET_USER_PASSWORD':
+        return 'bg-blue-100 text-blue-800';
+      case 'UPDATE_SETTINGS':
+      case 'TEST_EMAIL':
+        return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const formatActionName = (action) => {
+    return action.replace(/_/g, ' ');
+  };
+
+  const getDetailsSummary = (details) => {
+    if (!details) return 'N/A';
+    if (details.instituteName) return details.instituteName;
+    if (details.targetUserEmail) return details.targetUserEmail;
+    if (details.certificateCode) return details.certificateCode;
+    if (Array.isArray(details.settingsUpdated)) return details.settingsUpdated.join(', ');
+    return JSON.stringify(details).substring(0, 50);
   };
 
   return (
@@ -65,25 +102,23 @@ const SystemLogs = ({ API_URL }) => {
           <div className="flex space-x-2">
             <select
               value={filter}
-              onChange={(e) => setFilter(e.target.value)}
+              onChange={(e) => {
+                setFilter(e.target.value);
+                setPage(1);
+              }}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             >
               <option value="all">All Activities</option>
-              <option value="approve">Approvals</option>
-              <option value="reject">Rejections</option>
-              <option value="register">Registrations</option>
-              <option value="suspend">Suspensions</option>
-            </select>
-
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-              <option value="today">Today</option>
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="all">All Time</option>
+              <option value="APPROVE_INSTITUTE">Approve Institute</option>
+              <option value="REJECT_INSTITUTE">Reject Institute</option>
+              <option value="SUSPEND_INSTITUTE">Suspend Institute</option>
+              <option value="ACTIVATE_INSTITUTE">Activate Institute</option>
+              <option value="SUSPEND_USER">Suspend User</option>
+              <option value="ACTIVATE_USER">Activate User</option>
+              <option value="RESET_USER_PASSWORD">Reset Password</option>
+              <option value="REVOKE_CERTIFICATE">Revoke Certificate</option>
+              <option value="UPDATE_SETTINGS">Update Settings</option>
+              <option value="TEST_EMAIL">Test Email</option>
             </select>
           </div>
 
@@ -117,10 +152,9 @@ const SystemLogs = ({ API_URL }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin User</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
                 </tr>
               </thead>
@@ -128,18 +162,15 @@ const SystemLogs = ({ API_URL }) => {
                 {logs.map((log) => (
                   <tr key={log._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getLogColor(log.type)}`}>
-                        {getLogIcon(log.type)} {log.type}
+                      <span className={`px-2 py-1 text-xs rounded-full ${getActionColor(log.action)}`}>
+                        {getActionIcon(log.action)} {formatActionName(log.action)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {log.action}
-                    </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {log.description}
+                      {getDetailsSummary(log.details)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {log.user?.instituteName || log.user?.email || 'System'}
+                      {log.user?.name || log.userEmail || 'System'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(log.timestamp).toLocaleString()}
@@ -148,6 +179,32 @@ const SystemLogs = ({ API_URL }) => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {pagination && pagination.pages > 1 && (
+          <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Showing page <span className="font-medium">{pagination.page}</span> of{' '}
+              <span className="font-medium">{pagination.pages}</span> ({pagination.total} total activities)
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
