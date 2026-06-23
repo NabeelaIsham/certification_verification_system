@@ -12,15 +12,17 @@ const getStats = async (req, res) => {
       pendingInstitutes,
       approvedInstitutes,
       rejectedInstitutes,
+      suspendedInstitutes,
       totalTeachers,
       totalCertificates,
       revokedCertificates,
       activeUsers
     ] = await Promise.all([
       User.countDocuments({ userType: 'institute' }),
-      User.countDocuments({ userType: 'institute', status: { $in: ['pending', 'admin_approval_pending'] } }),
-      User.countDocuments({ userType: 'institute', status: 'approved' }),
+      User.countDocuments({ userType: 'institute', isVerifiedByAdmin: false }),
+      User.countDocuments({ userType: 'institute', isVerifiedByAdmin: true, isActive: true }),
       User.countDocuments({ userType: 'institute', status: 'rejected' }),
+      User.countDocuments({ userType: 'institute', isActive: false }),
       User.countDocuments({ userType: 'teacher' }),
       Certificate.countDocuments(),
       Certificate.countDocuments({ status: 'revoked' }),
@@ -35,6 +37,7 @@ const getStats = async (req, res) => {
         pendingInstitutes,
         approvedInstitutes,
         rejectedInstitutes,
+        suspendedInstitutes,
         totalTeachers,
         totalCertificates,
         revokedCertificates,
@@ -82,9 +85,20 @@ const getActivities = async (req, res) => {
 const getInstitutes = async (req, res) => {
   try {
     const filter = {};
-    // Ignore 'all' status filter coming from frontend
-    if (req.query.status && req.query.status !== 'all') {
-      filter.status = req.query.status;
+    
+    // Map frontend status filters to database queries
+    const selectedStatus = req.query.status;
+    if (selectedStatus && selectedStatus !== 'all') {
+      if (selectedStatus === 'pending') {
+        filter.isVerifiedByAdmin = false;
+      } else if (selectedStatus === 'approved') {
+        filter.isVerifiedByAdmin = true;
+        filter.isActive = true;
+      } else if (selectedStatus === 'rejected') {
+        filter.status = 'rejected';
+      } else if (selectedStatus === 'suspended') {
+        filter.isActive = false;
+      }
     }
 
     // Debug: log incoming query and authenticated user info
@@ -96,7 +110,26 @@ const getInstitutes = async (req, res) => {
 
     console.log(`Found ${institutes.length} institutes for filter:`, filter);
 
-    res.json({ success: true, data: institutes });
+    // Get counts for all statuses
+    const [totalCount, pendingCount, approvedCount, rejectedCount, suspendedCount] = await Promise.all([
+      User.countDocuments({ userType: 'institute' }),
+      User.countDocuments({ userType: 'institute', isVerifiedByAdmin: false }),
+      User.countDocuments({ userType: 'institute', isVerifiedByAdmin: true, isActive: true }),
+      User.countDocuments({ userType: 'institute', status: 'rejected' }),
+      User.countDocuments({ userType: 'institute', isActive: false })
+    ]);
+
+    res.json({ 
+      success: true, 
+      data: institutes,
+      counts: {
+        total: totalCount,
+        pending: pendingCount,
+        approved: approvedCount,
+        rejected: rejectedCount,
+        suspended: suspendedCount
+      }
+    });
   } catch (error) {
     console.error('Admin getInstitutes error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch institutes', error: error.message });

@@ -2,6 +2,24 @@ const Certificate = require('../models/Certificate');
 const path = require('path');
 const fs = require('fs');
 
+const getBaseUrl = () => (process.env.API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+
+const toPublicUploadUrl = (storedPath, fallbackPath) => {
+  const baseUrl = getBaseUrl();
+  const normalizedPath = (storedPath || fallbackPath || '').replace(/\\/g, '/');
+  const uploadsIndex = normalizedPath.indexOf('/uploads/');
+
+  if (uploadsIndex >= 0) {
+    return `${baseUrl}${normalizedPath.slice(uploadsIndex)}`;
+  }
+
+  if (normalizedPath.startsWith('uploads/')) {
+    return `${baseUrl}/${normalizedPath}`;
+  }
+
+  return fallbackPath ? `${baseUrl}/${fallbackPath.replace(/\\/g, '/')}` : null;
+};
+
 const verifyCertificate = async (req, res) => {
   try {
     const rawCode = req.params.code || '';
@@ -23,38 +41,44 @@ const verifyCertificate = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This certificate has been revoked', data: { status: certificate.status, revokedAt: certificate.revokedAt } });
     }
 
-    const baseUrl = process.env.API_URL || 'http://localhost:5000';
     const instituteId = certificate.instituteId?._id || certificate.instituteId;
     const instituteIdString = instituteId ? instituteId.toString() : null;
+    const certificateImagePath = instituteIdString
+      ? path.join(__dirname, '../uploads/generated', instituteIdString, `${certificate.certificateCode}.jpg`)
+      : null;
+    const qrImagePath = instituteIdString
+      ? path.join(__dirname, '../uploads/qrcodes', instituteIdString, `${certificate.certificateCode}.png`)
+      : null;
+    const imageExists = certificateImagePath ? fs.existsSync(certificateImagePath) : false;
+    const qrCodeExists = qrImagePath ? fs.existsSync(qrImagePath) : false;
+    const certificateImageFallback = imageExists && instituteIdString
+      ? `uploads/generated/${instituteIdString}/${certificate.certificateCode}.jpg`
+      : null;
+    const qrCodeFallback = qrCodeExists && instituteIdString
+      ? `uploads/qrcodes/${instituteIdString}/${certificate.certificateCode}.png`
+      : null;
+    const certificateImageUrl = toPublicUploadUrl(certificate.generatedCertificateImage, certificateImageFallback);
+    const qrCodeUrl = toPublicUploadUrl(certificate.qrCodeImage, qrCodeFallback);
 
-    let certificateImageUrl = null;
-    if (certificate.generatedCertificateImage && instituteIdString) {
-      certificateImageUrl = `${baseUrl}/uploads/generated/${instituteIdString}/${certificate.certificateCode}.jpg`;
-    }
-
-    let qrCodeUrl = null;
-    if (certificate.qrCodeImage && instituteIdString) {
-      qrCodeUrl = `${baseUrl}/uploads/qrcodes/${instituteIdString}/${certificate.certificateCode}.png`;
-    }
-
-    const imagePath = instituteIdString ? path.join(__dirname, '../uploads/generated', instituteIdString, `${certificate.certificateCode}.jpg`) : null;
-    const imageExists = imagePath ? fs.existsSync(imagePath) : false;
     if (!imageExists) {
-      console.warn(`Certificate image file missing: ${imagePath}`);
+      console.warn(`Certificate image file missing: ${certificateImagePath}`);
     }
 
     return res.json({ success: true, data: {
       certificateCode: certificate.certificateCode,
-      studentName: certificate.studentName,
-      courseName: certificate.courseName,
+      studentName: certificate.studentName || certificate.studentId?.name,
+      courseName: certificate.courseName || certificate.courseId?.courseName,
       awardDate: certificate.awardDate,
       instituteName: certificate.instituteId?.instituteName,
       instituteId: certificate.instituteId,
       status: certificate.status,
       issuedAt: certificate.createdAt,
       certificateImage: certificateImageUrl,
+      certificateUrl: certificateImageUrl,
       qrCodeImage: qrCodeUrl,
-      imageExists
+      verificationUrl: certificate.verificationUrl,
+      imageExists,
+      qrCodeExists
     }});
   } catch (error) {
     console.error('Verify certificate error:', error);

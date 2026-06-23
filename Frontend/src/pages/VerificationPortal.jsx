@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import {
-  Html5QrcodeScanner,
-  Html5QrcodeScanType,
+  Html5Qrcode,
   Html5QrcodeSupportedFormats
 } from 'html5-qrcode';
 import { useParams } from 'react-router-dom';
@@ -16,11 +15,27 @@ const VerificationPortal = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [scanMode, setScanMode] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState('');
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
   const scannerRef = useRef(null);
   const certificateRef = useRef(null);
   const lastScannerErrorLogRef = useRef(0);
+  const scanHandledRef = useRef(false);
+
+  const clearScanner = async (scanner) => {
+    if (!scanner) return;
+
+    try {
+      if (scanner.isScanning) {
+        await scanner.stop();
+      }
+
+      await Promise.resolve(scanner.clear());
+    } catch (clearError) {
+      console.error('Scanner cleanup error:', clearError);
+    }
+  };
 
   const getCameraErrorMessage = (err) => {
     const errorName = err?.name || '';
@@ -46,104 +61,141 @@ const VerificationPortal = () => {
 
   const startScanning = async () => {
     setError('');
+    setCameraStatus('Starting camera...');
+    scanHandledRef.current = false;
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setError('This browser does not support camera access. You can still upload a QR image.');
-      setScanMode(true);
+      setError('This browser does not support camera access. Please enter the certificate code manually.');
+      setCameraStatus('');
+      setScanMode(false);
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' }
-        }
-      });
-
-      stream.getTracks().forEach((track) => track.stop());
-      setScanMode(true);
-    } catch (err) {
-      console.error('Camera pre-check failed:', err);
-      setError(getCameraErrorMessage(err));
-      // Still show scanner UI so users can use image upload fallback.
-      setScanMode(true);
+    if (!window.isSecureContext) {
+      setError(getCameraErrorMessage({ name: 'InsecureContextError' }));
+      setCameraStatus('');
+      setScanMode(false);
+      return;
     }
+
+    setScanMode(true);
   };
 
   useEffect(() => {
-    // Initialize scanner when scanMode becomes true
-    if (scanMode) {
-      const scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        {
-          fps: 15,
-          qrbox: { width: 280, height: 280 },
-          aspectRatio: 1,
-          rememberLastUsedCamera: false,
-          showTorchButtonIfSupported: true,
-          showZoomSliderIfSupported: true,
-          supportedScanTypes: [
-            Html5QrcodeScanType.SCAN_TYPE_CAMERA,
-            Html5QrcodeScanType.SCAN_TYPE_FILE
-          ],
-          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-          videoConstraints: {
-            facingMode: { ideal: 'environment' }
-          }
-        },
-        false
-      );
-      
-      scanner.render(
-        (decodedText) => {
-          // Success callback
-          console.log('Scanned QR code:', decodedText);
-          const normalizedCode = extractCertificateCode(decodedText);
-          if (!normalizedCode) {
-            setError('Scanned QR code is invalid. Please scan a valid certificate QR code.');
+    if (!scanMode || scannerRef.current) return;
+
+    let cancelled = false;
+    const scanner = new Html5Qrcode('qr-reader', {
+      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      verbose: false
+    });
+
+    const scanConfig = {
+      fps: 15,
+      qrbox: { width: 260, height: 260 },
+      aspectRatio: 1
+    };
+
+    const onScanSuccess = (decodedText) => {
+      if (scanHandledRef.current) return;
+
+      const normalizedCode = extractCertificateCode(decodedText);
+      if (!normalizedCode) {
+        setError('Scanned QR code is invalid. Please scan a valid certificate QR code.');
+        return;
+      }
+
+      scanHandledRef.current = true;
+      setCertificateCode(normalizedCode);
+      setCameraStatus('QR code found. Verifying certificate...');
+      stopScanning({ keepStatus: true });
+      verifyCertificate(normalizedCode);
+    };
+
+    const onScanFailure = (errorMessage) => {
+      const normalizedError = (errorMessage || '').toLowerCase();
+
+      if (
+        normalizedError.includes('not found') ||
+        normalizedError.includes('no multiformat readers were able to detect') ||
+        normalizedError.includes('no qr code found')
+      ) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastScannerErrorLogRef.current > 5000) {
+        console.warn('QR scanner warning:', errorMessage);
+        lastScannerErrorLogRef.current = now;
+      }
+    };
+
+    const startCamera = async () => {
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cancelled) return;
+
+        if (!cameras.length) {
+          throw { name: 'NotFoundError' };
+        }
+
+        const rearCamera = cameras.find((camera) =>
+          /back|rear|environment/i.test(camera.label || '')
+        );
+        const cameraConfig = rearCamera || cameras[0];
+
+        await scanner.start(
+          { deviceId: { exact: cameraConfig.id } },
+          scanConfig,
+          onScanSuccess,
+          onScanFailure
+        );
+
+        if (cancelled) {
+          await clearScanner(scanner);
+          return;
+        }
+
+        scannerRef.current = scanner;
+        setCameraStatus('Camera is ready. Point it at the certificate QR code.');
+      } catch (err) {
+        console.error('Camera start failed:', err);
+
+        try {
+          if (!cancelled && !scanner.isScanning) {
+            await scanner.start(
+              { facingMode: 'environment' },
+              scanConfig,
+              onScanSuccess,
+              onScanFailure
+            );
+            scannerRef.current = scanner;
+            setCameraStatus('Camera is ready. Point it at the certificate QR code.');
             return;
           }
-          setCertificateCode(normalizedCode);
-          setScanMode(false);
-          scanner.clear();
-          // Automatically verify after scan
-          setTimeout(() => {
-            verifyCertificate(normalizedCode);
-          }, 500);
-        },
-        (errorMessage) => {
-          // Error callback
-          const normalizedError = (errorMessage || '').toLowerCase();
-
-          // Ignore expected frame-by-frame "not found" messages to avoid browser slowdown.
-          if (
-            normalizedError.includes('not found') ||
-            normalizedError.includes('no multiformat readers were able to detect') ||
-            normalizedError.includes('no qr code found')
-          ) {
-            return;
-          }
-
-          const now = Date.now();
-          if (now - lastScannerErrorLogRef.current > 5000) {
-            console.warn('QR scanner warning:', errorMessage);
-            lastScannerErrorLogRef.current = now;
+        } catch (fallbackErr) {
+          console.error('Fallback camera start failed:', fallbackErr);
+          if (!cancelled) {
+            setError(getCameraErrorMessage(fallbackErr));
+            setCameraStatus('');
+            setScanMode(false);
+            await clearScanner(scanner);
           }
         }
-      );
-      
-      scannerRef.current = scanner;
-      
-      // Cleanup on unmount
-      return () => {
-        if (scannerRef.current) {
-          scannerRef.current.clear().catch((clearError) => {
-            console.error('Scanner cleanup error:', clearError);
-          });
-          scannerRef.current = null;
-        }
-      };
-    }
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+
+      if (scannerRef.current === scanner) {
+        scannerRef.current = null;
+      }
+
+      clearScanner(scanner);
+    };
   }, [scanMode]);
 
   useEffect(() => {
@@ -189,6 +241,42 @@ const VerificationPortal = () => {
     return decodeURIComponent(value).trim().toUpperCase();
   };
 
+  const normalizeVerificationResult = (data) => {
+    const source = data?.certificate || data || {};
+    const certificateImage =
+      source.certificateImage ||
+      source.certificateUrl ||
+      source.certificateImageUrl ||
+      source.generatedCertificateUrl ||
+      source.generatedCertificateImage ||
+      null;
+
+    return {
+      ...source,
+      certificateCode: source.certificateCode || source.code || '',
+      studentName: source.studentName || source.studentId?.name || 'Not available',
+      courseName: source.courseName || source.courseId?.courseName || 'Not available',
+      awardDate: source.awardDate || source.issueDate || source.issuedAt || null,
+      instituteName: source.instituteName || source.instituteId?.instituteName || 'Not available',
+      status: source.status || (data?.success ? 'issued' : 'unknown'),
+      certificateImage,
+      qrCodeImage: source.qrCodeImage || source.qrCodeUrl || null
+    };
+  };
+
+  const formatDisplayDate = (dateValue) => {
+    if (!dateValue) return 'Not available';
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return 'Not available';
+
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   async function verifyCertificate(codeInput) {
     const normalizedCode = extractCertificateCode(codeInput);
 
@@ -209,7 +297,7 @@ const VerificationPortal = () => {
       console.log('Verification response:', response.data);
       
       if (response.data.success) {
-        setVerificationResult(response.data.data);
+        setVerificationResult(normalizeVerificationResult(response.data.data));
         setCertificateCode(normalizedCode);
       } else {
         setError(response.data.message || 'Certificate not found');
@@ -263,6 +351,11 @@ const VerificationPortal = () => {
     }
   };
 
+  const viewCertificate = () => {
+    if (!verificationResult?.certificateImage) return;
+    window.open(verificationResult.certificateImage, '_blank', 'noopener,noreferrer');
+  };
+
   const printCertificate = () => {
     if (!certificateRef.current) return;
     
@@ -272,11 +365,7 @@ const VerificationPortal = () => {
       return;
     }
     
-    const awardDate = new Date(verificationResult.awardDate).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const awardDate = formatDisplayDate(verificationResult.awardDate);
     
     printWindow.document.write(`
       <html>
@@ -377,7 +466,7 @@ const VerificationPortal = () => {
             </div>
             <div class="detail-row">
               <span class="label">Status:</span>
-              <span class="value"><span class="status-badge">${verificationResult.status.toUpperCase()}</span></span>
+              <span class="value"><span class="status-badge">${verificationResult.status?.toUpperCase()}</span></span>
             </div>
           </div>
           
@@ -392,13 +481,16 @@ const VerificationPortal = () => {
     printWindow.print();
   };
 
-  const stopScanning = () => {
+  const stopScanning = async ({ keepStatus = false } = {}) => {
     setScanMode(false);
+    if (!keepStatus) {
+      setCameraStatus('');
+    }
+
     if (scannerRef.current) {
-      scannerRef.current.clear().catch((clearError) => {
-        console.error('Failed to stop scanner:', clearError);
-      });
+      const scanner = scannerRef.current;
       scannerRef.current = null;
+      await clearScanner(scanner);
     }
   };
 
@@ -430,6 +522,11 @@ const VerificationPortal = () => {
         {/* Main Content */}
         {!verificationResult ? (
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+            {loading && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-center">
+                Verifying scanned certificate...
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* QR Code Verification */}
               <div className="text-center p-6 border-r border-gray-200">
@@ -447,7 +544,15 @@ const VerificationPortal = () => {
                 
                 {scanMode ? (
                   <div>
-                    <div id="qr-reader" className="mb-4"></div>
+                    <div
+                      id="qr-reader"
+                      className="mb-3 overflow-hidden rounded-lg border border-gray-200 bg-black"
+                    ></div>
+                    {cameraStatus && (
+                      <p className="mb-3 text-sm text-gray-600">
+                        {cameraStatus}
+                      </p>
+                    )}
                     <button
                       onClick={stopScanning}
                       className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm"
@@ -545,34 +650,6 @@ const VerificationPortal = () => {
               </p>
             </div>
 
-            {/* Certificate Image */}
-            {verificationResult.certificateImage && !imageError ? (
-              <div className="mb-8 border rounded-lg overflow-hidden shadow-lg">
-                <img 
-                  src={verificationResult.certificateImage} 
-                  alt="Certificate"
-                  className="w-full h-auto"
-                  onError={handleImageError}
-                  onLoad={() => console.log('Certificate image loaded successfully')}
-                />
-              </div>
-            ) : verificationResult.certificateImage && imageError ? (
-              <div className="mb-8 p-6 bg-yellow-50 rounded-lg text-center">
-                <p className="text-yellow-700 mb-2">Certificate image could not be loaded.</p>
-                <p className="text-sm text-gray-600">Certificate code: {verificationResult.certificateCode}</p>
-                {verificationResult.certificateImage && (
-                  <a 
-                    href={verificationResult.certificateImage} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm mt-2 inline-block"
-                  >
-                    Click here to open the image directly
-                  </a>
-                )}
-              </div>
-            ) : null}
-
             {/* Certificate Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gray-50 p-6 rounded-lg">
               <div>
@@ -596,11 +673,7 @@ const VerificationPortal = () => {
               <div>
                 <p className="text-sm text-gray-500 mb-1">Award Date</p>
                 <p className="font-medium text-gray-900 bg-white p-2 rounded border">
-                  {new Date(verificationResult.awardDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+                  {formatDisplayDate(verificationResult.awardDate)}
                 </p>
               </div>
               <div>
@@ -617,11 +690,46 @@ const VerificationPortal = () => {
                       ? 'bg-green-100 text-green-800 border border-green-200' 
                       : 'bg-red-100 text-red-800 border border-red-200'
                   }`}>
-                    {verificationResult.status.charAt(0).toUpperCase() + verificationResult.status.slice(1)}
+                    {verificationResult.status
+                      ? verificationResult.status.charAt(0).toUpperCase() + verificationResult.status.slice(1)
+                      : 'Unknown'}
                   </span>
                 </p>
               </div>
             </div>
+
+            {/* Certificate Image */}
+            {verificationResult.certificateImage && !imageError ? (
+              <div className="mb-8 border rounded-lg overflow-hidden shadow-lg bg-white">
+                <img 
+                  src={verificationResult.certificateImage} 
+                  alt="Certificate"
+                  className="w-full h-auto"
+                  onError={handleImageError}
+                  onLoad={() => console.log('Certificate image loaded successfully')}
+                />
+              </div>
+            ) : verificationResult.certificateImage && imageError ? (
+              <div className="mb-8 p-6 bg-yellow-50 rounded-lg text-center">
+                <p className="text-yellow-700 mb-2">Certificate image could not be loaded.</p>
+                <p className="text-sm text-gray-600">Certificate code: {verificationResult.certificateCode}</p>
+                {verificationResult.certificateImage && (
+                  <a 
+                    href={verificationResult.certificateImage} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm mt-2 inline-block"
+                  >
+                    Click here to open the image directly
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="mb-8 p-6 bg-yellow-50 rounded-lg text-center">
+                <p className="text-yellow-700 mb-2">Certificate details are verified, but the certificate image is not available.</p>
+                <p className="text-sm text-gray-600">Certificate code: {verificationResult.certificateCode}</p>
+              </div>
+            )}
 
             {/* QR Code (if available) */}
             {verificationResult.qrCodeImage && (
@@ -637,6 +745,18 @@ const VerificationPortal = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap justify-center gap-4">
+              <button
+                onClick={viewCertificate}
+                disabled={!verificationResult.certificateImage}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center disabled:opacity-50"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                View Certificate
+              </button>
+
               <button
                 onClick={resetVerification}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
