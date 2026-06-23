@@ -1,16 +1,14 @@
-
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const OTPVerification = () => {
   const [otp, setOtp] = useState('');
-  const [type, setType] = useState('email'); // 'email' or 'phone'
-  const [timer, setTimer] = useState(300); // 5 minutes in seconds
+  const [timer, setTimer] = useState(300);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  
+
   const location = useLocation();
   const navigate = useNavigate();
   const { email } = location.state || {};
@@ -38,32 +36,23 @@ const OTPVerification = () => {
   const handleVerify = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setIsLoading(true);
 
     try {
       const response = await axios.post('http://localhost:5000/api/auth/verify-otp', {
         email,
-        otp,
-        type
+        otp
       });
 
       if (response.data.success) {
-        setMessage(`✅ ${type} verified successfully!`);
-        
-        // Check if both verifications are done
-        if (type === 'email') {
-          setType('phone');
-          setOtp('');
-          setTimer(300);
-          setMessage('Email verified! Now please verify your phone number.');
-        } else {
-          // Both verified, redirect to login
-          setTimeout(() => {
-            navigate('/login', {
-              state: { message: 'Verification complete! Please wait for admin approval.' }
-            });
-          }, 2000);
-        }
+        setMessage('Account verified successfully.');
+
+        setTimeout(() => {
+          navigate('/login', {
+            state: { message: 'Verification complete! Please wait for admin approval.' }
+          });
+        }, 2000);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Verification failed');
@@ -73,15 +62,18 @@ const OTPVerification = () => {
   };
 
   const handleResendOTP = async () => {
+    setError('');
+    setMessage('');
+
     try {
       await axios.post('http://localhost:5000/api/auth/resend-otp', {
         email,
-        type
+        type: 'account'
       });
       setTimer(300);
       setMessage('OTP resent successfully!');
     } catch (err) {
-      setError('Failed to resend OTP');
+      setError(err.response?.data?.message || 'Failed to resend OTP');
     }
   };
 
@@ -96,10 +88,10 @@ const OTPVerification = () => {
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
         <div>
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            {type === 'email' ? 'Verify Email' : 'Verify Phone'}
+            Verify Account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Enter the OTP sent to your {type}
+            Enter the OTP sent to your email or phone
           </p>
         </div>
 

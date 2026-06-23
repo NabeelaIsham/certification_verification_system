@@ -3,13 +3,13 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const OTP = require('../models/OTP');
 const { sendOtpEmail } = require('../utils/emailService');
+const { sendOtpSms } = require('../utils/smsService');
 const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/validators');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
 const sendSMSOTP = async (phone, otp) => {
-  console.log(`[SMS] OTP ${otp} would be sent to ${phone}`);
-  return true;
+  return sendOtpSms({ to: phone, otp });
 };
 
 const isOtpExpired = (otpRecord) => {
@@ -78,30 +78,51 @@ const registerInstitute = async (req, res) => {
 
     await user.save();
 
-    const emailOtp = generateOTP();
-    await OTP.deleteMany({ email: user.email, type: 'email' });
+    const accountOtp = generateOTP();
+    await OTP.deleteMany({ email: user.email, type: { $in: ['email', 'phone'] } });
     await OTP.create({
       email: user.email,
       phone: user.phone,
-      otp: emailOtp,
+      otp: accountOtp,
       type: 'email'
     });
 
+    if (user.phone) {
+      await OTP.create({
+        email: user.email,
+        phone: user.phone,
+        otp: accountOtp,
+        type: 'phone'
+      });
+    }
+
     let emailSent = false;
+    let smsSent = false;
     try {
-      await sendOtpEmail({ to: user.email, otp: emailOtp, purpose: 'verification' });
+      await sendOtpEmail({ to: user.email, otp: accountOtp, purpose: 'verification' });
       emailSent = true;
     } catch (emailError) {
       console.warn('Warning: failed to send email OTP:', emailError.message);
     }
 
+    if (user.phone) {
+      try {
+        await sendSMSOTP(user.phone, accountOtp);
+        smsSent = true;
+      } catch (smsError) {
+        console.warn('Warning: failed to send SMS OTP:', smsError.message);
+      }
+    }
+
     return res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your email with the OTP sent.',
+      message: 'Registration successful. Please verify your account with the OTP sent to your email or phone.',
       userId: user._id,
       email: user.email,
-      nextStep: 'verify-email',
-      emailSent
+      nextStep: 'verify-account',
+      emailSent,
+      smsSent,
+      otp: process.env.NODE_ENV === 'test' ? accountOtp : undefined
     });
   } catch (error) {
     console.error('Register institute error:', error);
@@ -111,17 +132,26 @@ const registerInstitute = async (req, res) => {
 
 const verifyOtp = async (req, res) => {
   try {
-    const { email, otp, type = 'email' } = req.body;
+    const { email, otp, type } = req.body;
     if (!isValidEmail(email) || !isNonEmptyString(otp)) {
       return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const otpValue = otp.toString().trim();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    const otpRecord = await OTP.findOne({ email: email.toLowerCase().trim(), otp: otp.toString().trim(), type });
+    const verificationTypes = ['email', 'phone'];
+    const typeFilter = verificationTypes.includes(type) ? [type, ...verificationTypes.filter((item) => item !== type)] : verificationTypes;
+    const otpRecord = await OTP.findOne({
+      email: normalizedEmail,
+      otp: otpValue,
+      type: { $in: typeFilter }
+    }).sort({ createdAt: -1 });
+
     if (!otpRecord) {
       return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
@@ -131,38 +161,18 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.', canResend: true });
     }
 
-    if (type === 'email') {
-      user.isEmailVerified = true;
-      user.status = user.isPhoneVerified ? 'admin_approval_pending' : 'email_verified';
-      await user.save();
-      await OTP.deleteOne({ _id: otpRecord._id });
+    user.isEmailVerified = true;
+    user.isPhoneVerified = Boolean(user.phone);
+    user.status = 'admin_approval_pending';
+    await user.save();
+    await OTP.deleteMany({ email: normalizedEmail, type: { $in: verificationTypes } });
 
-      if (user.isPhoneVerified) {
-        return res.json({ success: true, message: 'Email verified successfully. Your account is pending admin approval.', nextStep: 'pending-approval' });
-      }
-
-      const phoneOtp = generateOTP();
-      await OTP.deleteMany({ email: user.email, type: 'phone' });
-      await OTP.create({ email: user.email, phone: user.phone || '', otp: phoneOtp, type: 'phone' });
-      await sendSMSOTP(user.phone, phoneOtp);
-
-      return res.json({ success: true, message: 'Email verified successfully. Please verify your phone number.', nextStep: 'verify-phone' });
-    }
-
-    if (type === 'phone') {
-      user.isPhoneVerified = true;
-      user.status = user.isEmailVerified ? 'admin_approval_pending' : 'phone_verified';
-      await user.save();
-      await OTP.deleteOne({ _id: otpRecord._id });
-
-      if (user.isEmailVerified) {
-        return res.json({ success: true, message: 'Phone verified successfully. Your account is pending admin approval.', nextStep: 'pending-approval' });
-      }
-
-      return res.json({ success: true, message: 'Phone verified successfully. Please verify your email.', nextStep: 'verify-email' });
-    }
-
-    return res.status(400).json({ success: false, message: 'Invalid verification type.' });
+    return res.json({
+      success: true,
+      message: 'Account verified successfully. Your account is pending admin approval.',
+      nextStep: 'pending-approval',
+      verifiedBy: otpRecord.type
+    });
   } catch (error) {
     console.error('Verify OTP error:', error);
     return res.status(500).json({ success: false, message: 'OTP verification failed', error: error.message });
@@ -171,7 +181,7 @@ const verifyOtp = async (req, res) => {
 
 const resendOtp = async (req, res) => {
   try {
-    const { email, type = 'email' } = req.body;
+    const { email, type = 'account' } = req.body;
     if (!isValidEmail(email)) {
       return res.status(400).json({ success: false, message: 'Valid email is required.' });
     }
@@ -181,25 +191,47 @@ const resendOtp = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    if (type === 'email' && user.isEmailVerified) {
-      return res.status(400).json({ success: false, message: 'Email already verified.' });
-    }
-
-    if (type === 'phone' && user.isPhoneVerified) {
-      return res.status(400).json({ success: false, message: 'Phone already verified.' });
+    if (user.status === 'admin_approval_pending' || user.isEmailVerified || user.isPhoneVerified) {
+      return res.status(400).json({ success: false, message: 'Account already verified.' });
     }
 
     const otp = generateOTP();
-    await OTP.deleteMany({ email: user.email, type });
-    await OTP.create({ email: user.email, phone: user.phone || '', otp, type });
+    await OTP.deleteMany({ email: user.email, type: { $in: ['email', 'phone'] } });
 
-    if (type === 'email') {
-      await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
-    } else {
-      await sendSMSOTP(user.phone, otp);
+    let emailSent = false;
+    let smsSent = false;
+
+    if (type === 'email' || type === 'account') {
+      await OTP.create({ email: user.email, phone: user.phone || '', otp, type: 'email' });
+      try {
+        await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
+        emailSent = true;
+      } catch (emailError) {
+        console.warn('Warning: failed to resend email OTP:', emailError.message);
+      }
     }
 
-    return res.json({ success: true, message: `OTP resent to your ${type}.`, otp: process.env.NODE_ENV === 'test' ? otp : undefined });
+    if ((type === 'phone' || type === 'account') && user.phone) {
+      await OTP.create({ email: user.email, phone: user.phone || '', otp, type: 'phone' });
+      try {
+        await sendSMSOTP(user.phone, otp);
+        smsSent = true;
+      } catch (smsError) {
+        console.warn('Warning: failed to resend SMS OTP:', smsError.message);
+      }
+    }
+
+    if (!emailSent && !smsSent) {
+      return res.status(500).json({ success: false, message: 'Failed to resend OTP. Please check email/SMS settings.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'OTP resent successfully.',
+      emailSent,
+      smsSent,
+      otp: process.env.NODE_ENV === 'test' ? otp : undefined
+    });
   } catch (error) {
     console.error('Resend OTP error:', error);
     return res.status(500).json({ success: false, message: 'Failed to resend OTP', error: error.message });
@@ -304,11 +336,8 @@ const login = async (req, res) => {
     }
 
     if (user.userType === 'institute') {
-      if (!user.isEmailVerified) {
-        return res.status(403).json({ success: false, message: 'Please verify your email first.', needsEmailVerification: true });
-      }
-      if (!user.isPhoneVerified) {
-        return res.status(403).json({ success: false, message: 'Please verify your phone number.', needsPhoneVerification: true });
+      if (!user.isEmailVerified && !user.isPhoneVerified) {
+        return res.status(403).json({ success: false, message: 'Please verify your account first.', needsAccountVerification: true });
       }
       if (!user.isVerifiedByAdmin) {
         return res.status(403).json({ success: false, message: 'Your account is pending admin approval.', pendingAdminApproval: true });

@@ -25,8 +25,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const isAuthExpired =
+      error.response?.status === 401 ||
+      error.response?.data?.code === 'TOKEN_EXPIRED' ||
+      error.response?.data?.code === 'INVALID_TOKEN';
+
+    if (isAuthExpired) {
       localStorage.removeItem('token')
+      localStorage.removeItem('user')
       window.location.href = '/login'
     }
     return Promise.reject(error)
