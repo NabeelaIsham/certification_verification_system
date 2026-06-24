@@ -1,3 +1,5 @@
+import BrandLogo from './BrandLogo';
+
 const Footer = () => {
   return (
     <footer className="bg-gray-900 text-white">
@@ -5,11 +7,8 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Company Info */}
           <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center mb-4">
-              <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">CVS</span>
-              </div>
-              <span className="ml-2 text-xl font-bold">CertVerify</span>
+            <div className="mb-4 inline-flex rounded-md bg-white p-2">
+              <BrandLogo imageClassName="h-10 w-auto max-w-[210px]" compact />
             </div>
             <p className="text-gray-300 max-w-md">
               A secure, multi-institute digital certificate verification system 
@@ -57,9 +56,9 @@ const Footer = () => {
               Contact
             </h3>
             <ul className="space-y-2">
-              <li className="text-base text-gray-300">support@certverify.com</li>
-              <li className="text-base text-gray-300">+94 77 123 4567</li>
-              <li className="text-base text-gray-300">University of Moratuwa</li>
+              <li className="text-base text-gray-300">info@verifyawards.com</li>
+              <li className="text-base text-gray-300">+94 76 454 5756</li>
+              <li className="text-base text-gray-300">109/4 , Manning Place Colombo 06</li>
               <li className="text-base text-gray-300">Sri Lanka</li>
             </ul>
           </div>
@@ -68,7 +67,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="mt-8 border-t border-gray-700 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-base text-gray-400">
-            &copy; 2024 CertVerify System. All rights reserved.
+            &copy; 2024 VerifyAwards. All rights reserved.
           </p>
           <div className="mt-4 md:mt-0 flex space-x-6">
             <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">

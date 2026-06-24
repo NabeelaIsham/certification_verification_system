@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import BrandLogo from './BrandLogo';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -8,7 +9,7 @@ const Navbar = () => {
   const navigation = [
     { name: 'Home', href: '/', current: location.pathname === '/' },
     { name: 'Verify Certificate', href: '/verify', current: location.pathname === '/verify' },
-    { name: 'Institute Login', href: '/login', current: location.pathname === '/login' },
+    { name: 'Login', href: '/login', current: location.pathname === '/login' },
   ];
 
   return (
@@ -18,12 +19,7 @@ const Navbar = () => {
           {/* Logo */}
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">CVS</span>
-              </div>
-              <span className="ml-2 text-xl font-bold text-gray-900">
-                CertVerify
-              </span>
+              <BrandLogo imageClassName="h-100 w-auto max-w-[190px]" compact />
             </Link>
           </div>
 
