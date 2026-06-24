@@ -103,9 +103,11 @@ const sendCertificateEmail = async ({
   awardDate,
   certificateCode,
   certificateUrl,
+  downloadUrl,
   verificationUrl,
   instituteName
 }) => {
+  const resolvedDownloadUrl = downloadUrl || certificateUrl;
   const subject = `Your Certificate for ${courseName}`;
   const html = `
     <!DOCTYPE html>
@@ -118,6 +120,7 @@ const sendCertificateEmail = async ({
         .certificate-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
         .certificate-code { background: #f0f0f0; padding: 10px; font-family: monospace; font-size: 18px; text-align: center; border-radius: 5px; margin: 15px 0; }
         .button { display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; font-weight: bold; }
+        .button.secondary { background: #48bb78; }
         .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
       </style>
     </head>
@@ -140,9 +143,14 @@ const sendCertificateEmail = async ({
         <div class="certificate-code">
           <strong>Certificate Code:</strong> ${certificateCode}
         </div>
+        <p style="margin: 18px 0 0;"><strong>Award Date:</strong> ${new Date(awardDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })}</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${certificateUrl}" class="button" style="margin-right: 10px;">View Certificate</a>
-          <a href="${verificationUrl}" class="button" style="background: #48bb78;">Verify Certificate</a>
+          ${resolvedDownloadUrl ? `<a href="${resolvedDownloadUrl}" class="button" style="margin-right: 10px;">Download Certificate</a>` : ''}
+          ${verificationUrl ? `<a href="${verificationUrl}" class="button secondary">Verify Certificate</a>` : ''}
         </div>
         <p>This certificate is officially issued by ${instituteName || 'our institution'} and can be verified at any time using the certificate code.</p>
         <p>Best regards,<br><strong>${instituteName || DEFAULT_FROM_NAME}</strong></p>

@@ -11,7 +11,8 @@ const {
   sendCertificateEmail,
   regenerateCertificateImage,
   bulkIssueCertificates,
-  getCertificateImage
+  getCertificateImage,
+  downloadCertificate
 } = require('../controllers/certificateController');
 
 // Public route for serving certificate images (no auth required)
@@ -23,6 +24,7 @@ router.use(authenticateToken, authorizeInstitute);
 // Certificate CRUD operations
 router.post('/', issueCertificate);
 router.get('/', getCertificates);
+router.get('/:id/download', downloadCertificate);
 router.get('/:id', getCertificateById);
 router.put('/:id/status', updateCertificateStatus);
 router.post('/:id/send-email', sendCertificateEmail);

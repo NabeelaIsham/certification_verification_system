@@ -9,6 +9,52 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { sendCertificateEmail } = require('../utils/emailService');
+
+const buildCertificateUrls = ({ baseUrl, instituteId, certificateCode, generatedImagePath }) => {
+  const normalizedInstituteId = instituteId?.toString?.() || instituteId;
+  const generatedUrl = generatedImagePath
+    ? `${baseUrl}/uploads/generated/${normalizedInstituteId}/${certificateCode}.jpg`
+    : null;
+
+  return {
+    generatedCertificateUrl: generatedUrl,
+    certificateUrl: generatedUrl,
+    downloadUrl: generatedUrl,
+    qrCodeUrl: `${baseUrl}/uploads/qrcodes/${normalizedInstituteId}/${certificateCode}.png`
+  };
+};
+
+const sendIssuedCertificateNotification = async ({ certificate, student, institute, baseUrl }) => {
+  if (!certificate?.generatedCertificateImage || !student?.email) {
+    return { sent: false, reason: 'certificate image or student email missing' };
+  }
+
+  const urls = buildCertificateUrls({
+    baseUrl,
+    instituteId: certificate.instituteId,
+    certificateCode: certificate.certificateCode,
+    generatedImagePath: certificate.generatedCertificateImage
+  });
+
+  await sendCertificateEmail({
+    to: student.email,
+    studentName: certificate.studentName || student.name,
+    courseName: certificate.courseName,
+    awardDate: certificate.awardDate,
+    certificateCode: certificate.certificateCode,
+    certificateUrl: urls.certificateUrl,
+    downloadUrl: urls.downloadUrl,
+    verificationUrl: certificate.verificationUrl,
+    instituteName: institute?.instituteName
+  });
+
+  certificate.emailSent = true;
+  certificate.emailSentAt = new Date();
+  await certificate.save();
+
+  return { sent: true };
+};
 
 // ============ HELPER FUNCTION FOR CERTIFICATE IMAGE GENERATION ============
 
@@ -898,12 +944,32 @@ const issueCertificateAsTeacher = async (req, res) => {
 
     // Generate URLs for frontend
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
+    const urls = buildCertificateUrls({
+      baseUrl,
+      instituteId: teacher.instituteId,
+      certificateCode,
+      generatedImagePath
+    });
     const certificateData = {
       ...certificate.toObject(),
-      generatedCertificateUrl: generatedImagePath ? `${baseUrl}/${generatedImagePath.replace(/\\/g, '/')}` : null,
-      qrCodeUrl: `${baseUrl}/${qrCodePath.replace(/\\/g, '/')}`,
+      ...urls,
       templateImageUrl: `${baseUrl}/${template.templateImage}`
     };
+
+    if (generatedImagePath) {
+      try {
+        await sendIssuedCertificateNotification({
+          certificate,
+          student,
+          institute,
+          baseUrl
+        });
+        certificateData.emailSent = true;
+        certificateData.emailSentAt = new Date();
+      } catch (emailError) {
+        console.error('Automatic certificate email send failed:', emailError);
+      }
+    }
 
     res.json({
       success: true,
