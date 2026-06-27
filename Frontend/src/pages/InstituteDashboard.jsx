@@ -8,7 +8,7 @@ import CertificateManagement from '../components/institute/CertificateManagement
 import BulkUpload from '../components/institute/BulkUpload';
 import InstituteSettings from '../components/institute/InstituteSettings';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const InstituteDashboard = () => {
   const navigate = useNavigate();

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "setup-superadmin": "node adminRoutes.js"
+    "test": "jest --config jest.config.js --runInBand",
+    "setup-superadmin": "node scripts/setupSuperAdmin.js"
   },
   "keywords": [],
   "author": "",

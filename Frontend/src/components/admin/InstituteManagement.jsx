@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 
-const InstituteManagement = ({ API_URL, user, onStatsUpdate }) => {
+const InstituteManagement = ({ onStatsUpdate }) => {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatus, setSelectedStatus] = useState('all');

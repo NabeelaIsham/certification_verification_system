@@ -28,13 +28,6 @@ const {
 // ============ PUBLIC ROUTES ============
 router.post('/login', teacherLogin);
 
-// ============ INSTITUTE ADMIN ROUTES ============
-router.post('/', authenticateToken, authorizeInstitute, createTeacher);
-router.get('/', authenticateToken, authorizeInstitute, getTeachers);
-router.get('/:id', authenticateToken, authorizeInstitute, getTeacherById);
-router.put('/:id', authenticateToken, authorizeInstitute, updateTeacher);
-router.delete('/:id', authenticateToken, authorizeInstitute, deleteTeacher);
-
 // ============ TEACHER ROUTES (Self-service) ============
 router.get('/profile/me', authenticateToken, authorizeTeacher, getTeacherProfile);
 router.put('/profile/me', authenticateToken, authorizeTeacher, updateTeacherProfile);
@@ -47,5 +40,12 @@ router.get('/templates/course/:courseId', authenticateToken, authorizeTeacher, g
 
 // Certificate issuance
 router.post('/certificates/issue', authenticateToken, authorizeTeacher, issueCertificateAsTeacher);
+
+// ============ INSTITUTE ADMIN ROUTES ============
+router.post('/', authenticateToken, authorizeInstitute, createTeacher);
+router.get('/', authenticateToken, authorizeInstitute, getTeachers);
+router.get('/:id', authenticateToken, authorizeInstitute, getTeacherById);
+router.put('/:id', authenticateToken, authorizeInstitute, updateTeacher);
+router.delete('/:id', authenticateToken, authorizeInstitute, deleteTeacher);
 
 module.exports = router;

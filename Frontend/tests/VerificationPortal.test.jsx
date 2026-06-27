@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import VerificationPortal from '../Frontend/src/pages/VerificationPortal.jsx';
+import VerificationPortal from '../src/pages/VerificationPortal.jsx';
 import { MemoryRouter } from 'react-router-dom';
 
 describe('VerificationPortal', () => {

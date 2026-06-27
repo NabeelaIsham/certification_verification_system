@@ -8,7 +8,7 @@ import SystemSettings from '../components/admin/SystemSetting.jsx';
 import UserManagement from '../components/admin/UserManagement.jsx';
 import UserProfile from '../components/admin/UserProfile.jsx';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -51,8 +51,6 @@ const SuperAdminDashboard = () => {
   }, [navigate]);
 
   const fetchDashboardStats = async () => {
-    const token = localStorage.getItem('token');
-    
     try {
       const response = await api.get('/admin/stats');
 

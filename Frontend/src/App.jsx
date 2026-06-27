@@ -29,7 +29,7 @@ import TeacherManagement from './components/institute/TeacherManagement'
 import TeacherDashboard from './components/teacher/TeacherDashboard'
 
 // Define API_URL here so it can be used throughout the app
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Protected Route Component
 const getStoredUser = () => {

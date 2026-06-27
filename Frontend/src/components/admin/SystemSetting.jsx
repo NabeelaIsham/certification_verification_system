@@ -51,8 +51,6 @@ const SystemSettings = ({ API_URL }) => {
         }
       }
 
-      console.log('Saving settings:', settingsToSave); // Debug log
-
       const response = await axios.put(
         `${API_URL}/admin/settings`,
         settingsToSave,
@@ -163,7 +161,7 @@ const SystemSettings = ({ API_URL }) => {
         const importedSettings = JSON.parse(e.target.result);
         setSettings(importedSettings);
         showMessage('success', 'Settings imported successfully! Click Save to apply.');
-      } catch (error) {
+      } catch {
         showMessage('error', 'Invalid settings file');
       }
     };

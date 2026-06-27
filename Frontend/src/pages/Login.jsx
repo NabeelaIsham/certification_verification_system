@@ -56,8 +56,6 @@ const Login = () => {
     setErrors({});
 
     try {
-      console.log('Login attempt with:', { email: formData.email });
-
       const response = await authService.login({
         email: formData.email,
         password: formData.password
@@ -66,8 +64,6 @@ const Login = () => {
       if (response.success) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
-
-        console.log('Login successful, user type:', response.user.userType);
 
         switch (response.user.userType) {
           case 'superadmin':
@@ -94,12 +90,6 @@ const Login = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Get icon for selected user type
-  const getSelectedTypeIcon = () => {
-    const selected = userTypes.find(t => t.value === formData.userType);
-    return selected?.icon || '🔐';
   };
 
   return (

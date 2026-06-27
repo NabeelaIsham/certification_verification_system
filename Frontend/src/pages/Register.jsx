@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const Register = () => {
   const [formData, setFormData] = useState({
     instituteName: '',
@@ -51,7 +53,7 @@ const Register = () => {
     }
     
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/register', formData);
+      const response = await axios.post(`${API_URL}/auth/register`, formData);
       
       if (response.data.success) {
         // Redirect to OTP verification page

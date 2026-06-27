@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const OTPVerification = () => {
   const [otp, setOtp] = useState('');
   const [timer, setTimer] = useState(300);
@@ -40,7 +42,7 @@ const OTPVerification = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/verify-otp', {
+      const response = await axios.post(`${API_URL}/auth/verify-otp`, {
         email,
         otp
       });
@@ -66,7 +68,7 @@ const OTPVerification = () => {
     setMessage('');
 
     try {
-      await axios.post('http://localhost:5000/api/auth/resend-otp', {
+      await axios.post(`${API_URL}/auth/resend-otp`, {
         email,
         type: 'account'
       });

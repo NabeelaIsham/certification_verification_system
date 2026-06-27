@@ -6,7 +6,7 @@ import {
 } from 'html5-qrcode';
 import { useParams } from 'react-router-dom';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const VerificationPortal = () => {
   const { code: routeCode } = useParams();
@@ -234,7 +234,7 @@ const VerificationPortal = () => {
       if (codeParam) {
         return decodeURIComponent(codeParam).trim().toUpperCase();
       }
-    } catch (_) {
+    } catch {
       // Continue with plain code parsing when value is not a full URL.
     }
 
@@ -291,10 +291,7 @@ const VerificationPortal = () => {
     setImageError(false);
 
     try {
-      console.log('Verifying certificate:', normalizedCode);
       const response = await axios.get(`${API_URL}/certificates/verify/${encodeURIComponent(normalizedCode)}`);
-      
-      console.log('Verification response:', response.data);
       
       if (response.data.success) {
         setVerificationResult(normalizeVerificationResult(response.data.data));
@@ -495,7 +492,6 @@ const VerificationPortal = () => {
   };
 
   const handleImageError = () => {
-    console.log('Certificate image failed to load');
     setImageError(true);
   };
 
@@ -614,7 +610,7 @@ const VerificationPortal = () => {
 
                   <button
                     type="submit"
-                    disabled={loading || !certificateCode}
+                    disabled={loading}
                     className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
@@ -706,7 +702,6 @@ const VerificationPortal = () => {
                   alt="Certificate"
                   className="w-full h-auto"
                   onError={handleImageError}
-                  onLoad={() => console.log('Certificate image loaded successfully')}
                 />
               </div>
             ) : verificationResult.certificateImage && imageError ? (

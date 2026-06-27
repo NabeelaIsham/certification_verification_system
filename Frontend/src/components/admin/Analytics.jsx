@@ -1,32 +1,4 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const Analytics = ({ API_URL, stats }) => {
-  const [chartData, setChartData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
-
-  const fetchAnalytics = async () => {
-    const token = localStorage.getItem('token');
-    
-    try {
-      const response = await axios.get(`${API_URL}/admin/analytics`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.data.success) {
-        setChartData(response.data.data);
-      }
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+const Analytics = ({ stats }) => {
   // If analytics endpoint doesn't exist yet, use stats data
   const displayStats = [
     { label: 'Total Institutes', value: stats.totalInstitutes, color: 'bg-blue-500', icon: '🏛️' },
