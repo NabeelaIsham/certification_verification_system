@@ -11,9 +11,9 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://mongo:27017/certverify
       JWT_SECRET: change-this-secret
-      API_URL: http://localhost:5000
-      FRONTEND_URL: http://localhost:3000
-      CORS_ORIGIN: http://localhost:3000,https://verifyrewards.com
+      API_URL: https://verifyawards.com
+      FRONTEND_URL: https://verifyawards.com
+      CORS_ORIGIN: http://localhost:3000,https://verifyawards.com
     ports:
       - '5000:5000'
     depends_on:
