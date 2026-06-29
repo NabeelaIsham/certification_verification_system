@@ -75,4 +75,29 @@ If Docker is available on the VPS:
 docker compose up -d --build
 ```
 
+The Compose setup uses MongoDB 4.4 because MongoDB 5+ images can crash with
+`Illegal instruction` / exit code `132` on older VPS CPUs that do not expose AVX.
+
+For an existing checkout on the VPS:
+
+```bash
+git pull
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 mongo
+```
+
+If this is a fresh install and the Mongo container still fails because the old
+failed container left an incompatible empty database volume, reset only the Mongo
+volume and start again:
+
+```bash
+docker compose down
+docker volume rm certification_verification_system_mongo-data
+docker compose up -d --build
+```
+
+Do not remove the Mongo volume on a server that already contains real production
+data unless you have a verified backup.
+
 Before production use, replace the example secrets in `docker-compose.yml` or move them to a secure environment file.
