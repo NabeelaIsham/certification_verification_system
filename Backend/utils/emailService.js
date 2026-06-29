@@ -13,14 +13,20 @@ const getEmailSettings = async () => {
   }
 };
 
+const hasValue = (value) => typeof value === 'string' && value.trim().length > 0;
+
 const createTransporter = async () => {
   const emailConfig = await getEmailSettings();
-  const port = Number(emailConfig.smtpPort || process.env.EMAIL_PORT || 587);
-  const smtpUser = (emailConfig.smtpUsername || process.env.EMAIL_USER || '').trim();
-  const smtpPass = (emailConfig.smtpPassword || process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+  const settingsHaveAuth = hasValue(emailConfig.smtpUsername) || hasValue(emailConfig.smtpPassword);
+  const host = settingsHaveAuth && hasValue(emailConfig.smtpServer)
+    ? emailConfig.smtpServer.trim()
+    : process.env.EMAIL_HOST || 'smtp.gmail.com';
+  const port = Number(settingsHaveAuth && emailConfig.smtpPort ? emailConfig.smtpPort : process.env.EMAIL_PORT || 587);
+  const smtpUser = (settingsHaveAuth && hasValue(emailConfig.smtpUsername) ? emailConfig.smtpUsername : process.env.EMAIL_USER || '').trim();
+  const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '').replace(/\s+/g, '');
 
   return nodemailer.createTransport({
-    host: emailConfig.smtpServer || process.env.EMAIL_HOST || 'smtp.gmail.com',
+    host,
     port,
     secure: port === 465,
     auth: {
@@ -33,8 +39,8 @@ const createTransporter = async () => {
 const getFromDetails = async () => {
   const emailConfig = await getEmailSettings();
   return {
-    fromName: emailConfig.fromName || DEFAULT_FROM_NAME,
-    fromEmail: emailConfig.fromEmail || process.env.EMAIL_USER
+    fromName: hasValue(emailConfig.fromName) ? emailConfig.fromName.trim() : process.env.EMAIL_FROM_NAME || DEFAULT_FROM_NAME,
+    fromEmail: hasValue(emailConfig.fromEmail) ? emailConfig.fromEmail.trim() : process.env.EMAIL_USER
   };
 };
 

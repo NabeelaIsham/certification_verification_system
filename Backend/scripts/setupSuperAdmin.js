@@ -26,12 +26,13 @@ const setupSuperAdmin = async () => {
 
   if (existing) {
     existing.superAdminName = SUPERADMIN_NAME;
+    existing.password = SUPERADMIN_PASSWORD;
     existing.isActive = true;
     existing.isEmailVerified = true;
     existing.isVerifiedByAdmin = true;
     existing.status = 'approved';
     await existing.save();
-    console.log(`Super admin already exists and was updated: ${existing.email}`);
+    console.log(`Super admin already exists and was updated with a fresh password: ${existing.email}`);
     return;
   }
 
