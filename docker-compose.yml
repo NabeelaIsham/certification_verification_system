@@ -10,7 +10,6 @@ services:
       PORT: 5000
       NODE_ENV: production
       MONGODB_URI: mongodb://mongo:27017/certverify
-      JWT_SECRET: change-this-secret
       API_URL: https://verifyawards.com
       FRONTEND_URL: https://verifyawards.com
       CORS_ORIGIN: http://localhost:3000,https://verifyawards.com

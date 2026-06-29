@@ -68,7 +68,7 @@ const SuperAdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
-      if (error.response?.status === 401 || error.response?.status === 403) {
+      if (error.response?.status === 401) {
         handleLogout();
       }
     } finally {
