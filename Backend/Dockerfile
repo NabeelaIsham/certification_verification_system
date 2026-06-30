@@ -13,8 +13,6 @@ COPY . .
 RUN mkdir -p /usr/src/app/uploads/certificates /usr/src/app/uploads/generated /usr/src/app/uploads/qrcodes /usr/src/app/uploads/templates \
   && chown -R node:node /usr/src/app/uploads
 
-USER node
-
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

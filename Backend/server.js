@@ -17,16 +17,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const uploadsDir = path.join(__dirname, 'uploads');
-const certificatesDir = path.join(uploadsDir, 'certificates');
+const uploadDirs = [
+  uploadsDir,
+  path.join(uploadsDir, 'certificates'),
+  path.join(uploadsDir, 'generated'),
+  path.join(uploadsDir, 'qrcodes'),
+  path.join(uploadsDir, 'templates')
+];
 
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('Uploads directory created');
-}
-
-if (!fs.existsSync(certificatesDir)) {
-  fs.mkdirSync(certificatesDir, { recursive: true });
-  console.log('Certificates directory created');
+for (const dir of uploadDirs) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Upload directory created: ${dir}`);
+  }
 }
 
 app.use('/uploads', express.static(uploadsDir));

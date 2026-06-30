@@ -8,7 +8,7 @@ const sharp = require('sharp');
 // Configure multer for template image upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dir = `uploads/templates/${req.user.id}`;
+    const dir = path.join(__dirname, '..', 'uploads', 'templates', req.user.id);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -42,53 +42,64 @@ const createTemplate = async (req, res) => {
         return res.status(400).json({ success: false, message: err.message });
       }
 
-      const instituteId = req.user.id;
-      const { templateName, courseId, fields, qrCodePosition } = req.body;
-
-      if (!req.file) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Template image is required' 
-        });
-      }
-
-      // Verify course belongs to institute
-      const course = await Course.findOne({ _id: courseId, instituteId });
-      if (!course) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid course selected' 
-        });
-      }
-
-      // Parse fields from JSON string
-      let parsedFields = [];
-      let parsedQrPosition = { x: 0, y: 0, size: 100 };
-
       try {
-        if (fields) parsedFields = JSON.parse(fields);
-        if (qrCodePosition) parsedQrPosition = JSON.parse(qrCodePosition);
-      } catch (e) {
-        console.error('Error parsing fields:', e);
+        const instituteId = req.user.id;
+        const { templateName, courseId, fields, qrCodePosition } = req.body;
+
+        if (!req.file) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Template image is required' 
+          });
+        }
+
+        // Verify course belongs to institute
+        const course = await Course.findOne({ _id: courseId, instituteId });
+        if (!course) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Invalid course selected' 
+          });
+        }
+
+        // Parse fields from JSON string
+        let parsedFields = [];
+        let parsedQrPosition = { x: 0, y: 0, size: 100 };
+
+        try {
+          if (fields) parsedFields = JSON.parse(fields);
+          if (qrCodePosition) parsedQrPosition = JSON.parse(qrCodePosition);
+        } catch (e) {
+          console.error('Error parsing fields:', e);
+        }
+
+        const templatePath = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
+
+        const template = new CertificateTemplate({
+          instituteId,
+          templateName,
+          courseId,
+          templateImage: templatePath,
+          fields: parsedFields,
+          qrCodePosition: parsedQrPosition,
+          isActive: true
+        });
+
+        await template.save();
+
+        res.status(201).json({
+          success: true,
+          message: 'Certificate template created successfully',
+          data: template
+        });
+      } catch (error) {
+        console.error('Create template error:', error);
+        res.status(500).json({ 
+          success: false, 
+          message: 'Failed to create template',
+          error: error.message
+        });
       }
-
-      const template = new CertificateTemplate({
-        instituteId,
-        templateName,
-        courseId,
-        templateImage: req.file.path.replace(/\\/g, '/'),
-        fields: parsedFields,
-        qrCodePosition: parsedQrPosition,
-        isActive: true
-      });
-
-      await template.save();
-
-      res.status(201).json({
-        success: true,
-        message: 'Certificate template created successfully',
-        data: template
-      });
     });
   } catch (error) {
     console.error('Create template error:', error);
