@@ -53,6 +53,20 @@ const sendIssuedCertificateNotification = async ({ certificate, student, institu
   return { sent: true };
 };
 
+const escapeSvgText = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+
+const getSvgFontFamily = (fontFamily) => {
+  const requestedFont = String(fontFamily || '').replace(/[;"<>]/g, '').trim();
+  const fallbackFonts = '"Liberation Sans", "DejaVu Sans", sans-serif';
+
+  return requestedFont ? `"${requestedFont}", ${fallbackFonts}` : fallbackFonts;
+};
+
 // ============ HELPER FUNCTION FOR CERTIFICATE IMAGE GENERATION ============
 
 const generateCertificateImage = async (certificateData) => {
@@ -110,17 +124,19 @@ const generateCertificateImage = async (certificateData) => {
         console.log(`Adding text field ${field.fieldName} at (${field.x}, ${field.y}): "${text}"`);
 
         // Create SVG for text
+        const fontFamily = getSvgFontFamily(field.fontFamily);
+        const safeText = escapeSvgText(text);
         const textSvg = `
           <svg width="${metadata.width}" height="${metadata.height}">
             <style>
               .text {
-                font-family: ${field.fontFamily || 'Arial'};
+                font-family: ${fontFamily};
                 font-size: ${field.fontSize || 24}px;
                 fill: ${field.fontColor || '#000000'};
                 text-anchor: ${field.textAlign === 'center' ? 'middle' : field.textAlign === 'right' ? 'end' : 'start'};
               }
             </style>
-            <text x="${field.x}" y="${field.y}" class="text">${text}</text>
+            <text x="${field.x}" y="${field.y}" class="text">${safeText}</text>
           </svg>
         `;
 
