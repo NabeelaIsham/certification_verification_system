@@ -81,7 +81,4 @@ studentSchema.statics.cleanIndexes = async function() {
 
 const Student = mongoose.model('Student', studentSchema);
 
-// Call this when the app starts
-Student.cleanIndexes().catch(console.error);
-
 module.exports = Student;

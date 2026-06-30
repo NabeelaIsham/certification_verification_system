@@ -181,7 +181,6 @@ const userSchema = new mongoose.Schema({
 // Compound index to ensure employeeId is unique per institute
 userSchema.index({ instituteId: 1, employeeId: 1 }, { 
   unique: true, 
-  sparse: true,
   partialFilterExpression: { employeeId: { $exists: true, $type: 'string' } }
 });
 

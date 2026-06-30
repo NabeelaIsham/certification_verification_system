@@ -28,7 +28,4 @@ const otpSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Create TTL index for automatic deletion
-otpSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
-
 module.exports = mongoose.model('OTP', otpSchema);

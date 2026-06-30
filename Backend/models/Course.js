@@ -58,8 +58,7 @@ courseSchema.pre('save', function(next) {
   next();
 });
 
-// Drop any legacy indexes when the model is initialized
-courseSchema.statics.ensureIndexes = async function() {
+courseSchema.statics.cleanLegacyIndexes = async function() {
   try {
     const collection = this.collection;
     const indexes = await collection.indexes();
@@ -77,8 +76,5 @@ courseSchema.statics.ensureIndexes = async function() {
 };
 
 const Course = mongoose.model('Course', courseSchema);
-
-// Call this when the app starts
-Course.ensureIndexes().catch(console.error);
 
 module.exports = Course;
