@@ -10,6 +10,7 @@ const CertificateManagement = ({ API_URL }) => {
   const [loading, setLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
+  const [recentTemplate, setRecentTemplate] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'templates') {
@@ -75,6 +76,16 @@ const CertificateManagement = ({ API_URL }) => {
   const handleEditFields = (template) => {
     setSelectedTemplate(template);
     setShowFieldEditor(true);
+  };
+
+  const copyTemplateId = async (templateId) => {
+    try {
+      await navigator.clipboard.writeText(templateId);
+      alert('Template ID copied');
+    } catch (error) {
+      console.error('Error copying template ID:', error);
+      alert(`Template ID: ${templateId}`);
+    }
   };
 
   const handleUpdateStatus = async (certificateId, status) => {
@@ -212,6 +223,26 @@ const CertificateManagement = ({ API_URL }) => {
       {activeTab === 'templates' && (
         <div>
           <h2 className="text-xl font-bold mb-4">Certificate Templates</h2>
+          {recentTemplate && (
+            <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-medium text-green-900">Template created successfully</p>
+                  <p className="mt-1 text-sm text-green-800">
+                    Bulk upload TemplateId:
+                    <span className="ml-2 font-mono break-all">{recentTemplate._id}</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copyTemplateId(recentTemplate._id)}
+                  className="self-start rounded-lg border border-green-300 px-3 py-2 text-sm font-medium text-green-800 hover:bg-green-100 sm:self-auto"
+                >
+                  Copy ID
+                </button>
+              </div>
+            </div>
+          )}
           {loading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
@@ -230,6 +261,19 @@ const CertificateManagement = ({ API_URL }) => {
                     <p className="text-sm text-gray-500">
                       Course: {template.courseId?.courseName || 'Not assigned'}
                     </p>
+                    <div className="mt-3 rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs font-medium text-gray-500">Bulk upload TemplateId</p>
+                      <div className="mt-1 flex items-start justify-between gap-2">
+                        <p className="font-mono text-xs text-gray-800 break-all">{template._id}</p>
+                        <button
+                          type="button"
+                          onClick={() => copyTemplateId(template._id)}
+                          className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-white"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
                     
                     <div className="mt-2">
                       <p className="text-xs text-gray-400">
@@ -277,7 +321,8 @@ const CertificateManagement = ({ API_URL }) => {
       {activeTab === 'create-template' && (
         <CertificateTemplateCreator 
           API_URL={API_URL}
-          onTemplateCreated={() => {
+          onTemplateCreated={(template) => {
+            setRecentTemplate(template);
             setActiveTab('templates');
             fetchTemplates();
           }}
