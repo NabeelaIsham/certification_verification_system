@@ -1,9 +1,10 @@
+name: certverify
+
 services:
   backend:
     build:
       context: ./Backend
       dockerfile: Dockerfile
-    container_name: certverify-backend
     env_file:
       - ./Backend/.env
     environment:
@@ -34,17 +35,12 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api
-    container_name: certverify-frontend
     ports:
       - '3000:80'
-    depends_on:
-      backend:
-        condition: service_healthy
     restart: unless-stopped
 
   mongo:
     image: mongo:4.4
-    container_name: certverify-mongo
     command: ['mongod', '--bind_ip_all']
     healthcheck:
       test: ['CMD', 'mongo', '--quiet', '--eval', 'db.adminCommand("ping").ok']
@@ -58,4 +54,6 @@ services:
 
 volumes:
   mongo-data:
+    name: certification_verification_system_mongo-data
   backend-uploads:
+    name: certification_verification_system_backend-uploads
