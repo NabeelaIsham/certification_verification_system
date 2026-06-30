@@ -60,23 +60,51 @@ const sendEmail = async ({ to, subject, html }) => {
   });
 };
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const buildEmailButton = ({ href, label, backgroundColor }) => {
+  if (!href) return '';
+
+  const safeHref = escapeHtml(href);
+  const safeLabel = escapeHtml(label);
+
+  return `
+    <td align="center" style="padding: 8px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="border-collapse: separate;">
+        <tr>
+          <td align="center" bgcolor="${backgroundColor}" style="border-radius: 6px; background-color: ${backgroundColor};">
+            <a href="${safeHref}" target="_blank" style="background-color: ${backgroundColor}; border: 1px solid ${backgroundColor}; border-radius: 6px; color: #ffffff; display: inline-block; font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; line-height: 20px; padding: 12px 22px; text-align: center; text-decoration: none;">
+              ${safeLabel}
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  `;
+};
+
 const buildOtpEmailHtml = ({ title, intro, otp, footerNote }) => `
   <!DOCTYPE html>
   <html>
   <body style="font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 24px;">
     <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
       <div style="background: #1d4ed8; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px;">${title}</h1>
+        <h1 style="margin: 0; font-size: 24px;">${escapeHtml(title)}</h1>
       </div>
       <div style="padding: 24px; color: #111827;">
-        <p style="margin-top: 0;">${intro}</p>
+        <p style="margin-top: 0;">${escapeHtml(intro)}</p>
         <div style="margin: 24px 0; text-align: center;">
           <div style="display: inline-block; background: #eff6ff; color: #1d4ed8; font-size: 32px; letter-spacing: 8px; font-weight: bold; padding: 16px 24px; border-radius: 10px;">
-            ${otp}
+            ${escapeHtml(otp)}
           </div>
         </div>
         <p style="margin-bottom: 8px;">This OTP expires in 5 minutes.</p>
-        <p style="margin-bottom: 0; color: #4b5563;">${footerNote}</p>
+        <p style="margin-bottom: 0; color: #4b5563;">${escapeHtml(footerNote)}</p>
       </div>
     </div>
   </body>
@@ -114,55 +142,58 @@ const sendCertificateEmail = async ({
   instituteName
 }) => {
   const resolvedDownloadUrl = downloadUrl || certificateUrl;
+  const formattedAwardDate = new Date(awardDate).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const safeStudentName = escapeHtml(studentName);
+  const safeCourseName = escapeHtml(courseName);
+  const safeCertificateCode = escapeHtml(certificateCode);
+  const safeInstituteName = escapeHtml(instituteName || 'Our Institute');
+  const safeClosingName = escapeHtml(instituteName || DEFAULT_FROM_NAME);
   const subject = `Your Certificate for ${courseName}`;
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="UTF-8">
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #4f46e5; color: #ffffff; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
         .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-        .certificate-info { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
+        .certificate-info { background: #ffffff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }
         .certificate-code { background: #f0f0f0; padding: 10px; font-family: monospace; font-size: 18px; text-align: center; border-radius: 5px; margin: 15px 0; }
-        .button { display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; font-weight: bold; }
-        .button.secondary { background: #48bb78; }
-        .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+        .footer { text-align: center; margin-top: 30px; color: #666666; font-size: 12px; }
       </style>
     </head>
     <body>
       <div class="header">
-        <h1>Congratulations ${studentName}!</h1>
+        <h1 style="margin: 0; color: #ffffff;">Congratulations ${safeStudentName}!</h1>
       </div>
       <div class="content">
-        <p>Dear <strong>${studentName}</strong>,</p>
+        <p>Dear <strong>${safeStudentName}</strong>,</p>
         <p>We are pleased to inform you that you have successfully completed the course:</p>
         <div class="certificate-info">
-          <h2 style="color: #667eea; margin-top: 0;">${courseName}</h2>
-          <p><strong>Award Date:</strong> ${new Date(awardDate).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          })}</p>
-          <p><strong>Institute:</strong> ${instituteName || 'Our Institute'}</p>
+          <h2 style="color: #667eea; margin-top: 0;">${safeCourseName}</h2>
+          <p><strong>Award Date:</strong> ${formattedAwardDate}</p>
+          <p><strong>Institute:</strong> ${safeInstituteName}</p>
         </div>
         <div class="certificate-code">
-          <strong>Certificate Code:</strong> ${certificateCode}
+          <strong>Certificate Code:</strong> ${safeCertificateCode}
         </div>
-        <p style="margin: 18px 0 0;"><strong>Award Date:</strong> ${new Date(awardDate).toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        })}</p>
-        <div style="text-align: center; margin: 30px 0;">
-          ${resolvedDownloadUrl ? `<a href="${resolvedDownloadUrl}" class="button" style="margin-right: 10px;">Download Certificate</a>` : ''}
-          ${verificationUrl ? `<a href="${verificationUrl}" class="button secondary">Verify Certificate</a>` : ''}
-        </div>
-        <p>This certificate is officially issued by ${instituteName || 'our institution'} and can be verified at any time using the certificate code.</p>
-        <p>Best regards,<br><strong>${instituteName || DEFAULT_FROM_NAME}</strong></p>
+        <p style="margin: 18px 0 0;"><strong>Award Date:</strong> ${formattedAwardDate}</p>
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 30px auto; border-collapse: collapse;">
+          <tr>
+            ${buildEmailButton({ href: resolvedDownloadUrl, label: 'Download Certificate', backgroundColor: '#4f46e5' })}
+            ${buildEmailButton({ href: verificationUrl, label: 'Verify Certificate', backgroundColor: '#16a34a' })}
+          </tr>
+        </table>
+        <p>This certificate is officially issued by ${safeClosingName} and can be verified at any time using the certificate code.</p>
+        <p>Best regards,<br><strong>${safeClosingName}</strong></p>
       </div>
       <div class="footer">
-        <p>© ${new Date().getFullYear()} ${DEFAULT_FROM_NAME}. All rights reserved.</p>
+        <p>&copy; ${new Date().getFullYear()} ${DEFAULT_FROM_NAME}. All rights reserved.</p>
       </div>
     </body>
     </html>
