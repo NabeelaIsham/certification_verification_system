@@ -70,6 +70,39 @@ const getSvgFontFamily = (fontFamily) => {
   return requestedFont ? `"${requestedFont}", ${fallbackFonts}` : fallbackFonts;
 };
 
+const formatAwardDate = (awardDate) => new Date(awardDate).toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+});
+
+const getCertificateFieldText = (field, data) => {
+  switch (field.fieldName) {
+    case 'studentName':
+      return data.studentName;
+    case 'studentEmail':
+      return data.studentEmail;
+    case 'studentPhone':
+      return data.studentPhone;
+    case 'courseName':
+      return data.courseName;
+    case 'courseCode':
+      return data.courseCode;
+    case 'courseDuration':
+      return data.courseDuration;
+    case 'awardDate':
+      return formatAwardDate(data.awardDate);
+    case 'certificateCode':
+      return data.certificateCode;
+    case 'instituteName':
+      return data.instituteName;
+    case 'staticText':
+      return field.staticValue || field.displayName || '';
+    default:
+      return '';
+  }
+};
+
 // ============ HELPER FUNCTION FOR CERTIFICATE IMAGE GENERATION ============
 
 const generateCertificateImage = async (certificateData) => {
@@ -77,11 +110,16 @@ const generateCertificateImage = async (certificateData) => {
     const { 
       template, 
       studentName, 
+      studentEmail,
+      studentPhone,
       courseName, 
+      courseCode,
+      courseDuration,
       awardDate, 
       certificateCode,
       qrCodeImage,
-      instituteId 
+      instituteId,
+      instituteName
     } = certificateData;
 
     console.log('Starting certificate image generation...');
@@ -102,27 +140,17 @@ const generateCertificateImage = async (certificateData) => {
     // Add text fields
     if (template.fields && template.fields.length > 0) {
       for (const field of template.fields) {
-        let text = '';
-        switch (field.fieldName) {
-          case 'studentName':
-            text = studentName;
-            break;
-          case 'awardDate':
-            text = new Date(awardDate).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            });
-            break;
-          case 'certificateCode':
-            text = certificateCode;
-            break;
-          case 'courseName':
-            text = courseName;
-            break;
-          default:
-            text = '';
-        }
+        const text = getCertificateFieldText(field, {
+          studentName,
+          studentEmail,
+          studentPhone,
+          courseName,
+          courseCode,
+          courseDuration,
+          awardDate,
+          certificateCode,
+          instituteName
+        });
 
         console.log(`Adding text field ${field.fieldName} at (${field.x}, ${field.y}): "${text}"`);
 
@@ -771,7 +799,7 @@ const getTemplatesForCourse = async (req, res) => {
       instituteId: teacher.instituteId,
       courseId: courseId,
       isActive: true
-    }).select('templateName templateImage fields createdAt');
+    }).select('templateName templateImage fields qrCodePosition createdAt');
 
     console.log(`Found ${templates.length} templates for course ${courseId}`);
 
@@ -781,18 +809,27 @@ const getTemplatesForCourse = async (req, res) => {
       const generalTemplates = await CertificateTemplate.find({
         instituteId: teacher.instituteId,
         isActive: true
-      }).select('templateName templateImage fields createdAt');
+      }).select('templateName templateImage fields qrCodePosition createdAt');
+      const baseUrl = process.env.API_URL || 'http://localhost:5000';
       
       return res.json({
         success: true,
-        data: generalTemplates,
+        data: generalTemplates.map(template => ({
+          ...template.toObject(),
+          templateImageUrl: `${baseUrl}/${template.templateImage}`
+        })),
         message: 'Showing all available templates for your institute'
       });
     }
 
+    const baseUrl = process.env.API_URL || 'http://localhost:5000';
+
     res.json({
       success: true,
-      data: templates
+      data: templates.map(template => ({
+        ...template.toObject(),
+        templateImageUrl: `${baseUrl}/${template.templateImage}`
+      }))
     });
   } catch (error) {
     console.error('Get templates error:', error);
@@ -926,11 +963,16 @@ const issueCertificateAsTeacher = async (req, res) => {
       generatedImagePath = await generateCertificateImage({
         template,
         studentName: student.name,
+        studentEmail: student.email,
+        studentPhone: student.phone,
         courseName: course.courseName,
+        courseCode: course.courseCode,
+        courseDuration: course.duration,
         awardDate,
         certificateCode,
         qrCodeImage: qrCodePath,
-        instituteId: teacher.instituteId
+        instituteId: teacher.instituteId,
+        instituteName: institute?.instituteName
       });
       console.log('Certificate image generated at:', generatedImagePath);
     } catch (imageError) {

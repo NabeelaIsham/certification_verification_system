@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
+import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
 const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, onCertificateIssued }) => {
   const [searchParams] = useSearchParams();
@@ -13,9 +14,13 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
   const [awardDate, setAwardDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [preview, setPreview] = useState(null);
+  const [issuedCertificate, setIssuedCertificate] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const selectedCourseData = courses.find(course => course._id === selectedCourse);
+  const selectedStudentData = students.find(student => student._id === selectedStudent);
+  const selectedTemplateData = templates.find(template => template._id === selectedTemplate);
 
   useEffect(() => {
     if (instituteId) {
@@ -30,9 +35,11 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
       fetchStudentsForCourse();
       fetchTemplatesForCourse();
     } else {
+      setStudents([]);
       setTemplates([]);
       setSelectedTemplate('');
     }
+    setIssuedCertificate(null);
   }, [selectedCourse]);
 
   const fetchCourses = async () => {
@@ -150,7 +157,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
 
       if (response.data.success) {
         setSuccess('Certificate issued successfully!');
-        setPreview({
+        setIssuedCertificate({
           ...response.data.data,
           awardDate,
           studentName: students.find(s => s._id === selectedStudent)?.name,
@@ -177,7 +184,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
     setSelectedStudent('');
     setSelectedTemplate('');
     setAwardDate(new Date().toISOString().split('T')[0]);
-    setPreview(null);
+    setIssuedCertificate(null);
     setError('');
     setSuccess('');
   };
@@ -220,7 +227,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
                   setSelectedCourse(e.target.value);
                   setSelectedStudent('');
                   setSelectedTemplate('');
-                  setPreview(null);
+                  setIssuedCertificate(null);
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                 required
@@ -312,7 +319,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
               >
                 {loading ? 'Issuing...' : 'Issue Certificate'}
               </button>
-              {preview && (
+              {issuedCertificate && (
                 <button
                   type="button"
                   onClick={resetForm}
@@ -337,17 +344,32 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
         {/* Preview Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold mb-4">Certificate Preview</h3>
-          {preview ? (
+          <CertificateIssuePreview
+            template={selectedTemplateData}
+            values={{
+              studentName: selectedStudentData?.name || issuedCertificate?.studentName,
+              studentEmail: selectedStudentData?.email,
+              studentPhone: selectedStudentData?.phone,
+              courseName: selectedCourseData?.courseName || issuedCertificate?.courseName,
+              courseCode: selectedCourseData?.courseCode,
+              courseDuration: selectedCourseData?.duration,
+              awardDate,
+              certificateCode: issuedCertificate?.certificateCode
+            }}
+            emptyMessage="Choose a course, student, and template to preview the certificate."
+          />
+
+          {issuedCertificate ? (
             <div>
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                 <p className="font-medium text-gray-900 mb-2">Certificate Details</p>
                 <div className="space-y-2">
-                  <p><span className="font-medium">Student:</span> {preview.studentName}</p>
-                  <p><span className="font-medium">Course:</span> {preview.courseName}</p>
+                  <p><span className="font-medium">Student:</span> {issuedCertificate.studentName}</p>
+                  <p><span className="font-medium">Course:</span> {issuedCertificate.courseName}</p>
                   <p><span className="font-medium">Award Date:</span> {new Date(awardDate).toLocaleDateString()}</p>
                   <p><span className="font-medium">Certificate Code:</span></p>
                   <p className="font-mono text-sm bg-white p-2 rounded border break-all">
-                    {preview.certificateCode}
+                    {issuedCertificate.certificateCode}
                   </p>
                 </div>
               </div>
@@ -360,16 +382,12 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
                 Send Email to Student
               </button>
             </div>
-          ) : (
-            <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-              <p className="text-4xl mb-2">📜</p>
-              <p>Fill the form to generate a certificate</p>
-              {selectedCourse && templates.length === 0 && !templatesLoading && (
-                <p className="text-sm text-yellow-600 mt-2">
-                  No templates available. Please contact your institute admin.
-                </p>
-              )}
-            </div>
+          ) : null}
+
+          {!issuedCertificate && selectedCourse && templates.length === 0 && !templatesLoading && (
+            <p className="mt-3 text-sm text-yellow-600">
+              No templates available. Please contact your institute admin.
+            </p>
           )}
         </div>
       </div>

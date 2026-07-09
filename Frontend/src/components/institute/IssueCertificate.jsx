@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
 const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
   const [courses, setCourses] = useState([]);
@@ -12,6 +13,10 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const selectedCourseData = courses.find(course => course._id === selectedCourse);
+  const selectedStudentData = students.find(student => student._id === selectedStudent);
+  const selectedTemplateData = templates.find(template => template._id === selectedTemplate);
+
   useEffect(() => {
     fetchCourses();
   }, []);
@@ -20,7 +25,12 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
     if (selectedCourse) {
       fetchStudents();
       fetchTemplates();
+    } else {
+      setStudents([]);
+      setTemplates([]);
     }
+    setSelectedStudent('');
+    setSelectedTemplate('');
   }, [selectedCourse]);
 
   const fetchCourses = async () => {
@@ -127,7 +137,8 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <h2 className="text-xl font-bold text-gray-900 mb-6">Issue New Certificate</h2>
 
       {error && (
@@ -217,6 +228,23 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
           {loading ? 'Generating Certificate...' : 'Generate Certificate'}
         </button>
       </form>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Certificate Preview</h3>
+        <CertificateIssuePreview
+          template={selectedTemplateData}
+          values={{
+            studentName: selectedStudentData?.name,
+            studentEmail: selectedStudentData?.email,
+            studentPhone: selectedStudentData?.phone,
+            courseName: selectedCourseData?.courseName,
+            courseCode: selectedCourseData?.courseCode,
+            courseDuration: selectedCourseData?.duration,
+            awardDate
+          }}
+        />
+      </div>
     </div>
   );
 };

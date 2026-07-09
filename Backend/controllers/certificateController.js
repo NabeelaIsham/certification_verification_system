@@ -67,6 +67,39 @@ const getSvgFontFamily = (fontFamily) => {
   return requestedFont ? `"${requestedFont}", ${fallbackFonts}` : fallbackFonts;
 };
 
+const formatAwardDate = (awardDate) => new Date(awardDate).toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+});
+
+const getCertificateFieldText = (field, data) => {
+  switch (field.fieldName) {
+    case 'studentName':
+      return data.studentName;
+    case 'studentEmail':
+      return data.studentEmail;
+    case 'studentPhone':
+      return data.studentPhone;
+    case 'courseName':
+      return data.courseName;
+    case 'courseCode':
+      return data.courseCode;
+    case 'courseDuration':
+      return data.courseDuration;
+    case 'awardDate':
+      return formatAwardDate(data.awardDate);
+    case 'certificateCode':
+      return data.certificateCode;
+    case 'instituteName':
+      return data.instituteName;
+    case 'staticText':
+      return field.staticValue || field.displayName || '';
+    default:
+      return '';
+  }
+};
+
 // ============ HELPER FUNCTION FOR CERTIFICATE IMAGE GENERATION ============
 
 const generateCertificateImage = async (certificateData) => {
@@ -74,11 +107,16 @@ const generateCertificateImage = async (certificateData) => {
     const { 
       template, 
       studentName, 
+      studentEmail,
+      studentPhone,
       courseName, 
+      courseCode,
+      courseDuration,
       awardDate, 
       certificateCode,
       qrCodeImage,
-      instituteId 
+      instituteId,
+      instituteName
     } = certificateData;
 
     console.log('Starting certificate image generation...');
@@ -99,27 +137,17 @@ const generateCertificateImage = async (certificateData) => {
     // Add text fields
     if (template.fields && template.fields.length > 0) {
       for (const field of template.fields) {
-        let text = '';
-        switch (field.fieldName) {
-          case 'studentName':
-            text = studentName;
-            break;
-          case 'awardDate':
-            text = new Date(awardDate).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            });
-            break;
-          case 'certificateCode':
-            text = certificateCode;
-            break;
-          case 'courseName':
-            text = courseName;
-            break;
-          default:
-            text = '';
-        }
+        const text = getCertificateFieldText(field, {
+          studentName,
+          studentEmail,
+          studentPhone,
+          courseName,
+          courseCode,
+          courseDuration,
+          awardDate,
+          certificateCode,
+          instituteName
+        });
 
         console.log(`Adding text field ${field.fieldName} at (${field.x}, ${field.y}): "${text}"`);
 
@@ -278,11 +306,16 @@ const issueCertificate = async (req, res) => {
       generatedImagePath = await generateCertificateImage({
         template,
         studentName: student.name,
+        studentEmail: student.email,
+        studentPhone: student.phone,
         courseName: course.courseName,
+        courseCode: course.courseCode,
+        courseDuration: course.duration,
         awardDate,
         certificateCode,
         qrCodeImage: qrCodePath,
-        instituteId
+        instituteId,
+        instituteName: institute?.instituteName
       });
       console.log('Certificate image generated at:', generatedImagePath);
     } catch (imageError) {
@@ -704,6 +737,10 @@ const regenerateCertificateImage = async (req, res) => {
       });
     }
 
+    const course = await Course.findById(certificate.courseId);
+    const User = require('../models/User');
+    const institute = await User.findById(instituteId);
+
     // Generate new QR code
     const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificate.certificateCode}`;
     const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', instituteId.toString());
@@ -719,11 +756,16 @@ const regenerateCertificateImage = async (req, res) => {
     const generatedImagePath = await generateCertificateImage({
       template,
       studentName: certificate.studentName,
+      studentEmail: student.email,
+      studentPhone: student.phone,
       courseName: certificate.courseName,
+      courseCode: course?.courseCode,
+      courseDuration: course?.duration,
       awardDate: certificate.awardDate,
       certificateCode: certificate.certificateCode,
       qrCodeImage: qrCodePath,
-      instituteId
+      instituteId,
+      instituteName: institute?.instituteName
     });
 
     // Update certificate
@@ -931,11 +973,16 @@ const bulkIssueCertificates = async (req, res) => {
           generatedImagePath = await generateCertificateImage({
             template,
             studentName: student.name,
+            studentEmail: student.email,
+            studentPhone: student.phone,
             courseName: course.courseName,
+            courseCode: course.courseCode,
+            courseDuration: course.duration,
             awardDate: certData.awardDate || new Date(),
             certificateCode,
             qrCodeImage: qrCodePath,
-            instituteId
+            instituteId,
+            instituteName: institute?.instituteName
           });
         } catch (imageError) {
           console.error('Image generation error for bulk:', imageError);

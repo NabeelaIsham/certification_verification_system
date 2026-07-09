@@ -22,9 +22,22 @@ const certificateTemplateSchema = new mongoose.Schema({
   fields: [{
     fieldName: {
       type: String,
-      enum: ['studentName', 'awardDate', 'certificateCode', 'courseName'],
+      enum: [
+        'studentName',
+        'studentEmail',
+        'studentPhone',
+        'courseName',
+        'courseCode',
+        'courseDuration',
+        'awardDate',
+        'certificateCode',
+        'instituteName',
+        'staticText'
+      ],
       required: true
     },
+    displayName: String,
+    staticValue: String,
     x: {
       type: Number,
       required: true
