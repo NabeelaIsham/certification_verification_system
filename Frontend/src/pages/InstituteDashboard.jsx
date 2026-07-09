@@ -10,6 +10,18 @@ import InstituteSettings from '../components/institute/InstituteSettings';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
+const getUploadUrl = (filePath) => {
+  if (!filePath) return '';
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+
+  const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+  if (/^https?:\/\//i.test(API_URL)) {
+    return `${API_URL.replace(/\/api\/?$/, '')}${normalizedPath}`;
+  }
+
+  return normalizedPath;
+};
+
 const InstituteDashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -42,8 +54,33 @@ const InstituteDashboard = () => {
     }
 
     setUser(userData);
+    fetchProfile();
     fetchStats();
   }, []);
+
+  const fetchProfile = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.get(`${API_URL}/institute/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        const profile = response.data.data;
+        const updatedUser = {
+          ...(JSON.parse(localStorage.getItem('user')) || {}),
+          ...profile,
+          id: profile._id || profile.id
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      if (error.response?.status === 401) {
+        handleLogout();
+      }
+    }
+  };
 
   const fetchStats = async () => {
     const token = localStorage.getItem('token');
@@ -70,6 +107,10 @@ const InstituteDashboard = () => {
     navigate('/login');
   };
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -85,8 +126,18 @@ const InstituteDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">CV</span>
+              <div className="w-12 h-12 bg-blue-50 border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                {user?.logo ? (
+                  <img
+                    src={getUploadUrl(user.logo)}
+                    alt={`${user?.instituteName || 'Institute'} logo`}
+                    className="h-full w-full object-contain p-1.5"
+                  />
+                ) : (
+                  <span className="text-blue-700 font-bold">
+                    {(user?.instituteName || 'CV').slice(0, 2).toUpperCase()}
+                  </span>
+                )}
               </div>
               <div className="ml-3">
                 <h1 className="text-2xl font-bold text-gray-900">{user?.instituteName}</h1>
@@ -217,7 +268,7 @@ const InstituteDashboard = () => {
         {activeTab === 'teachers' && <TeacherManagement API_URL={API_URL} />}
         {activeTab === 'certificates' && <CertificateManagement API_URL={API_URL} />}
         {activeTab === 'bulk-upload' && <BulkUpload API_URL={API_URL} />}
-        {activeTab === 'settings' && <InstituteSettings API_URL={API_URL} user={user} />}
+        {activeTab === 'settings' && <InstituteSettings API_URL={API_URL} user={user} onUserUpdate={handleUserUpdate} />}
       </div>
     </div>
   );

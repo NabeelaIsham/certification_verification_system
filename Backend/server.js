@@ -22,7 +22,9 @@ const uploadDirs = [
   path.join(uploadsDir, 'certificates'),
   path.join(uploadsDir, 'generated'),
   path.join(uploadsDir, 'qrcodes'),
-  path.join(uploadsDir, 'templates')
+  path.join(uploadsDir, 'templates'),
+  path.join(uploadsDir, 'template-assets'),
+  path.join(uploadsDir, 'logos')
 ];
 
 for (const dir of uploadDirs) {

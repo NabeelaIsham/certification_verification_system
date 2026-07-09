@@ -126,6 +126,21 @@ const CertificateIssuePreview = ({ template, values, emptyMessage = 'Select a st
             </div>
           ))}
 
+          {imageSize.naturalWidth > 0 && template.imageFields?.map((field, index) => (
+            <img
+              key={`${field.label || field.imageType}-${index}`}
+              src={field.imageUrl}
+              alt={field.label || field.imageType || 'Template image asset'}
+              className="pointer-events-none absolute object-contain"
+              style={{
+                left: `${(field.x / imageSize.naturalWidth) * 100}%`,
+                top: `${(field.y / imageSize.naturalHeight) * 100}%`,
+                width: `${(field.width || 120) * scale}px`,
+                height: `${(field.height || 60) * scale}px`
+              }}
+            />
+          ))}
+
           {imageSize.naturalWidth > 0 && template.qrCodePosition?.size > 0 && (
             <div
               className="pointer-events-none absolute flex items-center justify-center border-2 border-dashed border-gray-700 bg-white/80 text-center font-mono text-gray-700"

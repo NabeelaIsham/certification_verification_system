@@ -4,9 +4,11 @@ const path = require('path');
 const createDirectories = () => {
   const dirs = [
     'uploads/templates',
+    'uploads/template-assets',
     'uploads/certificates',
     'uploads/generated',
-    'uploads/qrcodes'
+    'uploads/qrcodes',
+    'uploads/logos'
   ];
 
   dirs.forEach(dir => {

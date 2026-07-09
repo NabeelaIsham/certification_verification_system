@@ -364,6 +364,7 @@ const login = async (req, res) => {
       userData.isPhoneVerified = user.isPhoneVerified;
       userData.isVerifiedByAdmin = user.isVerifiedByAdmin;
       userData.status = user.status;
+      userData.logo = user.logo;
     } else if (user.userType === 'teacher') {
       userData.firstName = user.firstName;
       userData.lastName = user.lastName;

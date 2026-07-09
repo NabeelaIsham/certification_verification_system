@@ -7,6 +7,7 @@ const {
   getProfile,
   getStats, 
   updateSettings,
+  uploadLogo,
   changePassword
 } = require('../controllers/instituteController');
 
@@ -19,6 +20,7 @@ router.use(authenticateToken, authorizeInstitute);
 router.get('/profile', getProfile);
 router.get('/stats', getStats);
 router.put('/settings', updateSettings);
+router.post('/logo', uploadLogo);
 router.put('/change-password', changePassword);
 
 module.exports = router;

@@ -181,6 +181,24 @@ const generateCertificateImage = async (certificateData) => {
       console.log('No fields defined in template');
     }
 
+    // Add uploaded image fields such as logos, signatures, and seals
+    if (template.imageFields && template.imageFields.length > 0) {
+      for (const imageField of template.imageFields) {
+        if (imageField.imagePath && fs.existsSync(imageField.imagePath)) {
+          console.log(`Adding image field ${imageField.label || imageField.imageType} at (${imageField.x}, ${imageField.y})`);
+          compositeOperations.push({
+            input: imageField.imagePath,
+            top: imageField.y || 0,
+            left: imageField.x || 0,
+            width: imageField.width || 120,
+            height: imageField.height || 60
+          });
+        } else {
+          console.log('Image field file not found:', imageField.imagePath);
+        }
+      }
+    }
+
     // Add QR code
     if (qrCodeImage) {
       if (fs.existsSync(qrCodeImage)) {
@@ -799,7 +817,7 @@ const getTemplatesForCourse = async (req, res) => {
       instituteId: teacher.instituteId,
       courseId: courseId,
       isActive: true
-    }).select('templateName templateImage fields qrCodePosition createdAt');
+    }).select('templateName templateImage fields imageFields qrCodePosition createdAt');
 
     console.log(`Found ${templates.length} templates for course ${courseId}`);
 
@@ -809,14 +827,18 @@ const getTemplatesForCourse = async (req, res) => {
       const generalTemplates = await CertificateTemplate.find({
         instituteId: teacher.instituteId,
         isActive: true
-      }).select('templateName templateImage fields qrCodePosition createdAt');
+      }).select('templateName templateImage fields imageFields qrCodePosition createdAt');
       const baseUrl = process.env.API_URL || 'http://localhost:5000';
       
       return res.json({
         success: true,
         data: generalTemplates.map(template => ({
           ...template.toObject(),
-          templateImageUrl: `${baseUrl}/${template.templateImage}`
+          templateImageUrl: `${baseUrl}/${template.templateImage}`,
+          imageFields: (template.imageFields || []).map(field => ({
+            ...field.toObject(),
+            imageUrl: `${baseUrl}/${field.imagePath}`
+          }))
         })),
         message: 'Showing all available templates for your institute'
       });
@@ -828,7 +850,11 @@ const getTemplatesForCourse = async (req, res) => {
       success: true,
       data: templates.map(template => ({
         ...template.toObject(),
-        templateImageUrl: `${baseUrl}/${template.templateImage}`
+        templateImageUrl: `${baseUrl}/${template.templateImage}`,
+        imageFields: (template.imageFields || []).map(field => ({
+          ...field.toObject(),
+          imageUrl: `${baseUrl}/${field.imagePath}`
+        }))
       }))
     });
   } catch (error) {

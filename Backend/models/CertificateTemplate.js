@@ -64,6 +64,34 @@ const certificateTemplateSchema = new mongoose.Schema({
       default: 'center'
     }
   }],
+  imageFields: [{
+    imageType: {
+      type: String,
+      enum: ['logo', 'signature', 'seal', 'customImage'],
+      default: 'customImage'
+    },
+    label: String,
+    imagePath: {
+      type: String,
+      required: true
+    },
+    x: {
+      type: Number,
+      required: true
+    },
+    y: {
+      type: Number,
+      required: true
+    },
+    width: {
+      type: Number,
+      required: true
+    },
+    height: {
+      type: Number,
+      required: true
+    }
+  }],
   qrCodePosition: {
     x: Number,
     y: Number,

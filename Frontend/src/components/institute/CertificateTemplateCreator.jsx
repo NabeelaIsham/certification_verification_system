@@ -19,6 +19,13 @@ const FIELD_LABELS = FIELD_OPTIONS.reduce((labels, option) => ({
   [option.value]: option.label
 }), {});
 
+const IMAGE_TYPE_OPTIONS = [
+  { value: 'logo', label: 'Institute Logo' },
+  { value: 'signature', label: 'Signature' },
+  { value: 'seal', label: 'Seal' },
+  { value: 'customImage', label: 'Custom Image' }
+];
+
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
@@ -28,9 +35,12 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
   const [templateImage, setTemplateImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [fields, setFields] = useState([]);
+  const [imageFields, setImageFields] = useState([]);
   const [qrCodePosition, setQrCodePosition] = useState({ x: 0, y: 0, size: 100 });
   const [activeField, setActiveField] = useState(null);
   const [customText, setCustomText] = useState('');
+  const [assetType, setAssetType] = useState('signature');
+  const [assetLabel, setAssetLabel] = useState('');
   const [selectedElement, setSelectedElement] = useState(null);
   const [imageSize, setImageSize] = useState({ naturalWidth: 0, naturalHeight: 0, renderedWidth: 0 });
   const [loading, setLoading] = useState(false);
@@ -99,6 +109,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
       reader.onloadend = () => {
         setImagePreview(reader.result);
         setFields([]);
+        setImageFields([]);
         setQrCodePosition({ x: 0, y: 0, size: 100 });
         setSelectedElement(null);
       };
@@ -119,26 +130,40 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
       setQrCodePosition(prev => ({ ...prev, x: point.x, y: point.y }));
       setSelectedElement({ type: 'qr' });
     } else {
-      const newField = {
-        fieldName: activeField,
-        displayName: activeField === 'staticText' ? customText.trim() || 'Custom Text' : FIELD_LABELS[activeField],
-        staticValue: activeField === 'staticText' ? customText.trim() || 'Custom Text' : '',
-        x: point.x,
-        y: point.y,
-        fontSize: 24,
-        fontColor: '#000000',
-        fontFamily: 'Arial',
-        textAlign: 'center'
-      };
-      setFields(prev => [...prev, newField]);
-      setSelectedElement({ type: 'field', index: fields.length });
+      addFieldAtPoint(activeField, point);
     }
 
     setActiveField(null);
   };
 
+  const addFieldAtPoint = (fieldName, point) => {
+    const textValue = customText.trim();
+    const newField = {
+      fieldName,
+      displayName: fieldName === 'staticText' ? textValue || 'Custom Text' : FIELD_LABELS[fieldName],
+      staticValue: fieldName === 'staticText' ? textValue : '',
+      x: point.x,
+      y: point.y,
+      fontSize: 24,
+      fontColor: '#000000',
+      fontFamily: 'Arial',
+      textAlign: 'center'
+    };
+
+    setFields(prev => {
+      const nextIndex = prev.length;
+      setSelectedElement({ type: 'field', index: nextIndex });
+      return [...prev, newField];
+    });
+  };
+
   const removeField = (index) => {
     setFields(prev => prev.filter((_, i) => i !== index));
+    setSelectedElement(null);
+  };
+
+  const removeImageField = (index) => {
+    setImageFields(prev => prev.filter((_, i) => i !== index));
     setSelectedElement(null);
   };
 
@@ -148,13 +173,57 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
     )));
   };
 
+  const updateImageFieldProperty = (index, property, value) => {
+    setImageFields(prev => prev.map((field, i) => (
+      i === index ? { ...field, [property]: value } : field
+    )));
+  };
+
   const selectFieldToPlace = (fieldName) => {
-    if (fieldName === 'staticText' && !customText.trim()) {
-      alert('Enter custom text before placing it on the certificate.');
+    setActiveField(activeField === fieldName ? null : fieldName);
+  };
+
+  const addCustomTextField = () => {
+    if (!imagePreview || !imageSize.naturalWidth || !imageSize.naturalHeight) {
+      alert('Upload a certificate template image before adding custom text.');
       return;
     }
 
-    setActiveField(activeField === fieldName ? null : fieldName);
+    addFieldAtPoint('staticText', {
+      x: Math.round(imageSize.naturalWidth / 2),
+      y: Math.round(imageSize.naturalHeight / 2)
+    });
+    setCustomText('');
+    setActiveField(null);
+  };
+
+  const addImageAssetField = (file) => {
+    if (!file) return;
+
+    if (!imagePreview || !imageSize.naturalWidth || !imageSize.naturalHeight) {
+      alert('Upload a certificate template image before adding logos or signatures.');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const label = assetLabel.trim() || IMAGE_TYPE_OPTIONS.find(option => option.value === assetType)?.label || 'Image';
+    const newImageField = {
+      imageType: assetType,
+      label,
+      file,
+      previewUrl,
+      x: Math.round(imageSize.naturalWidth / 2) - 60,
+      y: Math.round(imageSize.naturalHeight / 2) - 30,
+      width: assetType === 'signature' ? 180 : 120,
+      height: assetType === 'signature' ? 70 : 120
+    };
+
+    setImageFields(prev => {
+      const nextIndex = prev.length;
+      setSelectedElement({ type: 'image', index: nextIndex });
+      return [...prev, newImageField];
+    });
+    setAssetLabel('');
   };
 
   const updateQrProperty = (property, value) => {
@@ -170,7 +239,9 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
 
     const origin = element.type === 'qr'
       ? qrCodePosition
-      : fields[element.index];
+      : element.type === 'image'
+        ? imageFields[element.index]
+        : fields[element.index];
 
     dragRef.current = {
       element,
@@ -197,6 +268,19 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
         x: clamp(nextX, 0, imageSize.naturalWidth),
         y: clamp(nextY, 0, imageSize.naturalHeight)
       }));
+      return;
+    }
+
+    if (element.type === 'image') {
+      setImageFields(prev => prev.map((field, index) => (
+        index === element.index
+          ? {
+              ...field,
+              x: clamp(nextX, 0, imageSize.naturalWidth),
+              y: clamp(nextY, 0, imageSize.naturalHeight)
+            }
+          : field
+      )));
       return;
     }
 
@@ -227,6 +311,19 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
     formData.append('courseId', selectedCourse);
     formData.append('templateImage', templateImage);
     formData.append('fields', JSON.stringify(fields));
+    formData.append('imageFields', JSON.stringify(imageFields.map(field => ({
+      imageType: field.imageType,
+      label: field.label,
+      x: field.x,
+      y: field.y,
+      width: field.width,
+      height: field.height
+    }))));
+    imageFields.forEach(field => {
+      if (field.file) {
+        formData.append('assetImages', field.file);
+      }
+    });
     formData.append('qrCodePosition', JSON.stringify(qrCodePosition));
 
     try {
@@ -246,6 +343,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
         setTemplateImage(null);
         setImagePreview(null);
         setFields([]);
+        setImageFields([]);
         setQrCodePosition({ x: 0, y: 0, size: 100 });
         setSelectedElement(null);
       }
@@ -272,6 +370,9 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
 
   const selectedField = selectedElement?.type === 'field'
     ? fields[selectedElement.index]
+    : null;
+  const selectedImageField = selectedElement?.type === 'image'
+    ? imageFields[selectedElement.index]
     : null;
   const hasQrCode = qrCodePosition.x > 0 || qrCodePosition.y > 0;
   const displayScale = imageSize.renderedWidth && imageSize.naturalWidth
@@ -363,6 +464,9 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
             </div>
             <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
               <label className="block text-xs font-medium text-gray-600">Custom Text Field</label>
+              <p className="mt-1 text-xs text-gray-500">
+                Add a custom field, then enter or edit its text in the adjustment panel.
+              </p>
               <div className="mt-2 flex gap-2">
                 <input
                   type="text"
@@ -373,7 +477,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
                 />
                 <button
                   type="button"
-                  onClick={() => selectFieldToPlace('staticText')}
+                  onClick={addCustomTextField}
                   className={`shrink-0 rounded-lg px-3 py-2 text-sm ${
                     activeField === 'staticText'
                       ? 'bg-blue-600 text-white'
@@ -382,6 +486,40 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
                 >
                   Add
                 </button>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label className="block text-xs font-medium text-gray-600">Image Asset</label>
+              <p className="mt-1 text-xs text-gray-500">
+                Add a logo, signature, seal, or custom image, then drag and resize it on the certificate.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <select
+                  value={assetType}
+                  onChange={(e) => setAssetType(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {IMAGE_TYPE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={assetLabel}
+                  onChange={(e) => setAssetLabel(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Label"
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    addImageAssetField(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                  className="col-span-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                />
               </div>
             </div>
           </div>
@@ -450,7 +588,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
                 </div>
                 {selectedField.fieldName === 'staticText' && (
                   <div className="col-span-2">
-                    <label className="text-xs text-gray-600">Text</label>
+                    <label className="text-xs text-gray-600">Custom Field Data</label>
                     <input
                       type="text"
                       value={selectedField.staticValue || ''}
@@ -514,6 +652,70 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
             </div>
           )}
 
+          {selectedImageField && (
+            <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-medium text-purple-950">Adjust {selectedImageField.label}</h3>
+                <button
+                  type="button"
+                  onClick={() => removeImageField(selectedElement.index)}
+                  className="text-sm font-medium text-red-600 hover:text-red-800"
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <label className="text-xs text-gray-600">X</label>
+                  <input
+                    type="number"
+                    value={selectedImageField.x}
+                    onChange={(e) => updateImageFieldProperty(selectedElement.index, 'x', Number(e.target.value))}
+                    className="w-full rounded border px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Y</label>
+                  <input
+                    type="number"
+                    value={selectedImageField.y}
+                    onChange={(e) => updateImageFieldProperty(selectedElement.index, 'y', Number(e.target.value))}
+                    className="w-full rounded border px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Width</label>
+                  <input
+                    type="number"
+                    min="20"
+                    value={selectedImageField.width}
+                    onChange={(e) => updateImageFieldProperty(selectedElement.index, 'width', Number(e.target.value))}
+                    className="w-full rounded border px-2 py-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Height</label>
+                  <input
+                    type="number"
+                    min="20"
+                    value={selectedImageField.height}
+                    onChange={(e) => updateImageFieldProperty(selectedElement.index, 'height', Number(e.target.value))}
+                    className="w-full rounded border px-2 py-1"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-600">Label</label>
+                  <input
+                    type="text"
+                    value={selectedImageField.label}
+                    onChange={(e) => updateImageFieldProperty(selectedElement.index, 'label', e.target.value)}
+                    className="w-full rounded border px-2 py-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {fields.length > 0 && (
             <div className="mb-4">
               <h3 className="font-medium mb-2">Placed Fields</h3>
@@ -533,6 +735,29 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
                       {field.fieldName === 'staticText' ? field.staticValue || field.displayName : FIELD_LABELS[field.fieldName]}
                     </span>
                     <span className="ml-2 text-gray-500">({field.x}, {field.y})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {imageFields.length > 0 && (
+            <div className="mb-4">
+              <h3 className="font-medium mb-2">Placed Images</h3>
+              <div className="space-y-2">
+                {imageFields.map((field, index) => (
+                  <button
+                    key={`${field.label}-${index}`}
+                    type="button"
+                    onClick={() => setSelectedElement({ type: 'image', index })}
+                    className={`w-full rounded-lg border p-3 text-left text-sm ${
+                      selectedElement?.type === 'image' && selectedElement.index === index
+                        ? 'border-purple-400 bg-purple-50'
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span className="font-medium">{field.label}</span>
+                    <span className="ml-2 text-gray-500">({field.width}x{field.height})</span>
                   </button>
                 ))}
               </div>
@@ -600,6 +825,37 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
                       <span style={{ color: field.fontColor, fontFamily: field.fontFamily }}>
                         {field.fieldName === 'staticText' ? field.staticValue || field.displayName : FIELD_LABELS[field.fieldName]}
                       </span>
+                    </button>
+                  );
+                })}
+
+                {imageFields.map((field, index) => {
+                  const isSelected = selectedElement?.type === 'image' && selectedElement.index === index;
+
+                  return (
+                    <button
+                      key={`${field.label}-${index}`}
+                      type="button"
+                      onPointerDown={(event) => startDrag(event, { type: 'image', index })}
+                      onPointerMove={handleDrag}
+                      onPointerUp={stopDrag}
+                      onPointerCancel={stopDrag}
+                      className={`absolute cursor-move border-2 bg-white/40 p-0 shadow-sm ${
+                        isSelected ? 'border-purple-600 ring-2 ring-purple-200' : 'border-purple-300'
+                      }`}
+                      style={{
+                        left: `${imageSize.naturalWidth ? (field.x / imageSize.naturalWidth) * 100 : 0}%`,
+                        top: `${imageSize.naturalHeight ? (field.y / imageSize.naturalHeight) * 100 : 0}%`,
+                        width: `${field.width * displayScale}px`,
+                        height: `${field.height * displayScale}px`
+                      }}
+                    >
+                      <img
+                        src={field.previewUrl || field.imageUrl}
+                        alt={field.label}
+                        className="h-full w-full object-contain"
+                        draggable="false"
+                      />
                     </button>
                   );
                 })}

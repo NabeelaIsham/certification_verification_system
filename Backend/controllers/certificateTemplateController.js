@@ -5,16 +5,18 @@ const path = require('path');
 const fs = require('fs');
 const sharp = require('sharp');
 
-// Configure multer for template image upload
+// Configure multer for template image and asset upload
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const dir = path.join(__dirname, '..', 'uploads', 'templates', req.user.id);
+    const folder = file.fieldname === 'assetImages' ? 'template-assets' : 'templates';
+    const dir = path.join(__dirname, '..', 'uploads', folder, req.user.id);
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'template-' + uniqueSuffix + path.extname(file.originalname));
+    const prefix = file.fieldname === 'assetImages' ? 'asset-' : 'template-';
+    cb(null, prefix + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -32,7 +34,26 @@ const upload = multer({
       cb(new Error('Only image files are allowed'));
     }
   }
-}).single('templateImage');
+}).fields([
+  { name: 'templateImage', maxCount: 1 },
+  { name: 'assetImages', maxCount: 20 }
+]);
+
+const toRelativeUploadPath = (filePath) => path
+  .relative(path.join(__dirname, '..'), filePath)
+  .replace(/\\/g, '/');
+
+const addTemplateAssetUrls = (template, baseUrl) => ({
+  ...template.toObject(),
+  templateImageUrl: `${baseUrl}/${template.templateImage}`,
+  imageFields: (template.imageFields || []).map(field => {
+    const fieldObject = field.toObject?.() || field;
+    return {
+      ...fieldObject,
+      imageUrl: `${baseUrl}/${fieldObject.imagePath}`
+    };
+  })
+});
 
 // Create new template
 const createTemplate = async (req, res) => {
@@ -44,9 +65,10 @@ const createTemplate = async (req, res) => {
 
       try {
         const instituteId = req.user.id;
-        const { templateName, courseId, fields, qrCodePosition } = req.body;
+        const { templateName, courseId, fields, imageFields, qrCodePosition } = req.body;
 
-        if (!req.file) {
+        const templateFile = req.files?.templateImage?.[0];
+        if (!templateFile) {
           return res.status(400).json({ 
             success: false, 
             message: 'Template image is required' 
@@ -64,16 +86,26 @@ const createTemplate = async (req, res) => {
 
         // Parse fields from JSON string
         let parsedFields = [];
+        let parsedImageFields = [];
         let parsedQrPosition = { x: 0, y: 0, size: 100 };
 
         try {
           if (fields) parsedFields = JSON.parse(fields);
+          if (imageFields) parsedImageFields = JSON.parse(imageFields);
           if (qrCodePosition) parsedQrPosition = JSON.parse(qrCodePosition);
         } catch (e) {
           console.error('Error parsing fields:', e);
         }
 
-        const templatePath = path.relative(path.join(__dirname, '..'), req.file.path).replace(/\\/g, '/');
+        const assetFiles = req.files?.assetImages || [];
+        const imageFieldsWithPaths = parsedImageFields.map((field, index) => ({
+          ...field,
+          imagePath: assetFiles[index]
+            ? toRelativeUploadPath(assetFiles[index].path)
+            : field.imagePath
+        })).filter(field => field.imagePath);
+
+        const templatePath = toRelativeUploadPath(templateFile.path);
 
         const template = new CertificateTemplate({
           instituteId,
@@ -81,6 +113,7 @@ const createTemplate = async (req, res) => {
           courseId,
           templateImage: templatePath,
           fields: parsedFields,
+          imageFields: imageFieldsWithPaths,
           qrCodePosition: parsedQrPosition,
           isActive: true
         });
@@ -90,7 +123,7 @@ const createTemplate = async (req, res) => {
         res.status(201).json({
           success: true,
           message: 'Certificate template created successfully',
-          data: template
+          data: addTemplateAssetUrls(template, process.env.API_URL || 'http://localhost:5000')
         });
       } catch (error) {
         console.error('Create template error:', error);
@@ -128,10 +161,7 @@ const getTemplates = async (req, res) => {
 
     // Add full URL for template images
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
-    const templatesWithUrl = templates.map(template => ({
-      ...template.toObject(),
-      templateImageUrl: `${baseUrl}/${template.templateImage}`
-    }));
+    const templatesWithUrl = templates.map(template => addTemplateAssetUrls(template, baseUrl));
 
     res.json({
       success: true,
@@ -164,10 +194,7 @@ const getTemplateById = async (req, res) => {
     }
 
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
-    const templateWithUrl = {
-      ...template.toObject(),
-      templateImageUrl: `${baseUrl}/${template.templateImage}`
-    };
+    const templateWithUrl = addTemplateAssetUrls(template, baseUrl);
 
     res.json({
       success: true,
@@ -188,7 +215,7 @@ const updateTemplateFields = async (req, res) => {
   try {
     const instituteId = req.user.id;
     const { id } = req.params;
-    const { fields, qrCodePosition } = req.body;
+    const { fields, imageFields, qrCodePosition } = req.body;
 
     const template = await CertificateTemplate.findOne({ _id: id, instituteId });
 
@@ -200,6 +227,7 @@ const updateTemplateFields = async (req, res) => {
     }
 
     template.fields = fields || template.fields;
+    template.imageFields = imageFields || template.imageFields;
     template.qrCodePosition = qrCodePosition || template.qrCodePosition;
     template.updatedAt = new Date();
 
@@ -238,6 +266,11 @@ const deleteTemplate = async (req, res) => {
     // Delete template image file
     if (template.templateImage && fs.existsSync(template.templateImage)) {
       fs.unlinkSync(template.templateImage);
+    }
+    for (const imageField of template.imageFields || []) {
+      if (imageField.imagePath && fs.existsSync(imageField.imagePath)) {
+        fs.unlinkSync(imageField.imagePath);
+      }
     }
 
     await template.deleteOne();

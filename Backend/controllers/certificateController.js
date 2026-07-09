@@ -22,6 +22,13 @@ const buildCertificateUrls = ({ baseUrl, instituteId, certificateCode, generated
   };
 };
 
+const buildInstituteLogoUrl = (baseUrl, institute) => {
+  if (!institute?.logo) return null;
+  if (/^https?:\/\//i.test(institute.logo)) return institute.logo;
+
+  return `${baseUrl}/${institute.logo.replace(/^\/+/, '').replace(/\\/g, '/')}`;
+};
+
 const sendIssuedCertificateNotification = async ({ certificate, student, institute, baseUrl }) => {
   if (!certificate?.generatedCertificateImage || !student?.email) {
     return { sent: false, reason: 'certificate image or student email missing' };
@@ -43,7 +50,8 @@ const sendIssuedCertificateNotification = async ({ certificate, student, institu
     certificateUrl: urls.certificateUrl,
     downloadUrl: urls.downloadUrl,
     verificationUrl: certificate.verificationUrl,
-    instituteName: institute?.instituteName
+    instituteName: institute?.instituteName,
+    instituteLogoUrl: buildInstituteLogoUrl(baseUrl, institute)
   });
 
   certificate.emailSent = true;
@@ -176,6 +184,24 @@ const generateCertificateImage = async (certificateData) => {
       }
     } else {
       console.log('No fields defined in template');
+    }
+
+    // Add uploaded image fields such as logos, signatures, and seals
+    if (template.imageFields && template.imageFields.length > 0) {
+      for (const imageField of template.imageFields) {
+        if (imageField.imagePath && fs.existsSync(imageField.imagePath)) {
+          console.log(`Adding image field ${imageField.label || imageField.imageType} at (${imageField.x}, ${imageField.y})`);
+          compositeOperations.push({
+            input: imageField.imagePath,
+            top: imageField.y || 0,
+            left: imageField.x || 0,
+            width: imageField.width || 120,
+            height: imageField.height || 60
+          });
+        } else {
+          console.log('Image field file not found:', imageField.imagePath);
+        }
+      }
     }
 
     // Add QR code
@@ -641,7 +667,7 @@ const sendCertificateEmailHandler = async (req, res) => {
 
     const certificate = await Certificate.findOne({ _id: id, instituteId })
       .populate('studentId', 'name email')
-      .populate('instituteId', 'instituteName');
+      .populate('instituteId', 'instituteName logo');
 
     if (!certificate) {
       return res.status(404).json({ 
@@ -681,7 +707,8 @@ const sendCertificateEmailHandler = async (req, res) => {
       certificateUrl: urls.certificateUrl,
       downloadUrl: urls.downloadUrl,
       verificationUrl: certificate.verificationUrl,
-      instituteName: certificate.instituteId?.instituteName
+      instituteName: certificate.instituteId?.instituteName,
+      instituteLogoUrl: buildInstituteLogoUrl(baseUrl, certificate.instituteId)
     });
 
     certificate.emailSent = true;

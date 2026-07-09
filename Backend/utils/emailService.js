@@ -139,7 +139,8 @@ const sendCertificateEmail = async ({
   certificateUrl,
   downloadUrl,
   verificationUrl,
-  instituteName
+  instituteName,
+  instituteLogoUrl
 }) => {
   const resolvedDownloadUrl = downloadUrl || certificateUrl;
   const formattedAwardDate = new Date(awardDate).toLocaleDateString('en-US', {
@@ -152,6 +153,10 @@ const sendCertificateEmail = async ({
   const safeCertificateCode = escapeHtml(certificateCode);
   const safeInstituteName = escapeHtml(instituteName || 'Our Institute');
   const safeClosingName = escapeHtml(instituteName || DEFAULT_FROM_NAME);
+  const safeLogoUrl = instituteLogoUrl ? escapeHtml(instituteLogoUrl) : '';
+  const logoHtml = safeLogoUrl
+    ? `<img src="${safeLogoUrl}" alt="${safeInstituteName} logo" style="display: block; max-width: 120px; max-height: 72px; margin: 0 auto 16px; object-fit: contain;">`
+    : '';
   const subject = `Your Certificate for ${courseName}`;
   const html = `
     <!DOCTYPE html>
@@ -169,6 +174,7 @@ const sendCertificateEmail = async ({
     </head>
     <body>
       <div class="header">
+        ${logoHtml}
         <h1 style="margin: 0; color: #ffffff;">Congratulations ${safeStudentName}!</h1>
       </div>
       <div class="content">
