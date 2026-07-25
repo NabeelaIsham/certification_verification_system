@@ -25,6 +25,7 @@ const activityLogSchema = new mongoose.Schema({
       'RESET_USER_PASSWORD',
       'ACTIVATE_USER',
       'SUSPEND_USER',
+      'REVOKE_CERTIFICATE',
       'UNAUTHORIZED_ACCESS_ATTEMPT'
     ]
   },

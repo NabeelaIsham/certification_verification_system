@@ -13,9 +13,14 @@ services:
       MONGODB_URI: mongodb://mongo:27017/certverify
       API_URL: https://verifyawards.com
       FRONTEND_URL: https://verifyawards.com
-      CORS_ORIGIN: http://localhost:3000,https://verifyawards.com
-    ports:
-      - '5000:5000'
+      CORS_ORIGIN: https://verifyawards.com
+      TRUST_PROXY: '1'
+      VERIFICATION_LOG_RETENTION_DAYS: '180'
+      SHARE_RECORD_RETENTION_DAYS: '30'
+      VERIFY_RATE_LIMIT_MAX: '120'
+      SHARE_RATE_LIMIT_MAX: '30'
+    expose:
+      - '5000'
     depends_on:
       mongo:
         condition: service_healthy
@@ -27,6 +32,13 @@ services:
       start_period: 30s
     volumes:
       - backend-uploads:/usr/src/app/uploads
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
 
   frontend:
@@ -37,6 +49,8 @@ services:
         VITE_API_BASE_URL: /api
     ports:
       - '3000:80'
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
 
   mongo:

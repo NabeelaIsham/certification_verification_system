@@ -89,8 +89,14 @@ console.log('Teacher data:', teacher);
       return;
     }
 
-    if (formData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'Password must be at least 6 characters long' });
+    if (
+      formData.newPassword.length < 10 ||
+      formData.newPassword.length > 128 ||
+      !/[a-z]/.test(formData.newPassword) ||
+      !/[A-Z]/.test(formData.newPassword) ||
+      !/\d/.test(formData.newPassword)
+    ) {
+      setMessage({ type: 'error', text: 'Use at least 10 characters with uppercase, lowercase, and a number' });
       setLoading(false);
       return;
     }
@@ -312,7 +318,8 @@ console.log('Teacher data:', teacher);
                     value={formData.newPassword}
                     onChange={handleInputChange}
                     required
-                    minLength="6"
+                    minLength="10"
+                    maxLength="128"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                 </div>
@@ -327,6 +334,8 @@ console.log('Teacher data:', teacher);
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     required
+                    minLength="10"
+                    maxLength="128"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                 </div>

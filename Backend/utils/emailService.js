@@ -210,9 +210,66 @@ const sendCertificateEmail = async ({
   return info;
 };
 
+const sendCredentialShareEmail = async ({
+  to,
+  studentName,
+  courseName,
+  certificateCode,
+  instituteName,
+  shareUrl,
+  expiresAt,
+  maxViews
+}) => {
+  const safeStudentName = escapeHtml(studentName || 'Student');
+  const safeCourseName = escapeHtml(courseName || 'your course');
+  const safeCertificateCode = escapeHtml(certificateCode);
+  const safeInstituteName = escapeHtml(instituteName || 'Your institute');
+  const formattedExpiry = new Date(expiresAt).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC'
+  });
+  const subject = `${instituteName || 'Your institute'} shared a credential with you`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 24px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+        <div style="background: #1d4ed8; color: #ffffff; padding: 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px;">Your credential share link</h1>
+        </div>
+        <div style="padding: 28px; color: #111827; line-height: 1.6;">
+          <p>Dear <strong>${safeStudentName}</strong>,</p>
+          <p>${safeInstituteName} has created a secure link for your ${safeCourseName} credential.</p>
+          <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0 0 6px;"><strong>Certificate:</strong> ${safeCertificateCode}</p>
+            <p style="margin: 0 0 6px;"><strong>Expires:</strong> ${escapeHtml(formattedExpiry)} UTC</p>
+            <p style="margin: 0;"><strong>View limit:</strong> ${escapeHtml(maxViews)}</p>
+          </div>
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 28px auto;">
+            <tr>
+              ${buildEmailButton({ href: shareUrl, label: 'Open Credential', backgroundColor: '#1d4ed8' })}
+            </tr>
+          </table>
+          <p style="color: #4b5563; font-size: 13px;">
+            This private link stops working when it expires, reaches its view limit, or is revoked.
+            Do not forward it unless you intend to share your credential.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const info = await sendEmail({ to, subject, html });
+  console.log(`Credential share email sent to ${to}: ${info.messageId}`);
+  return info;
+};
+
 module.exports = {
   createTransporter,
   sendEmail,
   sendOtpEmail,
-  sendCertificateEmail
+  sendCertificateEmail,
+  sendCredentialShareEmail
 };

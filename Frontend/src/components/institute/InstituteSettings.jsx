@@ -140,6 +140,17 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
       return;
     }
 
+    if (
+      formData.newPassword.length < 10 ||
+      formData.newPassword.length > 128 ||
+      !/[a-z]/.test(formData.newPassword) ||
+      !/[A-Z]/.test(formData.newPassword) ||
+      !/\d/.test(formData.newPassword)
+    ) {
+      alert('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -334,7 +345,8 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
                     value={formData.newPassword}
                     onChange={handleInputChange}
                     required
-                    minLength="6"
+                    minLength="10"
+                    maxLength="128"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -349,6 +361,8 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
                     required
+                    minLength="10"
+                    maxLength="128"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

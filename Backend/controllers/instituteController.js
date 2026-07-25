@@ -6,6 +6,8 @@ const CertificateTemplate = require('../models/CertificateTemplate');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sanitizeUploadedImage } = require('../utils/imageUploadSecurity');
+const { isValidPassword: meetsPasswordPolicy } = require('../utils/validators');
 
 const logoStorage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -185,6 +187,7 @@ const uploadLogo = async (req, res) => {
           message: 'Logo file is required'
         });
       }
+      await sanitizeUploadedImage(logoFile);
 
       const institute = await User.findById(instituteId);
       if (!institute) {
@@ -211,7 +214,7 @@ const uploadLogo = async (req, res) => {
       }
 
       console.error('Logo upload error:', error);
-      res.status(500).json({
+      res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
         success: false,
         message: 'Failed to upload logo',
         error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -233,10 +236,10 @@ const changePassword = async (req, res) => {
       });
     }
 
-    if (newPassword.length < 6) {
+    if (!meetsPasswordPolicy(newPassword)) {
       return res.status(400).json({
         success: false,
-        message: 'New password must be at least 6 characters long'
+        message: 'Password must be 10-128 characters and include uppercase, lowercase, and a number.'
       });
     }
 

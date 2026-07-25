@@ -10,6 +10,12 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { sendCertificateEmail } = require('../utils/emailService');
+const {
+  buildOnlineVerificationUrl,
+  createSignedCredential
+} = require('../utils/credentialService');
+const { generateCertificateCode } = require('../utils/CertificateCodeGenerator');
+const { isValidPassword: meetsPasswordPolicy } = require('../utils/validators');
 
 const buildCertificateUrls = ({ baseUrl, instituteId, certificateCode, generatedImagePath }) => {
   const normalizedInstituteId = instituteId?.toString?.() || instituteId;
@@ -203,12 +209,18 @@ const generateCertificateImage = async (certificateData) => {
     if (qrCodeImage) {
       if (fs.existsSync(qrCodeImage)) {
         console.log('Adding QR code from:', qrCodeImage);
+        const qrSize = Math.max(80, Math.round(template.qrCodePosition?.size || 100));
+        const resizedQrCode = await sharp(qrCodeImage)
+          .resize(qrSize, qrSize, {
+            fit: 'fill',
+            kernel: sharp.kernel.nearest
+          })
+          .png()
+          .toBuffer();
         compositeOperations.push({
-          input: qrCodeImage,
+          input: resizedQrCode,
           top: template.qrCodePosition?.y || 0,
-          left: template.qrCodePosition?.x || 0,
-          width: template.qrCodePosition?.size || 100,
-          height: template.qrCodePosition?.size || 100
+          left: template.qrCodePosition?.x || 0
         });
       } else {
         console.log('QR code image not found:', qrCodeImage);
@@ -254,6 +266,13 @@ const createTeacher = async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         message: 'Missing required fields' 
+      });
+    }
+
+    if (!meetsPasswordPolicy(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be 10-128 characters and include uppercase, lowercase, and a number.'
       });
     }
 
@@ -567,7 +586,7 @@ const teacherLogin = async (req, res) => {
         userType: 'teacher',
         instituteId: teacher.instituteId?._id || teacher.instituteId
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -843,7 +862,6 @@ const getTemplatesForCourse = async (req, res) => {
         message: 'Showing all available templates for your institute'
       });
     }
-
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
 
     res.json({
@@ -961,24 +979,24 @@ const issueCertificateAsTeacher = async (req, res) => {
 
     // Generate unique certificate code
     const institute = await User.findById(teacher.instituteId);
-    const instituteCode = institute?.instituteName?.substring(0, 3).toUpperCase() || 'INS';
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const certificateCode = `${instituteCode}-${year}${month}${day}-${random}`;
+    const certificateCode = generateCertificateCode(institute?.instituteName);
 
     console.log('Generated certificate code:', certificateCode);
 
-    // Generate QR code
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificateCode}`;
+    const signedCredential = await createSignedCredential({
+      certificateCode,
+      studentName: student.name,
+      courseName: course.courseName,
+      awardDate: awardDate || new Date(),
+      institute
+    });
+    const verificationUrl = buildOnlineVerificationUrl(certificateCode);
     const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', teacher.instituteId.toString());
     fs.mkdirSync(qrCodeDir, { recursive: true });
     
     const qrCodePath = path.join(qrCodeDir, `${certificateCode}.png`);
     await QRCode.toFile(qrCodePath, verificationUrl, {
-      width: 200,
+      width: 360,
       margin: 1
     });
     console.log('QR code generated at:', qrCodePath);
@@ -1019,6 +1037,7 @@ const issueCertificateAsTeacher = async (req, res) => {
       generatedCertificateImage: generatedImagePath ? generatedImagePath.replace(/\\/g, '/') : null,
       qrCodeImage: qrCodePath.replace(/\\/g, '/'),
       verificationUrl,
+      credential: signedCredential,
       status: generatedImagePath ? 'issued' : 'draft',
       emailSent: false
     });
@@ -1125,6 +1144,12 @@ const changePassword = async (req, res) => {
   try {
     const teacherId = req.userId;
     const { currentPassword, newPassword } = req.body;
+    if (!meetsPasswordPolicy(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be 10-128 characters and include uppercase, lowercase, and a number.'
+      });
+    }
 
     const teacher = await User.findById(teacherId);
     

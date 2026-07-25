@@ -10,12 +10,18 @@ const loadModels = () => {
   require('../models/Settings');
   require('../models/OTP');
   require('../models/ActivityLog');
+  require('../models/VerificationLog');
+  require('../models/CredentialShare');
 };
 
 const connectDatabase = async () => {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/certverify';
 
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 10000),
+    maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
+    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1)
+  });
   console.log('MongoDB connected successfully');
 
   return mongoose.connection;
@@ -31,7 +37,9 @@ const ensureCollections = async () => {
     'Certificate',
     'Settings',
     'OTP',
-    'ActivityLog'
+    'ActivityLog',
+    'VerificationLog',
+    'CredentialShare'
   ];
 
   for (const modelName of modelNames) {
@@ -44,7 +52,8 @@ const ensureCollections = async () => {
       if (typeof Model.cleanIndexes === 'function') {
         await Model.cleanIndexes();
       }
-      await Model.syncIndexes();
+      // createIndexes is additive and does not drop unknown production indexes.
+      await Model.createIndexes();
       console.log(`Collection ready: ${Model.collection.name}`);
     } catch (error) {
       console.error(`Failed to prepare collection ${modelName}:`, error.message);

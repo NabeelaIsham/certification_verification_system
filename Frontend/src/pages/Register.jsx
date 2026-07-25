@@ -46,6 +46,16 @@ const Register = () => {
       alert('Passwords do not match');
       return;
     }
+    if (
+      formData.password.length < 10 ||
+      formData.password.length > 128 ||
+      !/[a-z]/.test(formData.password) ||
+      !/[A-Z]/.test(formData.password) ||
+      !/\d/.test(formData.password)
+    ) {
+      alert('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
+      return;
+    }
     
     if (!formData.agreeToTerms) {
       alert('Please agree to the Terms and Conditions');
@@ -249,10 +259,12 @@ const Register = () => {
                       name="password"
                       type="password"
                       required
+                      minLength="10"
+                      maxLength="128"
                       value={formData.password}
                       onChange={handleChange}
                       className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Minimum 8 characters"
+                      placeholder="10+ characters, mixed case and number"
                     />
                   </div>
                 </div>
@@ -267,6 +279,8 @@ const Register = () => {
                       name="confirmPassword"
                       type="password"
                       required
+                      minLength="10"
+                      maxLength="128"
                       value={formData.confirmPassword}
                       onChange={handleChange}
                       className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"

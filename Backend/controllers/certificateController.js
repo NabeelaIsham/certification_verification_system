@@ -7,6 +7,11 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const { sendCertificateEmail } = require('../utils/emailService');
+const {
+  buildOnlineVerificationUrl,
+  createSignedCredential
+} = require('../utils/credentialService');
+const { generateCertificateCode } = require('../utils/CertificateCodeGenerator');
 
 const buildCertificateUrls = ({ baseUrl, instituteId, certificateCode, generatedImagePath }) => {
   const normalizedInstituteId = instituteId?.toString?.() || instituteId;
@@ -208,12 +213,18 @@ const generateCertificateImage = async (certificateData) => {
     if (qrCodeImage) {
       if (fs.existsSync(qrCodeImage)) {
         console.log('Adding QR code from:', qrCodeImage);
+        const qrSize = Math.max(80, Math.round(template.qrCodePosition?.size || 100));
+        const resizedQrCode = await sharp(qrCodeImage)
+          .resize(qrSize, qrSize, {
+            fit: 'fill',
+            kernel: sharp.kernel.nearest
+          })
+          .png()
+          .toBuffer();
         compositeOperations.push({
-          input: qrCodeImage,
+          input: resizedQrCode,
           top: template.qrCodePosition?.y || 0,
-          left: template.qrCodePosition?.x || 0,
-          width: template.qrCodePosition?.size || 100,
-          height: template.qrCodePosition?.size || 100
+          left: template.qrCodePosition?.x || 0
         });
       } else {
         console.log('QR code image not found:', qrCodeImage);
@@ -302,26 +313,27 @@ const issueCertificate = async (req, res) => {
     // Get institute details for certificate code
     const User = require('../models/User');
     const institute = await User.findById(instituteId);
-    const instituteCode = institute?.instituteName?.substring(0, 3).toUpperCase() || 'INS';
-    
-    // Generate unique certificate code
-    const date = new Date();
-    const year = date.getFullYear().toString().slice(-2);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-    const certificateCode = `${instituteCode}-${year}${month}${day}-${random}`;
+    const certificateCode = generateCertificateCode(institute?.instituteName);
 
     console.log('Generated certificate code:', certificateCode);
 
-    // Generate QR code
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificateCode}`;
+    const signedCredential = await createSignedCredential({
+      certificateCode,
+      studentName: student.name,
+      courseName: course.courseName,
+      awardDate,
+      institute
+    });
+
+    // Keep the printed QR short enough to remain scannable at normal certificate sizes.
+    // The API verifies the stored signature and lifecycle state after the scan.
+    const verificationUrl = buildOnlineVerificationUrl(certificateCode);
     const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', instituteId.toString());
     fs.mkdirSync(qrCodeDir, { recursive: true });
     
     const qrCodePath = path.join(qrCodeDir, `${certificateCode}.png`);
     await QRCode.toFile(qrCodePath, verificationUrl, {
-      width: 200,
+      width: 360,
       margin: 1
     });
     console.log('QR code generated at:', qrCodePath);
@@ -362,6 +374,7 @@ const issueCertificate = async (req, res) => {
       generatedCertificateImage: generatedImagePath ? generatedImagePath.replace(/\\/g, '/') : null,
       qrCodeImage: qrCodePath.replace(/\\/g, '/'),
       verificationUrl,
+      credential: signedCredential,
       status: generatedImagePath ? 'issued' : 'draft',
       emailSent: false
     });
@@ -616,12 +629,9 @@ const updateCertificateStatus = async (req, res) => {
       });
     }
 
-    const certificate = await Certificate.findOneAndUpdate(
-      { _id: id, instituteId },
-      { $set: { status } },
-      { new: true }
-    ).populate('studentId', 'name email')
-     .populate('instituteId', 'instituteName');
+    const certificate = await Certificate.findOne({ _id: id, instituteId })
+      .populate('studentId', 'name email')
+      .populate('instituteId', 'instituteName');
 
     if (!certificate) {
       return res.status(404).json({ 
@@ -629,6 +639,32 @@ const updateCertificateStatus = async (req, res) => {
         message: 'Certificate not found' 
       });
     }
+
+    const previousStatus = certificate.status;
+    const allowedTransition = previousStatus === 'draft' && status === 'issued';
+    if (!allowedTransition) {
+      return res.status(409).json({
+        success: false,
+        message: 'Use the credential lifecycle action for suspension, revocation, reinstatement, or superseding'
+      });
+    }
+    certificate.status = status;
+    certificate.lifecycleEvents.push({
+      action: status === 'issued' && previousStatus === 'suspended'
+        ? 'reinstated'
+        : status === 'draft'
+          ? 'created'
+          : status,
+      fromStatus: previousStatus,
+      toStatus: status,
+      reason: req.body.reason || '',
+      performedBy: req.userId,
+      performedByType: req.userType
+    });
+    if (status === 'revoked') certificate.revokedAt = new Date();
+    if (status === 'suspended') certificate.suspendedAt = new Date();
+    if (status === 'issued') certificate.suspendedAt = null;
+    await certificate.save();
 
     if (status === 'issued' && !certificate.emailSent) {
       try {
@@ -713,7 +749,9 @@ const sendCertificateEmailHandler = async (req, res) => {
 
     certificate.emailSent = true;
     certificate.emailSentAt = new Date();
-    certificate.status = 'issued';
+    // Regeneration replaces the rendered image/QR only. Never undo an existing
+    // suspension or revocation as a side effect.
+    if (certificate.status === 'draft') certificate.status = 'issued';
     await certificate.save();
 
     res.json({
@@ -768,14 +806,23 @@ const regenerateCertificateImage = async (req, res) => {
     const User = require('../models/User');
     const institute = await User.findById(instituteId);
 
-    // Generate new QR code
-    const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificate.certificateCode}`;
+    let signedCredential = certificate.credential?.signature
+      ? certificate.credential
+      : await createSignedCredential({
+        certificateCode: certificate.certificateCode,
+        studentName: certificate.studentName,
+        courseName: certificate.courseName,
+        awardDate: certificate.awardDate,
+        institute,
+        validUntil: certificate.validUntil
+      });
+    const verificationUrl = buildOnlineVerificationUrl(certificate.certificateCode);
     const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', instituteId.toString());
     fs.mkdirSync(qrCodeDir, { recursive: true });
     
     const qrCodePath = path.join(qrCodeDir, `${certificate.certificateCode}.png`);
     await QRCode.toFile(qrCodePath, verificationUrl, {
-      width: 200,
+      width: 360,
       margin: 1
     });
 
@@ -798,6 +845,8 @@ const regenerateCertificateImage = async (req, res) => {
     // Update certificate
     certificate.generatedCertificateImage = generatedImagePath.replace(/\\/g, '/');
     certificate.qrCodeImage = qrCodePath.replace(/\\/g, '/');
+    certificate.verificationUrl = verificationUrl;
+    if (!certificate.credential?.signature) certificate.credential = signedCredential;
     certificate.status = 'issued';
     await certificate.save();
 
@@ -849,7 +898,7 @@ const getCertificateImage = async (req, res) => {
 // Download certificate image directly
 const downloadCertificate = async (req, res) => {
   try {
-    const instituteId = req.user.id || req.userId;
+    const instituteId = req.user?.id || req.userId;
     const { id } = req.params;
 
     const certificate = await Certificate.findOne({ _id: id, instituteId });
@@ -903,7 +952,6 @@ const bulkIssueCertificates = async (req, res) => {
 
     const User = require('../models/User');
     const institute = await User.findById(instituteId);
-    const instituteCode = institute?.instituteName?.substring(0, 3).toUpperCase() || 'INS';
 
     for (const certData of certificates) {
       try {
@@ -975,22 +1023,22 @@ const bulkIssueCertificates = async (req, res) => {
           continue;
         }
 
-        // Generate certificate code
-        const date = new Date();
-        const year = date.getFullYear().toString().slice(-2);
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        const certificateCode = `${instituteCode}-${year}${month}${day}-${random}`;
+        const certificateCode = generateCertificateCode(institute?.instituteName);
 
-        // Generate QR code
-        const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify/${certificateCode}`;
+        const signedCredential = await createSignedCredential({
+          certificateCode,
+          studentName: student.name,
+          courseName: course.courseName,
+          awardDate: certData.awardDate || new Date(),
+          institute
+        });
+        const verificationUrl = buildOnlineVerificationUrl(certificateCode);
         const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', instituteId.toString());
         fs.mkdirSync(qrCodeDir, { recursive: true });
         
         const qrCodePath = path.join(qrCodeDir, `${certificateCode}.png`);
         await QRCode.toFile(qrCodePath, verificationUrl, {
-          width: 200,
+          width: 360,
           margin: 1
         });
 
@@ -1028,6 +1076,7 @@ const bulkIssueCertificates = async (req, res) => {
           generatedCertificateImage: generatedImagePath ? generatedImagePath.replace(/\\/g, '/') : null,
           qrCodeImage: qrCodePath.replace(/\\/g, '/'),
           verificationUrl,
+          credential: signedCredential,
           status: generatedImagePath ? 'issued' : 'draft',
           emailSent: false
         });

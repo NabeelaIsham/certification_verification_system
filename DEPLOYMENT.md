@@ -9,15 +9,21 @@
 
 ## Backend Environment
 
-Create `Backend/.env` from `Backend/.env.example` and set production values:
+Copy the repository `.env.example` to `Backend/.env` and set production values:
 
 ```bash
 PORT=5000
 NODE_ENV=production
 MONGODB_URI=mongodb://your-mongo-host:27017/certverify
 JWT_SECRET=use-a-long-random-secret
+CREDENTIAL_KEY_ENCRYPTION_SECRET=use-a-different-long-random-secret
+VERIFICATION_PRIVACY_SECRET=use-another-long-random-secret
 API_URL=https://api.your-domain.com
 FRONTEND_URL=https://your-domain.com
+CORS_ORIGIN=https://your-domain.com
+TRUST_PROXY=1
+VERIFICATION_LOG_RETENTION_DAYS=180
+SHARE_RECORD_RETENTION_DAYS=30
 SUPERADMIN_EMAIL=admin@your-domain.com
 SUPERADMIN_PASSWORD=change-this-secure-password
 SUPERADMIN_NAME=System Administrator
@@ -26,6 +32,14 @@ EMAIL_PORT=587
 EMAIL_USER=your-email@example.com
 EMAIL_PASS=your-email-app-password
 ```
+
+Keep `CREDENTIAL_KEY_ENCRYPTION_SECRET` stable and backed up securely. Changing or losing it
+prevents existing institute private keys from being used. Production startup fails when required
+values are missing, secrets are short or reused, URLs are not HTTPS, CORS uses a wildcard, or
+proxy trust is unspecified.
+
+`TRUST_PROXY=1` is correct only when exactly one trusted reverse proxy is between the client and
+the API. The backend port must not be publicly reachable in that configuration.
 
 ## Frontend Environment
 
@@ -42,6 +56,7 @@ VITE_API_BASE_URL=https://api.your-domain.com/api
 
 ```bash
 npm ci --omit=dev
+npm run preflight:production
 npm run setup-superadmin
 npm start
 ```
@@ -101,3 +116,73 @@ Do not remove the Mongo volume on a server that already contains real production
 data unless you have a verified backup.
 
 Before production use, replace the example secrets in `docker-compose.yml` or move them to a secure environment file.
+
+## Required Pre-deployment Procedure
+
+Do not replace the live containers before completing these steps.
+
+1. Back up MongoDB. On a Linux Docker host:
+
+```bash
+mkdir -p backups
+docker compose exec -T mongo mongodump --archive --gzip > "backups/certverify-$(date +%Y%m%d-%H%M%S).archive.gz"
+test -s backups/certverify-*.archive.gz
+```
+
+For a host installation with MongoDB Database Tools:
+
+```bash
+cd Backend
+npm run backup:database
+```
+
+2. Copy the production database and configuration to staging.
+3. Build without replacing the running containers:
+
+```bash
+docker compose build
+```
+
+4. Run the production preflight. It checks the environment, MongoDB, upload permissions, and all
+   existing encrypted institute signing keys:
+
+```bash
+docker compose run --rm backend node scripts/productionPreflight.js
+```
+
+5. In staging, test institute, teacher and bulk issuance; online/offline QR verification;
+   lifecycle actions; share limits; email links; security analytics; and a printed QR code.
+6. Deploy and inspect health:
+
+```bash
+docker compose up -d
+docker compose ps
+curl --fail https://your-domain.com/health
+docker compose logs --since=10m backend frontend
+```
+
+The health endpoint returns HTTP 503 while MongoDB is disconnected.
+
+## Signing-key Operations
+
+- Routine rotation keeps the retired public key trusted, so existing credentials remain valid.
+- Compromise rotation marks the old key compromised; credentials signed by it no longer pass
+  registered-issuer trust.
+- Rotation requires typing `ROTATE` in the institute Security screen.
+- Never delete previous public-key metadata.
+- Never change `CREDENTIAL_KEY_ENCRYPTION_SECRET` during an ordinary deployment.
+
+Printed certificate QR codes use short frontend verification URLs so they remain scannable at
+normal certificate sizes. The backend validates the stored credential signature, registered
+issuer key, and lifecycle status after a scan. Share tokens must reach the API, so the supplied
+Nginx and application logging configurations suppress or redact those request paths.
+
+## Rollback
+
+The database additions are backward-compatible. To roll back application code:
+
+1. Keep MongoDB and `CREDENTIAL_KEY_ENCRYPTION_SECRET` unchanged.
+2. Redeploy the previous known-good images or commit.
+3. Confirm `/health`, login and legacy verification.
+4. Restore MongoDB only if corruption is confirmed; restoring an older backup discards newer
+   certificates and lifecycle events.

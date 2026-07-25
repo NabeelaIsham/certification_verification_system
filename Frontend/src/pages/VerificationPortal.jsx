@@ -5,6 +5,10 @@ import {
   Html5QrcodeSupportedFormats
 } from 'html5-qrcode';
 import { useParams } from 'react-router-dom';
+import {
+  extractCredentialToken,
+  verifyOfflineCredential
+} from '../utils/offlineCredential';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -109,7 +113,7 @@ const VerificationPortal = () => {
       setCertificateCode(normalizedCode);
       setCameraStatus('QR code found. Verifying certificate...');
       stopScanning({ keepStatus: true });
-      verifyCertificate(normalizedCode);
+      verifyCertificate(normalizedCode, { rawQrValue: decodedText, method: 'qr' });
     };
 
     const onScanFailure = (errorMessage) => {
@@ -208,7 +212,10 @@ const VerificationPortal = () => {
     }
 
     setCertificateCode(normalizedCode);
-    verifyCertificate(normalizedCode);
+    verifyCertificate(normalizedCode, {
+      rawQrValue: window.location.href,
+      method: extractCredentialToken(window.location.href) ? 'qr' : 'manual'
+    });
   }, [routeCode]);
 
   const extractCertificateCode = (input) => {
@@ -277,7 +284,7 @@ const VerificationPortal = () => {
     });
   };
 
-  async function verifyCertificate(codeInput) {
+  async function verifyCertificate(codeInput, { rawQrValue = '', method = 'manual' } = {}) {
     const normalizedCode = extractCertificateCode(codeInput);
 
     if (!normalizedCode) {
@@ -291,7 +298,10 @@ const VerificationPortal = () => {
     setImageError(false);
 
     try {
-      const response = await axios.get(`${API_URL}/certificates/verify/${encodeURIComponent(normalizedCode)}`);
+      const response = await axios.get(
+        `${API_URL}/certificates/verify/${encodeURIComponent(normalizedCode)}`,
+        { params: { method } }
+      );
       
       if (response.data.success) {
         setVerificationResult(normalizeVerificationResult(response.data.data));
@@ -300,11 +310,27 @@ const VerificationPortal = () => {
         setError(response.data.message || 'Certificate not found');
       }
     } catch (error) {
-      console.error('Verification error:', error);
-      setError(
-        error.response?.data?.message || 
-        'Failed to verify certificate. Please check the code and try again.'
-      );
+      const token = extractCredentialToken(rawQrValue);
+      if (!error.response && token) {
+        try {
+          const offlineResult = await verifyOfflineCredential(token);
+          if (offlineResult.certificateCode !== normalizedCode) {
+            throw new Error('QR credential code does not match its verification link');
+          }
+          setVerificationResult(normalizeVerificationResult(offlineResult));
+          setCertificateCode(normalizedCode);
+          return;
+        } catch (offlineError) {
+          console.error('Offline verification error:', offlineError);
+          setError(offlineError.message);
+        }
+      } else {
+        console.error('Verification error:', error);
+        setError(
+          error.response?.data?.message ||
+          'Failed to verify certificate. Please check the code and try again.'
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -639,10 +665,28 @@ const VerificationPortal = () => {
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Certificate Verified Successfully
+                {verificationResult.status === 'issued' &&
+                verificationResult.credential?.signatureValid &&
+                verificationResult.credential?.issuerKeyTrusted
+                  ? 'Certificate Verified Successfully'
+                  : verificationResult.status === 'issued'
+                    ? 'Certificate Record Found'
+                  : verificationResult.status === 'offline-unconfirmed'
+                    ? 'Digital Signature Verified Offline'
+                    : `Certificate ${verificationResult.status}`}
               </h2>
               <p className="text-gray-600">
-                This is an authentic certificate issued through our platform
+                {verificationResult.status === 'issued' &&
+                verificationResult.credential?.signatureValid &&
+                verificationResult.credential?.issuerKeyTrusted
+                  ? 'The signature, registered issuer key, and current lifecycle status were checked online.'
+                  : verificationResult.status === 'issued'
+                    ? verificationResult.credential?.signatureValid
+                      ? 'The signature is internally valid, but the signing key does not match the registered institute key.'
+                      : 'The database record is active, but this credential has no validated digital signature.'
+                  : verificationResult.status === 'offline-unconfirmed'
+                    ? 'The contents are intact, but connect to the internet to confirm the latest revocation status and issuer trust.'
+                    : verificationResult.statusMessage || 'This credential is not currently active.'}
               </p>
             </div>
 
@@ -682,9 +726,11 @@ const VerificationPortal = () => {
                 <p className="text-sm text-gray-500 mb-1">Status</p>
                 <p className="font-medium">
                   <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
-                    verificationResult.status === 'issued' 
+                    verificationResult.status === 'issued'
                       ? 'bg-green-100 text-green-800 border border-green-200' 
-                      : 'bg-red-100 text-red-800 border border-red-200'
+                      : verificationResult.status === 'offline-unconfirmed'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-red-100 text-red-800 border border-red-200'
                   }`}>
                     {verificationResult.status
                       ? verificationResult.status.charAt(0).toUpperCase() + verificationResult.status.slice(1)
@@ -693,6 +739,54 @@ const VerificationPortal = () => {
                 </p>
               </div>
             </div>
+
+            {verificationResult.credential && (
+              <div className={`mb-8 rounded-lg border p-5 ${
+                verificationResult.credential.signatureValid &&
+                verificationResult.credential.issuerKeyTrusted
+                  ? 'border-green-200 bg-green-50'
+                  : 'border-yellow-200 bg-yellow-50'
+              }`}>
+                <h3 className="font-semibold text-gray-900">Institute verification</h3>
+                {verificationResult.credential.signatureValid &&
+                verificationResult.credential.issuerKeyTrusted ? (
+                  <>
+                    <p className="mt-2 font-medium text-green-800">Registered institute — verified</p>
+                    <p className="mt-1 text-sm text-gray-700">
+                      This certificate was digitally signed by a registered institute and has not been altered.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-2 font-medium text-amber-800">
+                      {verificationResult.offline
+                        ? 'Connect to confirm institute registration'
+                        : 'Institute verification could not be confirmed'}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-700">
+                      Check the certificate status and contact the issuing institute if this is unexpected.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {verificationResult.lifecycleEvents?.length > 0 && (
+              <div className="mb-8 rounded-lg border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900">Credential lifecycle</h3>
+                <div className="mt-3 space-y-3">
+                  {[...verificationResult.lifecycleEvents].reverse().map((event, index) => (
+                    <div key={`${event.createdAt}-${index}`} className="border-l-2 border-blue-300 pl-3 text-sm">
+                      <p className="font-medium capitalize">{event.action}</p>
+                      <p className="text-gray-500">
+                        {event.createdAt ? new Date(event.createdAt).toLocaleString() : 'Date unavailable'}
+                        {event.reason ? ` — ${event.reason}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Certificate Image */}
             {verificationResult.certificateImage && !imageError ? (
@@ -805,19 +899,19 @@ const VerificationPortal = () => {
 
         {/* Trust Badges */}
         <div className="mt-12 text-center">
-          <p className="text-sm text-gray-500 mb-4">Trusted by educational institutions worldwide</p>
+          <p className="text-sm text-gray-500 mb-4">Credential security checks</p>
           <div className="flex justify-center space-x-8">
             <div className="flex items-center space-x-2">
               <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span className="text-sm text-gray-600">Blockchain Verified</span>
+              <span className="text-sm text-gray-600">Digitally Signed</span>
             </div>
             <div className="flex items-center space-x-2">
               <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span className="text-sm text-gray-600">Tamper-Proof</span>
+              <span className="text-sm text-gray-600">Signature Checked</span>
             </div>
             <div className="flex items-center space-x-2">
               <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">

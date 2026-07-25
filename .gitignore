@@ -6,6 +6,7 @@ build/
 
 Backend/node_modules/
 Backend/uploads/
+Backend/backups/
 Backend/.env
 Backend/Tests/coverage/
 Tests/coverage/

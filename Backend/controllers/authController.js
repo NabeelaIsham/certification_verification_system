@@ -47,7 +47,10 @@ const registerInstitute = async (req, res) => {
     }
 
     if (!isValidPassword(password)) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be 10-128 characters and include uppercase, lowercase, and a number.'
+      });
     }
 
     if (password !== confirmPassword) {
@@ -348,7 +351,11 @@ const login = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Your account is not active. Please contact administrator.' });
     }
 
-    const token = jwt.sign({ userId: user._id, email: user.email, userType: user.userType }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '24h' });
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, userType: user.userType },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     const userData = {
       id: user._id,

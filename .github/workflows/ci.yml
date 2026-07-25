@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: '20'
       - name: Install backend dependencies
-        run: npm install
+        run: npm ci
       - name: Run backend lint
         run: npx eslint . --ext .js
       - name: Run backend tests
@@ -35,8 +35,17 @@ jobs:
         with:
           node-version: '20'
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
       - name: Run frontend lint
         run: npm run lint
       - name: Run frontend tests
         run: npm test
+
+  container-builds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend production image
+        run: docker build --tag certverify-backend-ci ./Backend
+      - name: Build frontend production image and validate Nginx
+        run: docker build --tag certverify-frontend-ci ./Frontend

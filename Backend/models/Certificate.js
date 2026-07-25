@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { generateCertificateCode } = require('../utils/CertificateCodeGenerator');
 
 const certificateSchema = new mongoose.Schema({
   instituteId: {
@@ -48,9 +49,50 @@ const certificateSchema = new mongoose.Schema({
   emailSentAt: Date,
   status: {
     type: String,
-    enum: ['draft', 'issued', 'revoked'],
+    enum: ['draft', 'issued', 'suspended', 'revoked', 'superseded'],
     default: 'draft'
   },
+  credential: {
+    version: String,
+    format: String,
+    payload: mongoose.Schema.Types.Mixed,
+    payloadEncoded: String,
+    signature: String,
+    algorithm: String,
+    keyId: String,
+    publicKey: String,
+    hash: String,
+    signedAt: Date
+  },
+  lifecycleEvents: [{
+    action: {
+      type: String,
+      enum: ['created', 'issued', 'suspended', 'reinstated', 'revoked', 'superseded', 'renewed']
+    },
+    fromStatus: String,
+    toStatus: String,
+    reason: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+    performedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    performedByType: String,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  supersededBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Certificate'
+  },
+  validUntil: Date,
+  revokedAt: Date,
+  suspendedAt: Date,
   previewData: {
     type: mongoose.Schema.Types.Mixed
   },
@@ -69,27 +111,29 @@ certificateSchema.pre('save', async function(next) {
   if (!this.certificateCode) {
     try {
       const institute = await mongoose.model('User').findById(this.instituteId);
-      const instituteCode = institute?.instituteName?.substring(0, 3).toUpperCase() || 'INS';
-      const date = new Date();
-      const year = date.getFullYear().toString().slice(-2);
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const day = date.getDate().toString().padStart(2, '0');
-      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      
-      let code = `${instituteCode}-${year}${month}${day}-${random}`;
+      let code = generateCertificateCode(institute?.instituteName);
       let exists = await mongoose.model('Certificate').findOne({ certificateCode: code });
       
       while (exists) {
-        const newRandom = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        code = `${instituteCode}-${year}${month}${day}-${newRandom}`;
+        code = generateCertificateCode(institute?.instituteName);
         exists = await mongoose.model('Certificate').findOne({ certificateCode: code });
       }
       
       this.certificateCode = code;
     } catch (error) {
       console.error('Error generating certificate code:', error);
-      this.certificateCode = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`.toUpperCase();
+      this.certificateCode = generateCertificateCode('CERT');
     }
+  }
+  if (this.isNew && (!this.lifecycleEvents || this.lifecycleEvents.length === 0)) {
+    this.lifecycleEvents = [{
+      action: this.status === 'issued' ? 'issued' : 'created',
+      fromStatus: null,
+      toStatus: this.status,
+      performedBy: this.instituteId,
+      performedByType: 'institute',
+      createdAt: new Date()
+    }];
   }
   this.updatedAt = new Date();
   next();

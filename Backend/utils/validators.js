@@ -7,7 +7,14 @@ const isValidEmail = (value) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 };
 
-const isValidPassword = (value) => typeof value === 'string' && value.trim().length >= 6;
+const isValidPassword = (value) => (
+  typeof value === 'string' &&
+  value.length >= 10 &&
+  value.length <= 128 &&
+  /[a-z]/.test(value) &&
+  /[A-Z]/.test(value) &&
+  /\d/.test(value)
+);
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 

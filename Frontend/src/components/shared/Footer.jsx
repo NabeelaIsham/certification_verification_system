@@ -12,7 +12,7 @@ const Footer = () => {
             </div>
             <p className="text-gray-300 max-w-md">
               A secure, multi-institute digital certificate verification system 
-              that eliminates forgery and simplifies credential verification 
+              that helps detect tampering and simplifies credential verification
               for educational institutions and employers.
             </p>
             <div className="flex space-x-4 mt-4">
@@ -45,8 +45,8 @@ const Footer = () => {
             <ul className="space-y-2">
               <li><a href="/verify" className="text-base text-gray-300 hover:text-white transition-colors">Verify Certificate</a></li>
               <li><a href="/login" className="text-base text-gray-300 hover:text-white transition-colors">Institute Login</a></li>
-              <li><a href="#" className="text-base text-gray-300 hover:text-white transition-colors">Documentation</a></li>
-              <li><a href="#" className="text-base text-gray-300 hover:text-white transition-colors">Support</a></li>
+              <li><a href="/verify" className="text-base text-gray-300 hover:text-white transition-colors">Verification Guide</a></li>
+              <li><a href="mailto:info@verifyawards.com" className="text-base text-gray-300 hover:text-white transition-colors">Support</a></li>
             </ul>
           </div>
 
@@ -69,14 +69,12 @@ const Footer = () => {
           <p className="text-base text-gray-400">
             Developed and designed by Nabeela Isham. Copyright @ 2026 Nabeela Isham.
           </p>
-          <div className="mt-4 md:mt-0 flex space-x-6">
-            <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">
-              Privacy Policy
-            </a>
-            <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">
-              Terms of Service
-            </a>
-          </div>
+          <a
+            href="mailto:info@verifyawards.com"
+            className="mt-4 text-sm text-gray-400 transition-colors hover:text-white md:mt-0"
+          >
+            Privacy and support enquiries
+          </a>
         </div>
       </div>
     </footer>

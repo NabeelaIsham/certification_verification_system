@@ -106,6 +106,21 @@ const TeacherManagement = ({ API_URL }) => {
       if (editingTeacher && !submitData.password) {
         delete submitData.password;
       }
+
+      if (
+        !editingTeacher &&
+        (
+          submitData.password.length < 10 ||
+          submitData.password.length > 128 ||
+          !/[a-z]/.test(submitData.password) ||
+          !/[A-Z]/.test(submitData.password) ||
+          !/\d/.test(submitData.password)
+        )
+      ) {
+        alert('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
+        setLoading(false);
+        return;
+      }
       
       if (editingTeacher) {
         // Update teacher
@@ -388,7 +403,7 @@ const TeacherManagement = ({ API_URL }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {editingTeacher ? 'New Password (leave blank to keep current)' : 'Password *'}
+                    {editingTeacher ? 'Password changes are available from the teacher profile' : 'Password *'}
                   </label>
                   <input
                     type="password"
@@ -396,6 +411,9 @@ const TeacherManagement = ({ API_URL }) => {
                     value={formData.password}
                     onChange={handleInputChange}
                     required={!editingTeacher}
+                    disabled={Boolean(editingTeacher)}
+                    minLength="10"
+                    maxLength="128"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

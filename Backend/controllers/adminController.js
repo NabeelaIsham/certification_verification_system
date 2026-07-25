@@ -446,8 +446,17 @@ const revokeCertificate = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Certificate not found' });
     }
 
+    const previousStatus = certificate.status;
     certificate.status = 'revoked';
     certificate.revokedAt = new Date();
+    certificate.lifecycleEvents.push({
+      action: 'revoked',
+      fromStatus: previousStatus,
+      toStatus: 'revoked',
+      reason,
+      performedBy: req.userId,
+      performedByType: req.userType
+    });
     certificate.revocationReason = reason;
     await certificate.save();
 

@@ -27,6 +27,7 @@ import InstituteManagement from './components/admin/InstituteManagement'
 import OTPVerification from './pages/OTPVerification'
 import TeacherManagement from './components/institute/TeacherManagement'
 import TeacherDashboard from './components/teacher/TeacherDashboard'
+import CredentialShare from './pages/CredentialShare'
 
 // Define API_URL here so it can be used throughout the app
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -84,6 +85,7 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/verify" element={<VerificationPortal />} />
               <Route path="/verify/:code" element={<VerificationPortal />} />
+              <Route path="/share/:token" element={<CredentialShare />} />
               <Route path='/OTPVerification' element={<OTPVerification />} />
 
               {/* Super Admin Routes */}

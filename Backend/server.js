@@ -1,20 +1,62 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const { initializeDatabase, loadModels } = require('./config/database');
+const { assertProductionConfig, splitCsv } = require('./config/production');
+const { createRateLimit } = require('./middleware/rateLimit');
 
 dotenv.config();
+assertProductionConfig();
 
 loadModels();
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const trustProxyValue = process.env.TRUST_PROXY;
+if (trustProxyValue) {
+  app.set('trust proxy', /^\d+$/.test(trustProxyValue) ? Number(trustProxyValue) : trustProxyValue);
+}
+
+const allowedOrigins = splitCsv(process.env.CORS_ORIGIN || process.env.FRONTEND_URL);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`Blocked CORS origin: ${origin}`);
+    const error = new Error(`Origin is not allowed by CORS: ${origin}`);
+    error.status = 403;
+    return callback(error);
+  },
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type'],
+  credentials: false,
+  maxAge: 600
+}));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  strictTransportSecurity: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true }
+    : false
+}));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+
+const generalApiRateLimit = createRateLimit({
+  windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.API_RATE_LIMIT_MAX || 1000),
+  keyPrefix: 'general-api'
+});
+const authRateLimit = createRateLimit({
+  windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX || 60),
+  message: 'Too many authentication attempts. Please try again later.',
+  keyPrefix: 'authentication'
+});
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadDirs = [
@@ -50,7 +92,8 @@ const { logger, errorLogger } = require('./utils/logger');
 
 app.use(logger);
 
-app.use('/api/auth', authRoutes);
+app.use('/api', generalApiRateLimit);
+app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/institute', instituteRoutes);
 app.use('/api/teachers', teacherRoutes);
@@ -62,10 +105,12 @@ app.use('/api/certificates/verify', verificationRoutes);
 app.use('/api/certificates', certificateRoutes);
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+  const databaseConnected = mongoose.connection.readyState === 1;
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: databaseConnected ? 'connected' : 'disconnected',
     uptime: process.uptime()
   });
 });
@@ -129,7 +174,7 @@ app.use(errorLogger);
 
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack || err);
-  res.status(500).json({
+  res.status(err.status || 500).json({
     success: false,
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -144,12 +189,14 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+let server;
+let shuttingDown = false;
 
 const startServer = async () => {
   try {
     await initializeDatabase();
 
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
       console.log(`API Documentation: http://localhost:${PORT}/api`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -160,4 +207,30 @@ const startServer = async () => {
   }
 };
 
-startServer();
+const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received; shutting down gracefully.`);
+
+  const forceExit = setTimeout(() => {
+    console.error('Graceful shutdown timed out.');
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  await mongoose.connection.close(false);
+  clearTimeout(forceExit);
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer };

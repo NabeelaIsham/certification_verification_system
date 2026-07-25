@@ -3,7 +3,7 @@ const Course = require('../models/Course');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const sharp = require('sharp');
+const { sanitizeUploadedImages } = require('../utils/imageUploadSecurity');
 
 // Configure multer for template image and asset upload
 const storage = multer.diskStorage({
@@ -74,6 +74,11 @@ const createTemplate = async (req, res) => {
             message: 'Template image is required' 
           });
         }
+        const uploadedImages = [
+          templateFile,
+          ...(req.files?.assetImages || [])
+        ];
+        await sanitizeUploadedImages(uploadedImages);
 
         // Verify course belongs to institute
         const course = await Course.findOne({ _id: courseId, instituteId });
@@ -127,19 +132,19 @@ const createTemplate = async (req, res) => {
         });
       } catch (error) {
         console.error('Create template error:', error);
-        res.status(500).json({ 
+        res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
           success: false, 
           message: 'Failed to create template',
-          error: error.message
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
       }
     });
   } catch (error) {
     console.error('Create template error:', error);
-    res.status(500).json({ 
+    res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
       success: false, 
       message: 'Failed to create template',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

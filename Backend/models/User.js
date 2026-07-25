@@ -73,6 +73,31 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  credentialSigning: {
+    keyId: String,
+    algorithm: {
+      type: String,
+      default: 'ECDSA-P256-SHA256'
+    },
+    publicKey: String,
+    encryptedPrivateKey: {
+      type: String,
+      select: false
+    },
+    previousKeys: [{
+      keyId: String,
+      algorithm: String,
+      publicKey: String,
+      status: {
+        type: String,
+        enum: ['retired', 'compromised'],
+        default: 'retired'
+      },
+      retiredAt: Date
+    }],
+    createdAt: Date,
+    rotatedAt: Date
+  },
   
   // Teacher specific fields
   employeeId: {
@@ -216,6 +241,9 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.methods.toSafeObject = function() {
   const obj = this.toObject();
   delete obj.password;
+  if (obj.credentialSigning) {
+    delete obj.credentialSigning.encryptedPrivateKey;
+  }
   return obj;
 };
 
