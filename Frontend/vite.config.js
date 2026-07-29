@@ -21,7 +21,4 @@ export default defineConfig({
       },
     },
   },
-  css: {
-    postcss: false, // Disable PostCSS since we're using Tailwind's new engine
-  },
 })
