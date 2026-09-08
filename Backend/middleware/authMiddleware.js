@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Settings = require('../models/Settings');
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -24,11 +25,21 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Check if account is active (for institutes and teachers)
-    if ((user.userType === 'institute' || user.userType === 'teacher') && !user.isActive) {
+    if (!user.isActive) {
       return res.status(403).json({ 
         success: false, 
         message: 'Account is deactivated' 
       });
+    }
+
+    if (user.twoFactorEnabled && decoded.twoFactorVerified !== true) {
+      return res.status(401).json({ success: false, message: 'Please sign in again to complete two-factor authentication.', code: 'TWO_FACTOR_REQUIRED' });
+    }
+    if (user.userType === 'superadmin') {
+      const settings = await Settings.findOne();
+      if (settings?.security?.twoFactorAuth && decoded.twoFactorVerified !== true) {
+        return res.status(401).json({ success: false, message: 'Please sign in again to complete two-factor authentication.', code: 'TWO_FACTOR_REQUIRED' });
+      }
     }
 
     req.user = user;

@@ -2,7 +2,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const sharp = require('sharp');
 
-const sanitizeUploadedImage = async (file) => {
+const sanitizeUploadedImage = async (file, allowedFormats) => {
   if (!file?.path) throw new Error('Uploaded image is missing');
   const originalPath = file.path;
   const parsed = path.parse(originalPath);
@@ -15,6 +15,10 @@ const sanitizeUploadedImage = async (file) => {
       limitInputPixels: 40_000_000
     });
     const metadata = await image.metadata();
+    if (allowedFormats) {
+      const normalized = allowedFormats.map(format => format === 'JPG' ? 'jpeg' : format.toLowerCase());
+      if (!normalized.includes(metadata.format)) throw new Error('This image encoding is disabled in certificate settings');
+    }
     if (!['jpeg', 'png', 'webp', 'gif'].includes(metadata.format)) {
       throw new Error('Unsupported image encoding');
     }
@@ -43,10 +47,10 @@ const sanitizeUploadedImage = async (file) => {
   }
 };
 
-const sanitizeUploadedImages = async (files) => {
+const sanitizeUploadedImages = async (files, allowedFormats) => {
   const sanitized = [];
   for (const file of files) {
-    sanitized.push(await sanitizeUploadedImage(file));
+    sanitized.push(await sanitizeUploadedImage(file, allowedFormats));
   }
   return sanitized;
 };

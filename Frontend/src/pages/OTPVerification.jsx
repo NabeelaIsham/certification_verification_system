@@ -7,6 +7,8 @@ const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const OTPVerification = () => {
   const [otp, setOtp] = useState('');
   const [timer, setTimer] = useState(300);
+  const [policy, setPolicy] = useState({ otpExpiry: 5, resendCooldown: 60, allowResendOtp: true });
+  const [cooldown, setCooldown] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -22,10 +24,15 @@ const OTPVerification = () => {
   }, [email, navigate]);
 
   useEffect(() => {
+    axios.get(`${API_URL}/auth/verification-policy`).then(({ data }) => {
+      setPolicy(data.data);
+      setTimer(data.data.otpExpiry * 60);
+      setCooldown(data.data.resendCooldown);
+    }).catch(() => setError('Could not load verification settings. Please reload.'));
     const interval = setInterval(() => {
+      setCooldown(prev => Math.max(0, prev - 1));
       setTimer((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
           return 0;
         }
         return prev - 1;
@@ -72,7 +79,8 @@ const OTPVerification = () => {
         email,
         type: 'account'
       });
-      setTimer(300);
+      setTimer(policy.otpExpiry * 60);
+      setCooldown(policy.resendCooldown);
       setMessage('OTP resent successfully!');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend OTP');
@@ -121,13 +129,14 @@ const OTPVerification = () => {
             <p className="text-sm text-gray-600">
               Time remaining: <span className="font-bold">{formatTime(timer)}</span>
             </p>
-            {timer === 0 && (
+            {policy.allowResendOtp && (
               <button
                 type="button"
                 onClick={handleResendOTP}
+                disabled={cooldown > 0 || isLoading}
                 className="mt-2 text-sm text-blue-600 hover:text-blue-500"
               >
-                Resend OTP
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend OTP'}
               </button>
             )}
           </div>

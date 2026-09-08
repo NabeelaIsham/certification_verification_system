@@ -1,6 +1,10 @@
 import api from './api'
 
 export const authService = {
+  async verifyTwoFactor(challengeToken, otp) {
+    const response = await api.post('/auth/2fa/verify', { challengeToken, otp })
+    return response.data
+  },
   async login(credentials) {
     const response = await api.post('/auth/login', credentials)
     return response.data

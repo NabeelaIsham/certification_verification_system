@@ -60,7 +60,7 @@ export const verifyOfflineCredential = async (token) => {
     awardDate: payload.validFrom,
     validUntil: payload.validUntil,
     instituteName: payload.issuer?.name,
-    status: 'offline-unconfirmed',
+    status: payload.validUntil && new Date(payload.validUntil) <= new Date() ? 'expired' : 'offline-unconfirmed',
     offline: true,
     credential: {
       signed: true,

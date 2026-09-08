@@ -130,6 +130,7 @@ const updateSettings = async (req, res) => {
   try {
     const instituteId = req.userId;
     const updates = req.body;
+    delete updates.twoFactorEnabled;
 
     // Remove sensitive fields from updates
     delete updates.password;

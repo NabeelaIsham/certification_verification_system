@@ -4,7 +4,7 @@ const CertificateTemplate = require('../models/CertificateTemplate');
 // Create a new course
 const createCourse = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { courseName, courseCode, certificateTemplateId, description, duration } = req.body;
 
     // Validate required fields
@@ -49,6 +49,9 @@ const createCourse = async (req, res) => {
     });
 
     await course.save();
+    if (req.userType === 'teacher') {
+      await require('../models/User').updateOne({ _id: req.userId, instituteId }, { $addToSet: { assignedCourses: course._id } });
+    }
 
     // Populate template details for response
     await course.populate('certificateTemplateId', 'templateName templateId');
@@ -71,7 +74,7 @@ const createCourse = async (req, res) => {
 // Get all courses for an institute
 const getCourses = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { search, status } = req.query;
 
     let query = { instituteId };
@@ -121,7 +124,7 @@ const getCourses = async (req, res) => {
 // Get single course by ID
 const getCourseById = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
 
     const course = await Course.findOne({ _id: id, instituteId })
@@ -151,7 +154,7 @@ const getCourseById = async (req, res) => {
 // Update course
 const updateCourse = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
     const updates = req.body;
 
@@ -222,7 +225,7 @@ const updateCourse = async (req, res) => {
 // Delete course
 const deleteCourse = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
 
     // Check if course has any students enrolled
@@ -265,7 +268,7 @@ const deleteCourse = async (req, res) => {
 // Toggle course status (activate/deactivate)
 const toggleCourseStatus = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
     const { status } = req.body;
 
@@ -306,7 +309,7 @@ const toggleCourseStatus = async (req, res) => {
 // Get courses by template
 const getCoursesByTemplate = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { templateId } = req.params;
 
     const courses = await Course.find({ 

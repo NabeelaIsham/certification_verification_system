@@ -1,3 +1,4 @@
+import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 
@@ -318,6 +319,7 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
             </form>
           )}
 
+          {activeSection === 'security' && <TwoFactorSettings API_URL={API_URL} />}
           {activeSection === 'security' && (
             <form onSubmit={handlePasswordChange}>
               <div className="max-w-md space-y-4">

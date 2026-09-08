@@ -18,12 +18,12 @@ const hasValue = (value) => typeof value === 'string' && value.trim().length > 0
 const createTransporter = async () => {
   const emailConfig = await getEmailSettings();
   const settingsHaveAuth = hasValue(emailConfig.smtpUsername) || hasValue(emailConfig.smtpPassword);
-  const host = settingsHaveAuth && hasValue(emailConfig.smtpServer)
+  const host = hasValue(emailConfig.smtpServer)
     ? emailConfig.smtpServer.trim()
     : process.env.EMAIL_HOST || 'smtp.gmail.com';
-  const port = Number(settingsHaveAuth && emailConfig.smtpPort ? emailConfig.smtpPort : process.env.EMAIL_PORT || 587);
+  const port = Number(emailConfig.smtpPort ? emailConfig.smtpPort : process.env.EMAIL_PORT || 587);
   const smtpUser = (settingsHaveAuth && hasValue(emailConfig.smtpUsername) ? emailConfig.smtpUsername : process.env.EMAIL_USER || '').trim();
-  const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '').replace(/\s+/g, '');
+  const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '');
 
   return nodemailer.createTransport({
     host,
@@ -88,7 +88,7 @@ const buildEmailButton = ({ href, label, backgroundColor }) => {
   `;
 };
 
-const buildOtpEmailHtml = ({ title, intro, otp, footerNote }) => `
+const buildOtpEmailHtml = ({ title, intro, otp, footerNote, expiryMinutes = 5 }) => `
   <!DOCTYPE html>
   <html>
   <body style="font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 24px;">
@@ -103,7 +103,7 @@ const buildOtpEmailHtml = ({ title, intro, otp, footerNote }) => `
             ${escapeHtml(otp)}
           </div>
         </div>
-        <p style="margin-bottom: 8px;">This OTP expires in 5 minutes.</p>
+        <p style="margin-bottom: 8px;">This OTP expires in ${escapeHtml(expiryMinutes)} minutes.</p>
         <p style="margin-bottom: 0; color: #4b5563;">${escapeHtml(footerNote)}</p>
       </div>
     </div>
@@ -112,9 +112,17 @@ const buildOtpEmailHtml = ({ title, intro, otp, footerNote }) => `
 `;
 
 const sendOtpEmail = async ({ to, otp, purpose = 'verification' }) => {
+  const { otpExpiry: expiryMinutes } = await require('./settingsPolicy').getPolicy('verification');
   const isPasswordReset = purpose === 'reset_password';
+  if (purpose === 'login') {
+    return sendEmail({ to, subject: 'Your Account Verification Code', html: buildOtpEmailHtml({
+      expiryMinutes, title: 'Account Verification', intro: 'Enter this code to complete your sign-in or enable two-factor authentication.', otp,
+      footerNote: 'If you did not attempt to sign in, change your password. Do not share this code.'
+    }) });
+  }
   const subject = isPasswordReset ? 'Your Password Reset OTP' : 'Verify Your Email';
   const html = buildOtpEmailHtml({
+    expiryMinutes,
     title: isPasswordReset ? 'Password Reset OTP' : 'Email Verification OTP',
     intro: isPasswordReset
       ? 'Use the following OTP to reset your password.'

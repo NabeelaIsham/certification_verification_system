@@ -20,24 +20,16 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+const createUpload = (policy) => multer({
+  storage,
+  limits: { fileSize: policy.maxFileSize * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
+    const extension = path.extname(file.originalname).slice(1).toUpperCase();
+    const mime = { PNG: 'image/png', JPEG: 'image/jpeg', JPG: 'image/jpeg' }[extension];
+    const allowed = policy.allowedFormats.includes(extension) || (['JPG', 'JPEG'].includes(extension) && policy.allowedFormats.some(f => ['JPG', 'JPEG'].includes(f)));
+    cb(allowed && mime === file.mimetype ? null : new Error('This template image format is disabled or unsupported.'), allowed && mime === file.mimetype);
   }
-}).fields([
-  { name: 'templateImage', maxCount: 1 },
-  { name: 'assetImages', maxCount: 20 }
-]);
+}).fields([{ name: 'templateImage', maxCount: 1 }, { name: 'assetImages', maxCount: 20 }]);
 
 const toRelativeUploadPath = (filePath) => path
   .relative(path.join(__dirname, '..'), filePath)
@@ -58,7 +50,8 @@ const addTemplateAssetUrls = (template, baseUrl) => ({
 // Create new template
 const createTemplate = async (req, res) => {
   try {
-    upload(req, res, async function(err) {
+    const policy = await require('../utils/settingsPolicy').getPolicy('certificate');
+    createUpload(policy)(req, res, async function(err) {
       if (err) {
         return res.status(400).json({ success: false, message: err.message });
       }
@@ -78,7 +71,7 @@ const createTemplate = async (req, res) => {
           templateFile,
           ...(req.files?.assetImages || [])
         ];
-        await sanitizeUploadedImages(uploadedImages);
+        await sanitizeUploadedImages(uploadedImages, policy.allowedFormats);
 
         // Verify course belongs to institute
         const course = await Course.findOne({ _id: courseId, instituteId });

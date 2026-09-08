@@ -1,3 +1,4 @@
+const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const Certificate = require('../models/Certificate');
@@ -198,7 +199,7 @@ const resolveShare = async (req, res) => {
       awardDate: certificate.awardDate,
       instituteName: certificate.instituteId?.instituteName,
       certificateCode: certificate.certificateCode,
-      status: certificate.status,
+      status: effectiveStatus(certificate),
       certificateImage: certificateImageUrl(certificate)
     };
     const disclosed = Object.fromEntries(
@@ -216,9 +217,9 @@ const resolveShare = async (req, res) => {
       req,
       certificate,
       certificateCode: certificate.certificateCode,
-      outcome: certificate.status === 'issued'
+      outcome: effectiveStatus(certificate) === 'issued'
         ? (issuerKeyTrusted ? 'valid' : certificate.credential?.signature ? 'invalid' : 'unsigned')
-        : certificate.status,
+        : effectiveStatus(certificate),
       signatureValid: issuerKeyTrusted,
       verificationMethod: 'share'
     });
@@ -250,6 +251,8 @@ const resolveShare = async (req, res) => {
 
 const addLifecycleEvent = async (req, res) => {
   try {
+    const policy = await require('../utils/settingsPolicy').getPolicy('certificate');
+    if (req.body.action === 'revoke' && !policy.allowRevocation) return res.status(403).json({ success: false, message: 'Institute certificate revocation is disabled.' });
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, message: 'Invalid certificate ID' });
     }

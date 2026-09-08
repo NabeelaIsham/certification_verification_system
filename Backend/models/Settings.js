@@ -111,17 +111,13 @@ const settingsSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
-    requireApproval: {
-      type: Boolean,
-      default: true
-    },
     maxFileSize: {
       type: Number,
       default: 5
     },
     allowedFormats: {
       type: [String],
-      default: ['PDF', 'PNG', 'JPEG']
+      default: ['PNG', 'JPEG', 'JPG']
     }
   },
 

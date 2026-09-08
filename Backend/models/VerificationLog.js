@@ -16,7 +16,7 @@ const verificationLogSchema = new mongoose.Schema({
   },
   outcome: {
     type: String,
-    enum: ['valid', 'invalid', 'draft', 'revoked', 'suspended', 'superseded', 'not_found', 'unsigned'],
+    enum: ['valid', 'invalid', 'expired', 'draft', 'revoked', 'suspended', 'superseded', 'not_found', 'unsigned'],
     required: true
   },
   verificationMethod: {

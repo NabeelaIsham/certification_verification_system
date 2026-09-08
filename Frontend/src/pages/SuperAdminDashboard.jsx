@@ -19,6 +19,7 @@ const SuperAdminDashboard = () => {
     pendingApprovals: 0,
     totalCertificates: 0,
     activeUsers: 0,
+    totalUsers: 0,
     approvedInstitutes: 0,
     rejectedInstitutes: 0,
     suspendedInstitutes: 0
@@ -61,6 +62,7 @@ const SuperAdminDashboard = () => {
           pendingApprovals: data.pendingApprovals ?? data.pendingInstitutes ?? 0,
           totalCertificates: data.totalCertificates ?? 0,
           activeUsers: data.activeUsers ?? 0,
+          totalUsers: data.totalUsers ?? 0,
           approvedInstitutes: data.approvedInstitutes ?? 0,
           rejectedInstitutes: data.rejectedInstitutes ?? 0,
           suspendedInstitutes: data.suspendedInstitutes ?? 0
@@ -184,6 +186,7 @@ const SuperAdminDashboard = () => {
           <Analytics 
             API_URL={API_URL} 
             stats={stats}
+            onViewActivity={() => setActiveTab('logs')}
           />
         )}
         

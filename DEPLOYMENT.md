@@ -41,7 +41,13 @@ proxy trust is unspecified.
 `TRUST_PROXY=1` is correct only when exactly one trusted reverse proxy is between the client and
 the API. The backend port must not be publicly reachable in that configuration.
 
-## Frontend Environment
+## Account Two-Factor Authentication
+
+Institute admins can enable email 2FA under Settings → Security. Teachers can enable it under Profile → Security. Each account must enter its current password and verify an emailed code before 2FA becomes active. Disabling requires the current password from an authenticated session.
+
+Configure and test SMTP delivery before enabling 2FA. Login and setup codes use the verification expiry, attempt limit, and resend settings maintained by the super admin. Deploy the backend and frontend together; existing accounts default to 2FA disabled until they opt in. The separate super admin 2FA policy remains under system security settings.
+
+## Frontend Environment Configuration
 
 Create `Frontend/.env` from `Frontend/.env.example`:
 

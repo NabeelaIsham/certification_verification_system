@@ -1,4 +1,6 @@
-const Analytics = ({ stats }) => {
+import ActivityTimeline from './ActivityTimeline';
+
+const Analytics = ({ stats, onViewActivity }) => {
   // If analytics endpoint doesn't exist yet, use stats data
   const displayStats = [
     { label: 'Total Institutes', value: stats.totalInstitutes, color: 'bg-blue-500', icon: '🏛️' },
@@ -102,8 +104,9 @@ const Analytics = ({ stats }) => {
                   <p className="text-sm text-gray-600">Approval Rate</p>
                   <p className="text-xl font-semibold text-gray-900">
                     {stats.totalInstitutes ? 
-                      ((stats.approvedInstitutes / stats.totalInstitutes) * 100).toFixed(1) : 0}%
+                      ((stats.approvedInstitutes / stats.totalInstitutes) * 100).toFixed(1) : '0.0'}%
                   </p>
+                  <p className="text-xs text-gray-500">Approved institutes / total institutes</p>
                 </div>
               </div>
             </div>
@@ -112,11 +115,12 @@ const Analytics = ({ stats }) => {
               <div className="flex items-center">
                 <span className="text-2xl mr-3">📈</span>
                 <div>
-                  <p className="text-sm text-gray-600">Active Rate</p>
+                  <p className="text-sm text-gray-600">Active User Rate</p>
                   <p className="text-xl font-semibold text-gray-900">
-                    {stats.totalInstitutes ? 
-                      ((stats.activeUsers / stats.totalInstitutes) * 100).toFixed(1) : 0}%
+                    {stats.totalUsers ?
+                      ((stats.activeUsers / stats.totalUsers) * 100).toFixed(1) : '0.0'}%
                   </p>
+                  <p className="text-xs text-gray-500">Active users / total users</p>
                 </div>
               </div>
             </div>
@@ -128,8 +132,9 @@ const Analytics = ({ stats }) => {
                   <p className="text-sm text-gray-600">Avg Certificates per Institute</p>
                   <p className="text-xl font-semibold text-gray-900">
                     {stats.totalInstitutes ? 
-                      (stats.totalCertificates / stats.totalInstitutes).toFixed(1) : 0}
+                      (stats.totalCertificates / stats.totalInstitutes).toFixed(1) : '0.0'}
                   </p>
+                  <p className="text-xs text-gray-500">Total certificates / total institutes</p>
                 </div>
               </div>
             </div>
@@ -137,13 +142,7 @@ const Analytics = ({ stats }) => {
         </div>
       </div>
 
-      {/* Activity Timeline (Placeholder) */}
-      <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity Timeline</h3>
-        <p className="text-gray-500 text-center py-8">
-          Activity timeline will be displayed here once implemented
-        </p>
-      </div>
+      <ActivityTimeline onViewAll={onViewActivity} />
     </div>
   );
 };

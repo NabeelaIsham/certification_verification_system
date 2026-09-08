@@ -1,0 +1,31 @@
+import { render, screen, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
+import axios from 'axios';
+import TwoFactorSettings from '../src/components/shared/TwoFactorSettings';
+vi.mock('axios', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }));
+beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); });
+it('requires an email code before enabling and installs the verified session', async () => {
+  axios.get.mockResolvedValue({ data: { data: { email: 'teacher@example.com', twoFactorEnabled: false } } });
+  axios.put.mockResolvedValue({ data: { requiresTwoFactor: true, challengeToken: 'challenge', message: 'Code sent' } });
+  axios.post.mockResolvedValue({ data: { token: 'verified-session', user: { userType: 'teacher', twoFactorEnabled: true } } });
+  render(<TwoFactorSettings API_URL="/api" />);
+  await screen.findByText('Status: Disabled');
+  fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'password' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enable 2FA' }));
+  await screen.findByLabelText('Email verification code');
+  expect(screen.getByText('Status: Disabled')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Email verification code'), { target: { value: '123456' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Verify and Enable 2FA' }));
+  await screen.findByText('Status: Enabled');
+  expect(localStorage.getItem('token')).toBe('verified-session');
+});
+it('keeps 2FA enabled when disabling fails', async () => {
+  axios.get.mockResolvedValue({ data: { data: { twoFactorEnabled: true } } });
+  axios.put.mockRejectedValue({ response: { data: { message: 'Current password is incorrect.' } } });
+  render(<TwoFactorSettings API_URL="/api" />);
+  await screen.findByText('Status: Enabled');
+  fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'wrong' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Disable 2FA' }));
+  await screen.findByText('Current password is incorrect.');
+  expect(screen.getByText('Status: Enabled')).toBeInTheDocument();
+});

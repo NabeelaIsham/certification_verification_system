@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const teacherPermission = require('../middleware/teacherPermission');
+const students = require('../controllers/studentController');
+const courses = require('../controllers/courseController');
 const { 
   authenticateToken, 
   authorizeInstitute,
@@ -35,11 +38,16 @@ router.post('/change-password', authenticateToken, authorizeTeacher, changePassw
 
 // Data routes
 router.get('/students/my', authenticateToken, authorizeTeacher, getMyStudents);
+router.post('/students', authenticateToken, authorizeTeacher, teacherPermission('canCreateStudents', true), students.createStudent);
+router.post('/students/bulk-upload', authenticateToken, authorizeTeacher, teacherPermission('canBulkUpload', true), students.bulkUploadStudents);
+router.put('/students/:id', authenticateToken, authorizeTeacher, teacherPermission('canEditStudents', true), students.updateStudent);
+router.delete('/students/:id', authenticateToken, authorizeTeacher, teacherPermission('canDeleteStudents', true), students.deleteStudent);
+router.post('/courses', authenticateToken, authorizeTeacher, teacherPermission('canCreateCourses'), courses.createCourse);
 router.get('/courses/my', authenticateToken, authorizeTeacher, getMyCourses);
 router.get('/templates/course/:courseId', authenticateToken, authorizeTeacher, getTemplatesForCourse);
 
 // Certificate issuance
-router.post('/certificates/issue', authenticateToken, authorizeTeacher, issueCertificateAsTeacher);
+router.post('/certificates/issue', authenticateToken, authorizeTeacher, teacherPermission('canIssueCertificates'), issueCertificateAsTeacher);
 
 // ============ INSTITUTE ADMIN ROUTES ============
 router.post('/', authenticateToken, authorizeInstitute, createTeacher);

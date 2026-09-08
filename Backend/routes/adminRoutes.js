@@ -28,6 +28,7 @@ router.get('/certificates', adminController.getCertificates);
 router.get('/certificates/:id', adminController.getCertificateById);
 router.put('/certificates/:id/revoke', adminController.revokeCertificate);
 
+
 // Settings
 router.get('/settings', adminController.getSettings);
 router.put('/settings', adminController.updateSettings);

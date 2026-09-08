@@ -73,6 +73,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  twoFactorEnabled: { type: Boolean, default: false },
   credentialSigning: {
     keyId: String,
     algorithm: {

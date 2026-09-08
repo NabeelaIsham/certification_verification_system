@@ -1,3 +1,4 @@
+const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const Certificate = require('../models/Certificate');
 const path = require('path');
 const fs = require('fs');
@@ -60,13 +61,13 @@ const verifyCertificate = async (req, res) => {
       signatureCheck.valid &&
       isCredentialKeyTrusted(certificate.instituteId?.credentialSigning, signatureCheck.keyId)
     );
-    const outcome = certificate.status === 'issued'
+    const outcome = effectiveStatus(certificate) === 'issued'
       ? (!certificate.credential?.signature
         ? 'unsigned'
         : signatureCheck.valid && issuerKeyTrusted
           ? 'valid'
           : 'invalid')
-      : certificate.status;
+      : effectiveStatus(certificate);
     await recordVerification({
       req,
       certificate,
@@ -106,10 +107,10 @@ const verifyCertificate = async (req, res) => {
       awardDate: certificate.awardDate,
       instituteName: certificate.instituteId?.instituteName,
       instituteId: certificate.instituteId,
-      status: certificate.status,
-      statusMessage: certificate.status === 'issued'
+      status: effectiveStatus(certificate),
+      statusMessage: effectiveStatus(certificate) === 'issued'
         ? 'Credential is active'
-        : `Credential is ${certificate.status}`,
+        : `Credential is ${effectiveStatus(certificate)}`,
       issuedAt: certificate.createdAt,
       validUntil: certificate.validUntil,
       revokedAt: certificate.revokedAt,

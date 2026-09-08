@@ -5,6 +5,15 @@ const SystemSettings = ({ API_URL }) => {
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const testEmail = async () => {
+    setTestingEmail(true);
+    try {
+      const response = await axios.post(`${API_URL}/admin/settings/test-email`, {}, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      showMessage('success', response.data.message);
+    } catch (error) { showMessage('error', error.response?.data?.message || 'Test email failed'); }
+    finally { setTestingEmail(false); }
+  };
   const [message, setMessage] = useState({ type: '', text: '' });
   const [settings, setSettings] = useState(null);
   const [originalSettings, setOriginalSettings] = useState(null); // Keep original for comparison
@@ -23,6 +32,7 @@ const SystemSettings = ({ API_URL }) => {
       });
       
       if (response.data.success) {
+        if (response.data.data.certificate?.allowedFormats) response.data.data.certificate.allowedFormats = response.data.data.certificate.allowedFormats.filter(f => ['PNG', 'JPEG', 'JPG'].includes(f));
         setSettings(response.data.data);
         setOriginalSettings(JSON.parse(JSON.stringify(response.data.data))); // Deep copy
       }
@@ -64,6 +74,12 @@ const SystemSettings = ({ API_URL }) => {
       
       if (response.data.success) {
         showMessage('success', 'Settings saved successfully!');
+        if (response.data.data.security?.twoFactorAuth && !originalSettings.security?.twoFactorAuth) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/login';
+          return;
+        }
         setSettings(response.data.data);
         setOriginalSettings(JSON.parse(JSON.stringify(response.data.data)));
       }
@@ -125,9 +141,8 @@ const SystemSettings = ({ API_URL }) => {
         certificate: {
           defaultValidity: 365,
           allowRevocation: true,
-          requireApproval: true,
           maxFileSize: 5,
-          allowedFormats: ['PDF', 'PNG', 'JPEG']
+          allowedFormats: ['PNG', 'JPEG', 'JPG']
         }
       });
       showMessage('success', 'Settings reset to default. Click Save to apply.');
@@ -307,7 +322,7 @@ const SystemSettings = ({ API_URL }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-700">Two-Factor Authentication</p>
-                  <p className="text-sm text-gray-500">Require 2FA for super admin accounts</p>
+                  <p className="text-sm text-gray-500">Require an email login code for super admin accounts. Configure email delivery first. Enabling this requires signing in again.</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -368,6 +383,8 @@ const SystemSettings = ({ API_URL }) => {
           {activeTab === 'email' && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Email Configuration</h3>
+              <p className="text-sm text-gray-500">Save your changes first, then send a test to your super admin email address.</p>
+              <button type="button" onClick={testEmail} disabled={testingEmail || saving} className="px-4 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">{testingEmail ? 'Sending...' : 'Send Test Email'}</button>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -546,10 +563,10 @@ const SystemSettings = ({ API_URL }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Allowed Formats
+                  Allowed Template Image Formats
                 </label>
                 <div className="space-y-2">
-                  {['PDF', 'PNG', 'JPEG', 'JPG'].map(format => (
+                  {['PNG', 'JPEG', 'JPG'].map(format => (
                     <div key={format} className="flex items-center">
                       <input
                         type="checkbox"
@@ -588,21 +605,7 @@ const SystemSettings = ({ API_URL }) => {
                 </label>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-700">Require Approval</p>
-                  <p className="text-sm text-gray-500">Require admin approval for certificates</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={settings.certificate?.requireApproval !== false}
-                    onChange={(e) => handleSettingChange('certificate', 'requireApproval', e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                </label>
-              </div>
+
             </div>
           )}
 

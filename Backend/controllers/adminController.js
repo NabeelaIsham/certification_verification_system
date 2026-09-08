@@ -16,7 +16,8 @@ const getStats = async (req, res) => {
       totalTeachers,
       totalCertificates,
       revokedCertificates,
-      activeUsers
+      activeUsers,
+      totalUsers
     ] = await Promise.all([
       User.countDocuments({ userType: 'institute' }),
       User.countDocuments({ userType: 'institute', isVerifiedByAdmin: false }),
@@ -26,7 +27,8 @@ const getStats = async (req, res) => {
       User.countDocuments({ userType: 'teacher' }),
       Certificate.countDocuments(),
       Certificate.countDocuments({ status: 'revoked' }),
-      User.countDocuments({ isActive: true })
+      User.countDocuments({ isActive: true }),
+      User.countDocuments()
     ]);
 
     res.json({
@@ -41,7 +43,8 @@ const getStats = async (req, res) => {
         totalTeachers,
         totalCertificates,
         revokedCertificates,
-        activeUsers
+        activeUsers,
+        totalUsers
       }
     });
   } catch (error) {
@@ -519,6 +522,8 @@ const getSettings = async (req, res) => {
 const updateSettings = async (req, res) => {
   try {
     const updates = req.body;
+    const validationError = require('../utils/validateSettings')(updates);
+    if (validationError) return res.status(400).json({ success: false, message: validationError });
 
     let settings = await Settings.findOne();
     if (!settings) {
@@ -527,6 +532,7 @@ const updateSettings = async (req, res) => {
 
     const updateNested = (target, source) => {
       Object.keys(source).forEach((key) => {
+        if (['__proto__', 'constructor', 'prototype'].includes(key)) return;
         if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
           if (!target[key]) target[key] = {};
           updateNested(target[key], source[key]);
@@ -536,7 +542,12 @@ const updateSettings = async (req, res) => {
       });
     };
 
-    updateNested(settings, updates);
+    const allowed = {};
+    for (const section of ['general', 'security', 'email', 'verification', 'certificate']) {
+      if (updates[section]) allowed[section] = updates[section];
+    }
+    if (allowed.email && (!allowed.email.smtpPassword || allowed.email.smtpPassword === '********')) delete allowed.email.smtpPassword;
+    updateNested(settings, allowed);
 
     if (settings.email?.smtpPassword === '********') {
       const existing = await Settings.findOne();

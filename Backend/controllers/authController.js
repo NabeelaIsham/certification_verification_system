@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const OTP = require('../models/OTP');
+const Settings = require('../models/Settings');
+const { beginTwoFactor } = require('./twoFactorController');
 const { sendOtpEmail } = require('../utils/emailService');
 const { sendOtpSms } = require('../utils/smsService');
 const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/validators');
@@ -14,6 +16,7 @@ const sendSMSOTP = async (phone, otp) => {
 
 const isOtpExpired = (otpRecord) => {
   if (!otpRecord || !otpRecord.createdAt) return true;
+  if (otpRecord.expiresAt) return new Date(otpRecord.expiresAt) <= new Date();
   const now = new Date();
   const otpAge = now - otpRecord.createdAt;
   return otpAge > 5 * 60 * 1000;
@@ -280,7 +283,7 @@ const resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    const otpRecord = await OTP.findOne({ email, otp, type: 'reset_password' });
+    const otpRecord = await OTP.findOneAndDelete({ email, otp, type: 'reset_password' });
     if (!otpRecord) {
       return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
@@ -349,6 +352,12 @@ const login = async (req, res) => {
 
     if (!user.isActive) {
       return res.status(403).json({ success: false, message: 'Your account is not active. Please contact administrator.' });
+    }
+
+    if (user.twoFactorEnabled) return await beginTwoFactor(user, res);
+    if (user.userType === 'superadmin') {
+      const settings = await Settings.findOne();
+      if (settings?.security?.twoFactorAuth) return await beginTwoFactor(user, res);
     }
 
     const token = jwt.sign(

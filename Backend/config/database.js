@@ -9,6 +9,7 @@ const loadModels = () => {
   require('../models/Certificate');
   require('../models/Settings');
   require('../models/OTP');
+  require('../models/LoginChallenge');
   require('../models/ActivityLog');
   require('../models/VerificationLog');
   require('../models/CredentialShare');
@@ -37,6 +38,7 @@ const ensureCollections = async () => {
     'Certificate',
     'Settings',
     'OTP',
+    'LoginChallenge',
     'ActivityLog',
     'VerificationLog',
     'CredentialShare'
@@ -114,6 +116,7 @@ const seedSettings = async () => {
   } = process.env;
 
   let settings = await Settings.findOne();
+  if (settings) return; // Preserve saved administrator configuration across restarts.
 
   if (!settings) {
     settings = new Settings();

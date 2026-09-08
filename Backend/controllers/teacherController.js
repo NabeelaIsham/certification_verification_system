@@ -252,6 +252,10 @@ const generateCertificateImage = async (certificateData) => {
 // Create a new teacher (by Institute Admin)
 const createTeacher = async (req, res) => {
   try {
+    if (req.body.permissions !== undefined) {
+      const allowed = ['canCreateStudents', 'canEditStudents', 'canDeleteStudents', 'canIssueCertificates', 'canBulkUpload', 'canCreateCourses', 'canEditCourses'];
+      if (!req.body.permissions || Array.isArray(req.body.permissions) || typeof req.body.permissions !== 'object' || Object.entries(req.body.permissions).some(([key, value]) => !allowed.includes(key) || typeof value !== 'boolean')) return res.status(400).json({ success: false, message: 'Permissions must contain valid boolean values.' });
+    }
     const instituteId = req.userId; // Logged in institute admin
     console.log('Creating teacher for institute:', instituteId);
     
@@ -459,9 +463,14 @@ const getTeacherById = async (req, res) => {
 // Update teacher (Institute Admin only)
 const updateTeacher = async (req, res) => {
   try {
+    if (req.body.permissions !== undefined) {
+      const allowed = ['canCreateStudents', 'canEditStudents', 'canDeleteStudents', 'canIssueCertificates', 'canBulkUpload', 'canCreateCourses', 'canEditCourses'];
+      if (!req.body.permissions || Array.isArray(req.body.permissions) || typeof req.body.permissions !== 'object' || Object.entries(req.body.permissions).some(([key, value]) => !allowed.includes(key) || typeof value !== 'boolean')) return res.status(400).json({ success: false, message: 'Permissions must contain valid boolean values.' });
+    }
     const instituteId = req.userId;
     const { id } = req.params;
     const updates = req.body;
+    delete updates.twoFactorEnabled;
 
     // Prevent sensitive updates
     delete updates.password;
@@ -578,6 +587,8 @@ const teacherLogin = async (req, res) => {
         message: 'Invalid credentials' 
       });
     }
+
+    if (teacher.twoFactorEnabled) return await require('./twoFactorController').beginTwoFactor(teacher, res);
 
     const token = jwt.sign(
       { 
@@ -809,7 +820,7 @@ const getTemplatesForCourse = async (req, res) => {
     }
 
     // Verify the course is assigned to this teacher
-    if (!teacher.assignedCourses || !teacher.assignedCourses.includes(courseId)) {
+    if (!teacher.assignedCourses || !teacher.assignedCourses.some(id => String(id) === String(courseId))) {
       console.log('Course not assigned to teacher. Assigned courses:', teacher.assignedCourses);
       return res.status(403).json({
         success: false,
@@ -912,7 +923,7 @@ const issueCertificateAsTeacher = async (req, res) => {
     }
 
     // Verify course is assigned to this teacher
-    if (!teacher.assignedCourses || !teacher.assignedCourses.includes(courseId)) {
+    if (!teacher.assignedCourses || !teacher.assignedCourses.some(id => String(id) === String(courseId))) {
       return res.status(403).json({ 
         success: false, 
         message: 'You are not authorized to issue certificates for this course' 
@@ -983,7 +994,10 @@ const issueCertificateAsTeacher = async (req, res) => {
 
     console.log('Generated certificate code:', certificateCode);
 
+    const policy = await require('../utils/settingsPolicy').getPolicy('certificate');
+    const validUntil = new Date(new Date(awardDate || Date.now()).getTime() + policy.defaultValidity * 86400000);
     const signedCredential = await createSignedCredential({
+      validUntil,
       certificateCode,
       studentName: student.name,
       courseName: course.courseName,
@@ -1038,6 +1052,7 @@ const issueCertificateAsTeacher = async (req, res) => {
       qrCodeImage: qrCodePath.replace(/\\/g, '/'),
       verificationUrl,
       credential: signedCredential,
+      validUntil,
       status: generatedImagePath ? 'issued' : 'draft',
       emailSent: false
     });
@@ -1094,6 +1109,7 @@ const updateTeacherProfile = async (req, res) => {
   try {
     const teacherId = req.userId;
     const updates = req.body;
+    delete updates.twoFactorEnabled;
 
     // Prevent updating sensitive fields
     delete updates.password;

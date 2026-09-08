@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import TeacherStudentActions from './TeacherStudentActions';
 
-const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId }) => {
+const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId, permissions = {} }) => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,6 +83,7 @@ const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId
 
   return (
     <div>
+      <TeacherStudentActions API_URL={API_URL} permissions={permissions} students={students} courses={courses} onChange={fetchStudents} />
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">My Students</h2>
         <div className="flex items-center space-x-4">

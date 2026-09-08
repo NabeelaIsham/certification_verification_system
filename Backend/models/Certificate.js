@@ -91,6 +91,9 @@ const certificateSchema = new mongoose.Schema({
     ref: 'Certificate'
   },
   validUntil: Date,
+  approvalRequired: { type: Boolean, default: false },
+  approvedAt: Date,
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   revokedAt: Date,
   suspendedAt: Date,
   previewData: {

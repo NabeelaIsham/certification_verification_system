@@ -5,7 +5,7 @@ const Certificate = require('../models/Certificate');
 // Create a new student
 const createStudent = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { name, email, phone, courseId, enrollmentDate, status } = req.body;
 
     // Validate required fields
@@ -73,7 +73,7 @@ const createStudent = async (req, res) => {
 // Get all students for an institute
 const getStudents = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { search, courseId, status, page = 1, limit = 10 } = req.query;
 
     let query = { instituteId };
@@ -144,7 +144,7 @@ const getStudents = async (req, res) => {
 // Get single student by ID
 const getStudentById = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
 
     const student = await Student.findOne({ _id: id, instituteId })
@@ -183,7 +183,7 @@ const getStudentById = async (req, res) => {
 // Update student
 const updateStudent = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
     const updates = req.body;
 
@@ -257,7 +257,7 @@ const updateStudent = async (req, res) => {
 // Delete student
 const deleteStudent = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
 
     // Check if student has any certificates
@@ -299,7 +299,7 @@ const deleteStudent = async (req, res) => {
 // Bulk upload students
 const bulkUploadStudents = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { students } = req.body;
 
     console.log('Bulk upload received:', JSON.stringify(students, null, 2));
@@ -320,7 +320,7 @@ const bulkUploadStudents = async (req, res) => {
     };
 
     // Get all courses for this institute for quick lookup
-    const courses = await Course.find({ instituteId });
+    const courses = await Course.find({ instituteId, ...(req.allowedCourseIds ? { _id: { $in: req.allowedCourseIds } } : {}) });
     console.log(`Found ${courses.length} courses for institute`);
     
     const courseMap = {};
@@ -335,7 +335,7 @@ const bulkUploadStudents = async (req, res) => {
 
       try {
         // Check if this is actually a header row
-        if (studentData.name && studentData.name.toLowerCase().includes('name')) {
+        if (studentData.name?.toLowerCase() === 'name' && studentData.email?.toLowerCase() === 'email') {
           console.log('Skipping possible header row:', studentData.name);
           continue;
         }
@@ -432,7 +432,7 @@ const bulkUploadStudents = async (req, res) => {
 // Get students by course
 const getStudentsByCourse = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { courseId } = req.params;
 
     const students = await Student.find({ 
@@ -457,7 +457,7 @@ const getStudentsByCourse = async (req, res) => {
 // Update student status
 const updateStudentStatus = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
     const { status } = req.body;
 
@@ -498,7 +498,7 @@ const updateStudentStatus = async (req, res) => {
 // Export students data (for reports)
 const exportStudents = async (req, res) => {
   try {
-    const instituteId = req.user.id;
+    const instituteId = req.instituteId || req.user.id;
     const { courseId, status } = req.query;
 
     let query = { instituteId };

@@ -11,6 +11,9 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const [challengeToken, setChallengeToken] = useState('');
+  const [otp, setOtp] = useState('');
+  const [verification, setVerification] = useState({ otpExpiry: 5, maxOtpAttempts: 3, resendCooldown: 60, allowResendOtp: true });
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -48,7 +51,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!challengeToken && !validateForm()) {
       return;
     }
 
@@ -56,12 +59,20 @@ const Login = () => {
     setErrors({});
 
     try {
-      const response = await authService.login({
+      const response = challengeToken ? await authService.verifyTwoFactor(challengeToken, otp) : await authService.login({
         email: formData.email,
         password: formData.password
       });
 
       if (response.success) {
+        if (response.requiresTwoFactor) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setChallengeToken(response.challengeToken);
+          if (response.verification) setVerification(response.verification);
+          setFormData(prev => ({ ...prev, password: '' }));
+          return;
+        }
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
 
@@ -91,6 +102,29 @@ const Login = () => {
       setIsLoading(false);
     }
   };
+
+  if (challengeToken) {
+    return (
+      <div className="min-h-screen bg-blue-50 flex items-center justify-center px-4">
+        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6">
+          <h1 className="text-2xl font-bold text-gray-900">Verify your sign-in</h1>
+          <p className="text-sm text-gray-600">Enter the 6-digit code sent to your email. The code expires in {verification.otpExpiry} minutes and allows {verification.maxOtpAttempts} attempts.</p>
+          <div>
+            <label htmlFor="login-code" className="block text-sm font-medium text-gray-700">Login code</label>
+            <input id="login-code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus
+              className="mt-2 w-full border rounded-lg p-3 text-center text-2xl tracking-widest" />
+          </div>
+          {errors.submit && <p role="alert" className="text-sm text-red-600">{errors.submit}</p>}
+          <button type="submit" disabled={isLoading || otp.length !== 6} className="w-full bg-blue-600 text-white rounded-lg p-3 disabled:opacity-50">
+            {isLoading ? 'Verifying...' : 'Verify and sign in'}
+          </button>
+          <p className="text-xs text-gray-500">{verification.allowResendOtp ? `Need another code? Return to sign-in and enter your password again. Wait at least ${verification.resendCooldown} seconds between requests.` : 'Resending is disabled. Use the code already sent, or sign in again after it expires.'}</p>
+          <button type="button" disabled={isLoading} onClick={() => { setChallengeToken(''); setOtp(''); setErrors({}); }} className="text-sm text-blue-600">Back to sign-in</button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

@@ -1,3 +1,4 @@
+const { getPolicy } = require('../utils/settingsPolicy');
 const Certificate = require('../models/Certificate');
 const Student = require('../models/Student');
 const Course = require('../models/Course');
@@ -317,11 +318,14 @@ const issueCertificate = async (req, res) => {
 
     console.log('Generated certificate code:', certificateCode);
 
+    const policy = await getPolicy('certificate');
+    const validUntil = new Date(new Date(awardDate).getTime() + policy.defaultValidity * 86400000);
     const signedCredential = await createSignedCredential({
       certificateCode,
       studentName: student.name,
       courseName: course.courseName,
       awardDate,
+      validUntil,
       institute
     });
 
@@ -375,6 +379,7 @@ const issueCertificate = async (req, res) => {
       qrCodeImage: qrCodePath.replace(/\\/g, '/'),
       verificationUrl,
       credential: signedCredential,
+      validUntil,
       status: generatedImagePath ? 'issued' : 'draft',
       emailSent: false
     });
@@ -404,7 +409,7 @@ const issueCertificate = async (req, res) => {
       templateImageUrl: `${baseUrl}/${template.templateImage.replace(/\\/g, '/')}`
     };
 
-    if (generatedImagePath) {
+    if (certificate.status === 'issued') {
       try {
         await sendIssuedCertificateNotification({
           certificate,
@@ -421,7 +426,7 @@ const issueCertificate = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: generatedImagePath ? 'Certificate issued successfully' : 'Certificate created but image generation failed',
+      message: certificate.status === 'issued' ? 'Certificate issued successfully' : 'Certificate created but image generation failed',
       data: certificateData
     });
 
@@ -640,6 +645,7 @@ const updateCertificateStatus = async (req, res) => {
       });
     }
 
+    if (status === 'issued' && !certificate.generatedCertificateImage) return res.status(400).json({ success: false, message: 'Generate the certificate image before issuing.' });
     const previousStatus = certificate.status;
     const allowedTransition = previousStatus === 'draft' && status === 'issued';
     if (!allowedTransition) {
@@ -712,6 +718,7 @@ const sendCertificateEmailHandler = async (req, res) => {
       });
     }
 
+    if (certificate.status !== 'issued') return res.status(409).json({ success: false, message: 'Only issued certificates can be emailed. Issue the draft first.' });
     if (!certificate.studentId || !certificate.studentId.email) {
       return res.status(400).json({
         success: false,
@@ -751,7 +758,7 @@ const sendCertificateEmailHandler = async (req, res) => {
     certificate.emailSentAt = new Date();
     // Regeneration replaces the rendered image/QR only. Never undo an existing
     // suspension or revocation as a side effect.
-    if (certificate.status === 'draft') certificate.status = 'issued';
+
     await certificate.save();
 
     res.json({
@@ -847,7 +854,7 @@ const regenerateCertificateImage = async (req, res) => {
     certificate.qrCodeImage = qrCodePath.replace(/\\/g, '/');
     certificate.verificationUrl = verificationUrl;
     if (!certificate.credential?.signature) certificate.credential = signedCredential;
-    certificate.status = 'issued';
+    if (certificate.status === 'draft') certificate.status = 'issued';
     await certificate.save();
 
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
@@ -1025,11 +1032,14 @@ const bulkIssueCertificates = async (req, res) => {
 
         const certificateCode = generateCertificateCode(institute?.instituteName);
 
+        const policy = await getPolicy('certificate');
+        const validUntil = new Date(new Date(certData.awardDate || Date.now()).getTime() + policy.defaultValidity * 86400000);
         const signedCredential = await createSignedCredential({
           certificateCode,
           studentName: student.name,
           courseName: course.courseName,
           awardDate: certData.awardDate || new Date(),
+          validUntil,
           institute
         });
         const verificationUrl = buildOnlineVerificationUrl(certificateCode);
@@ -1077,6 +1087,7 @@ const bulkIssueCertificates = async (req, res) => {
           qrCodeImage: qrCodePath.replace(/\\/g, '/'),
           verificationUrl,
           credential: signedCredential,
+          validUntil,
           status: generatedImagePath ? 'issued' : 'draft',
           emailSent: false
         });
@@ -1089,7 +1100,7 @@ const bulkIssueCertificates = async (req, res) => {
           await student.save();
         }
 
-        if (generatedImagePath) {
+        if (certificate.status === 'issued') {
           try {
             await sendIssuedCertificateNotification({
               certificate,
@@ -1105,6 +1116,7 @@ const bulkIssueCertificates = async (req, res) => {
         results.successful.push({
           studentEmail: student.email,
           courseCode: course.courseCode,
+          status: certificate.status,
           certificateCode
         });
       } catch (error) {
@@ -1117,7 +1129,7 @@ const bulkIssueCertificates = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Bulk certificate issuance completed: ${results.successful.length} successful, ${results.failed.length} failed`,
+      message: `Bulk certificate creation completed: ${results.successful.length} successful, ${results.failed.length} failed.`,
       data: results
     });
   } catch (error) {

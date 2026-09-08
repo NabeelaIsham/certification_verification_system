@@ -1,3 +1,4 @@
+import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useState } from 'react';
 import axios from 'axios';
 
@@ -291,6 +292,7 @@ console.log('Teacher data:', teacher);
             </form>
           )}
 
+          {activeSection === 'security' && <TwoFactorSettings API_URL={API_URL} />}
           {activeSection === 'security' && (
             <form onSubmit={handlePasswordChange} className="max-w-md">
               <div className="space-y-4">

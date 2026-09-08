@@ -69,7 +69,8 @@ const sendTextLkSms = async ({ to, message }) => {
 };
 
 const sendOtpSms = async ({ to, otp }) => {
-  const message = `Your Certificate Verification System OTP is ${otp}. It expires in 5 minutes.`;
+  const policy = await require('./settingsPolicy').getPolicy('verification');
+  const message = `Your Certificate Verification System OTP is ${otp}. It expires in ${policy.otpExpiry} minutes.`;
   return sendTextLkSms({ to, message });
 };
 

@@ -4,6 +4,7 @@ import axios from 'axios';
 import TeacherStudents from './TeacherStudents';
 import TeacherIssueCertificate from './TeacherIssueCertificate';
 import TeacherProfile from './TeacherProfile';
+import TeacherCreateCourse from './TeacherCreateCourse';
 
 const TeacherDashboard = ({ API_URL, teacher }) => {
   const navigate = useNavigate();
@@ -22,9 +23,10 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
   const tabs = [
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'students', name: 'My Students', icon: '👨‍🎓' },
-    { id: 'issue', name: 'Issue Certificates', icon: '📜' },
+    { id: 'create-course', name: 'Create Course', permission: 'canCreateCourses', icon: '+' },
+    { id: 'issue', name: 'Issue Certificates', permission: 'canIssueCertificates', icon: '📜' },
     { id: 'profile', name: 'Profile', icon: '👤' }
-  ];
+  ].filter(tab => !tab.permission || teacherData?.permissions?.[tab.permission]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -257,6 +259,7 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
                     </div>
                   </button>
                   <button
+                    hidden={!teacherData?.permissions?.canIssueCertificates}
                     onClick={() => setActiveTab('issue')}
                     className="w-full p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-left"
                   >
@@ -303,12 +306,14 @@ const TeacherDashboard = ({ API_URL, teacher }) => {
           <TeacherStudents 
             API_URL={API_URL} 
             teacherId={teacherData?._id}
+            permissions={teacherData?.permissions}
             assignedCourses={teacherData?.assignedCourses || []}
             instituteId={teacherData?.instituteId?._id || teacherData?.instituteId}
           />
         )}
         
-        {activeTab === 'issue' && (
+        {activeTab === 'create-course' && teacherData?.permissions?.canCreateCourses && <TeacherCreateCourse API_URL={API_URL} onCreated={fetchDashboardData} />}
+        {activeTab === 'issue' && teacherData?.permissions?.canIssueCertificates && (
           <TeacherIssueCertificate 
             API_URL={API_URL} 
             teacher={teacherData}

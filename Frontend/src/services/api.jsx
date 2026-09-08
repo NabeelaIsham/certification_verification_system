@@ -30,7 +30,8 @@ api.interceptors.response.use(
       error.response?.data?.code === 'TOKEN_EXPIRED' ||
       error.response?.data?.code === 'INVALID_TOKEN';
 
-    if (isAuthExpired) {
+    const isLoginRequest = ['/auth/login', '/auth/2fa/verify'].includes(error.config?.url);
+    if (isAuthExpired && !isLoginRequest) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'
