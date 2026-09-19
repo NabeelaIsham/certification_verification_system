@@ -3,7 +3,10 @@ const Notification = require('../models/Notification');
 const Certificate = require('../models/Certificate');
 const Settings = require('../models/Settings');
 const ActivityLog = require('../models/ActivityLog');
-const { sendEmail } = require('../utils/emailService');
+const OTP = require('../models/OTP');
+const crypto = require('crypto');
+const { sendEmail, sendOtpEmail } = require('../utils/emailService');
+const { hashOtp } = require('../utils/otpSecurity');
 
 const getStats = async (req, res) => {
   try {
@@ -368,16 +371,22 @@ const resetUserPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const newPassword = req.body.password || Math.random().toString(36).slice(-10);
-    user.password = newPassword;
-    await user.save();
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    await OTP.deleteMany({ email: user.email, type: 'reset_password' });
+    await OTP.create({
+      email: user.email,
+      phone: user.phone || '',
+      otpHash: hashOtp(user.email, 'reset_password', otp),
+      type: 'reset_password'
+    });
+    await sendOtpEmail({ to: user.email, otp, purpose: 'reset_password' });
 
     await Promise.all([
       Notification.create({
         recipient: user._id,
         type: 'password_reset',
         title: 'Password Reset',
-        message: 'Your password was reset by the administrator.',
+        message: 'An administrator requested a password reset. Use the single-use code sent to your email.',
         data: { changedBy: req.userId }
       }),
       ActivityLog.create({
@@ -392,8 +401,8 @@ const resetUserPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'User password reset successfully',
-      data: { userId: user._id, password: newPassword }
+      message: 'A single-use password reset code was sent to the user.',
+      data: { userId: user._id }
     });
   } catch (error) {
     console.error('Admin resetUserPassword error:', error);

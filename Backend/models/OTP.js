@@ -10,7 +10,7 @@ const otpSchema = new mongoose.Schema({
     type: String,
     required: false  // Make optional since phone might not always be available
   },
-  otp: {
+  otpHash: {
     type: String,
     required: true
   },

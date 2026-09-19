@@ -76,7 +76,11 @@ for (const dir of uploadDirs) {
   }
 }
 
-app.use('/uploads', express.static(uploadsDir));
+// Never expose the whole upload tree. Generated credentials are addressed by
+// high-entropy certificate codes; private templates and source files stay behind APIs.
+app.use('/uploads/generated', express.static(path.join(uploadsDir, 'generated'), { index: false, dotfiles: 'deny' }));
+app.use('/uploads/qrcodes', express.static(path.join(uploadsDir, 'qrcodes'), { index: false, dotfiles: 'deny' }));
+app.use('/uploads/logos', express.static(path.join(uploadsDir, 'logos'), { index: false, dotfiles: 'deny' }));
 
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -172,7 +176,7 @@ app.get('/api', (req, res) => {
 
 app.use(errorLogger);
 
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error('Error:', err.stack || err);
   res.status(err.status || 500).json({
     success: false,

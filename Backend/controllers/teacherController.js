@@ -8,7 +8,6 @@ const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
 const { sendCertificateEmail } = require('../utils/emailService');
 const {
   buildOnlineVerificationUrl,

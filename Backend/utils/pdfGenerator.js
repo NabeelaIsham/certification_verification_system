@@ -1,7 +1,6 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
-const QRCode = require('qrcode');
 
 const generateCertificatePDF = async (data) => {
   try {
@@ -11,8 +10,7 @@ const generateCertificatePDF = async (data) => {
       awardDate, 
       certificateCode, 
       template, 
-      qrCode,
-      instituteId 
+      qrCode
     } = data;
 
     // Create uploads directory

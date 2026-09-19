@@ -35,6 +35,10 @@ const authenticateToken = async (req, res, next) => {
     if (user.twoFactorEnabled && decoded.twoFactorVerified !== true) {
       return res.status(401).json({ success: false, message: 'Please sign in again to complete two-factor authentication.', code: 'TWO_FACTOR_REQUIRED' });
     }
+
+    if ((decoded.sessionVersion || 0) !== (user.sessionVersion || 0)) {
+      return res.status(401).json({ success: false, message: 'Session revoked. Please sign in again.', code: 'SESSION_REVOKED' });
+    }
     if (user.userType === 'superadmin') {
       const settings = await Settings.findOne();
       if (settings?.security?.twoFactorAuth && decoded.twoFactorVerified !== true) {

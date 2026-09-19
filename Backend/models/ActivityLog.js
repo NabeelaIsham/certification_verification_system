@@ -23,6 +23,7 @@ const activityLogSchema = new mongoose.Schema({
       'TEST_EMAIL',
       'GENERATE_SYSTEM_REPORT',
       'RESET_USER_PASSWORD',
+      'PASSWORD_RESET',
       'ACTIVATE_USER',
       'SUSPEND_USER',
       'REVOKE_CERTIFICATE',

@@ -7,6 +7,8 @@ const { beginTwoFactor } = require('./twoFactorController');
 const { sendOtpEmail } = require('../utils/emailService');
 const { sendOtpSms } = require('../utils/smsService');
 const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/validators');
+const { hashOtp } = require('../utils/otpSecurity');
+const ActivityLog = require('../models/ActivityLog');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -89,7 +91,7 @@ const registerInstitute = async (req, res) => {
     await OTP.create({
       email: user.email,
       phone: user.phone,
-      otp: accountOtp,
+      otpHash: hashOtp(user.email, 'email', accountOtp),
       type: 'email'
     });
 
@@ -97,7 +99,7 @@ const registerInstitute = async (req, res) => {
       await OTP.create({
         email: user.email,
         phone: user.phone,
-        otp: accountOtp,
+        otpHash: hashOtp(user.email, 'phone', accountOtp),
         type: 'phone'
       });
     }
@@ -154,7 +156,7 @@ const verifyOtp = async (req, res) => {
     const typeFilter = verificationTypes.includes(type) ? [type, ...verificationTypes.filter((item) => item !== type)] : verificationTypes;
     const otpRecord = await OTP.findOne({
       email: normalizedEmail,
-      otp: otpValue,
+      otpHash: { $in: typeFilter.map((otpType) => hashOtp(normalizedEmail, otpType, otpValue)) },
       type: { $in: typeFilter }
     }).sort({ createdAt: -1 });
 
@@ -208,7 +210,7 @@ const resendOtp = async (req, res) => {
     let smsSent = false;
 
     if (type === 'email' || type === 'account') {
-      await OTP.create({ email: user.email, phone: user.phone || '', otp, type: 'email' });
+      await OTP.create({ email: user.email, phone: user.phone || '', otpHash: hashOtp(user.email, 'email', otp), type: 'email' });
       try {
         await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
         emailSent = true;
@@ -218,7 +220,7 @@ const resendOtp = async (req, res) => {
     }
 
     if ((type === 'phone' || type === 'account') && user.phone) {
-      await OTP.create({ email: user.email, phone: user.phone || '', otp, type: 'phone' });
+      await OTP.create({ email: user.email, phone: user.phone || '', otpHash: hashOtp(user.email, 'phone', otp), type: 'phone' });
       try {
         await sendSMSOTP(user.phone, otp);
         smsSent = true;
@@ -252,16 +254,15 @@ const forgotPassword = async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'No account found for this email.' });
-    }
+    const genericResponse = { success: true, message: 'If an account exists for this email, password reset instructions have been sent.' };
+    if (!user) return res.json(genericResponse);
 
     const otp = generateOTP();
     await OTP.deleteMany({ email, type: 'reset_password' });
-    await OTP.create({ email, phone: user.phone || '', otp, type: 'reset_password' });
+    await OTP.create({ email, phone: user.phone || '', otpHash: hashOtp(email, 'reset_password', otp), type: 'reset_password' });
     await sendOtpEmail({ to: email, otp, purpose: 'reset_password' });
 
-    return res.json({ success: true, message: 'Password reset OTP sent to your email.', otp: process.env.NODE_ENV === 'test' ? otp : undefined });
+    return res.json({ ...genericResponse, otp: process.env.NODE_ENV === 'test' ? otp : undefined });
   } catch (error) {
     console.error('Forgot password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to send password reset OTP', error: error.message });
@@ -283,7 +284,7 @@ const resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    const otpRecord = await OTP.findOneAndDelete({ email, otp, type: 'reset_password' });
+    const otpRecord = await OTP.findOneAndDelete({ email, otpHash: hashOtp(email, 'reset_password', otp), type: 'reset_password' });
     if (!otpRecord) {
       return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
@@ -294,8 +295,18 @@ const resetPassword = async (req, res) => {
     }
 
     user.password = newPassword;
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
     await user.save();
     await OTP.deleteMany({ email, type: 'reset_password' });
+
+    await ActivityLog.create({
+      user: user._id,
+      userEmail: user.email,
+      action: 'PASSWORD_RESET',
+      details: { method: 'self_service' },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     return res.json({ success: true, message: 'Password reset successfully.' });
   } catch (error) {
@@ -361,9 +372,9 @@ const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email, userType: user.userType },
+      { userId: user._id, email: user.email, userType: user.userType, sessionVersion: user.sessionVersion || 0 },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '15m' }
     );
 
     const userData = {

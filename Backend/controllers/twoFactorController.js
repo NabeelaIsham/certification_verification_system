@@ -53,7 +53,7 @@ const verifyTwoFactor = async (req, res) => {
       user.twoFactorEnabled = true;
       await user.save();
     }
-    const token = jwt.sign({ userId: user._id, email: user.email, userType: user.userType, twoFactorVerified: true }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ userId: user._id, email: user.email, userType: user.userType, twoFactorVerified: true, sessionVersion: user.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '15m' });
     const fields = ['instituteName', 'adminName', 'logo', 'isEmailVerified', 'isPhoneVerified', 'isVerifiedByAdmin', 'status', 'firstName', 'lastName', 'employeeId', 'department', 'designation', 'permissions', 'instituteId', 'assignedCourses'];
     const userData = { id: user._id, email: user.email, userType: user.userType, isActive: user.isActive, twoFactorEnabled: user.twoFactorEnabled, adminName: user.superAdminName || user.adminName };
     for (const field of fields) if (user[field] !== undefined) userData[field] = user[field];
