@@ -1,5 +1,14 @@
 # Certification Verification System
 
+## Stabilization work
+
+Track fixes and the remaining SaaS acceptance gates in
+[the stabilization checklist](Docs/SECURITY_REMEDIATION.md).
+
+Account email addresses are globally unique for the initial pilot. A teacher account belongs
+to one institute; the same email cannot be registered independently at another institute.
+Supporting multiple institute memberships requires an explicit membership model and migration.
+
 ## Credential security features
 
 The certificate workflow includes:

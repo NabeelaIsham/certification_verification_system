@@ -18,13 +18,14 @@ const runOtp = async (mode, policy, record) => {
   await enforceOtpPolicy(mode)({ body: { email: 'admin@example.com' } }, res, next);
   return { res, next };
 };
-test('disabled resend is rejected by backend', async () => {
+test('disabled resend suppresses delivery without disclosing account state', async () => {
   const { res, next } = await runOtp('send-account', { allowResendOtp: false }, null);
-  expect(res.status).toHaveBeenCalledWith(403); expect(next).not.toHaveBeenCalled();
+  expect(res.json).toHaveBeenCalledWith({ success: true, message: 'If an eligible account exists, further instructions will be sent.' }); expect(next).not.toHaveBeenCalled();
 });
 test('configured cooldown blocks early resend', async () => {
-  const { res } = await runOtp('send-reset', { resendCooldown: 120 }, { createdAt: new Date(Date.now() - 90000) });
-  expect(res.status).toHaveBeenCalledWith(429);
+  const { res, next } = await runOtp('send-reset', { resendCooldown: 120 }, { createdAt: new Date(Date.now() - 90000) });
+  expect(res.json).toHaveBeenCalledWith({ success: true, message: 'If an eligible account exists, further instructions will be sent.' });
+  expect(next).not.toHaveBeenCalled();
 });
 test('a code with a longer configured expiry remains usable after five minutes', async () => {
   OTP.findOneAndUpdate.mockResolvedValue({ attempts: 1 });

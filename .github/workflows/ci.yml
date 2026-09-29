@@ -16,11 +16,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install backend dependencies
         run: npm ci
       - name: Run backend lint
-        run: npx eslint . --ext .js
+        run: npm run lint
+      - name: Audit backend dependencies
+        run: npm audit --audit-level=high
       - name: Run backend tests
         run: npm test
 
@@ -33,13 +35,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install frontend dependencies
         run: npm ci
       - name: Run frontend lint
         run: npm run lint
       - name: Run frontend tests
-        run: npm test
+        run: npm test -- --run
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+      - name: Build frontend production bundle
+        run: npm run build
 
   container-builds:
     runs-on: ubuntu-latest

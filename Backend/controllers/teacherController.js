@@ -7,7 +7,7 @@ const QRCode = require('qrcode');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
-const jwt = require('jsonwebtoken');
+const { signAccessToken } = require('../config/jwt');
 const { sendCertificateEmail } = require('../utils/emailService');
 const {
   buildOnlineVerificationUrl,
@@ -470,6 +470,7 @@ const updateTeacher = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     delete updates.twoFactorEnabled;
+    delete updates.sessionVersion;
 
     // Prevent sensitive updates
     delete updates.password;
@@ -567,7 +568,7 @@ const teacherLogin = async (req, res) => {
     }
 
     const teacher = await User.findOne({ 
-      email: email.toLowerCase(),
+      email: email.toLowerCase().trim(),
       userType: 'teacher',
       isActive: true 
     }).populate('instituteId', 'instituteName');
@@ -589,16 +590,9 @@ const teacherLogin = async (req, res) => {
 
     if (teacher.twoFactorEnabled) return await require('./twoFactorController').beginTwoFactor(teacher, res);
 
-    const token = jwt.sign(
-      { 
-        userId: teacher._id, 
-        email: teacher.email, 
-        userType: 'teacher',
-        instituteId: teacher.instituteId?._id || teacher.instituteId
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signAccessToken(teacher, {
+      instituteId: teacher.instituteId?._id || teacher.instituteId
+    });
 
     res.json({
       success: true,
@@ -1107,18 +1101,8 @@ const issueCertificateAsTeacher = async (req, res) => {
 const updateTeacherProfile = async (req, res) => {
   try {
     const teacherId = req.userId;
-    const updates = req.body;
-    delete updates.twoFactorEnabled;
-
-    // Prevent updating sensitive fields
-    delete updates.password;
-    delete updates._id;
-    delete updates.userType;
-    delete updates.instituteId;
-    delete updates.email;
-    delete updates.employeeId;
-    delete updates.assignedCourses;
-    delete updates.permissions;
+    const editableFields = ['firstName', 'lastName', 'phone', 'department', 'designation', 'qualification'];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => editableFields.includes(key)));
 
     const teacher = await User.findByIdAndUpdate(
       teacherId,
@@ -1186,11 +1170,12 @@ const changePassword = async (req, res) => {
 
     // Set new password
     teacher.password = newPassword;
+    teacher.sessionVersion = (teacher.sessionVersion || 0) + 1;
     await teacher.save();
 
     res.json({
       success: true,
-      message: 'Password changed successfully'
+      message: 'Password changed successfully. Please sign in again.'
     });
   } catch (error) {
     console.error('Password change error:', error);

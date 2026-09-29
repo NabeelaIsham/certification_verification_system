@@ -2,7 +2,7 @@
 
 ## Required Services
 
-- Node.js 20 or newer
+- Node.js 22.13 or newer in the Node 22 LTS line (CI and container builds use Node 22)
 - MongoDB connection string
 - A domain or subdomain for the frontend
 - A domain, subdomain, or reverse proxy path for the backend API
@@ -20,7 +20,8 @@ CREDENTIAL_KEY_ENCRYPTION_SECRET=use-a-different-long-random-secret
 VERIFICATION_PRIVACY_SECRET=use-another-long-random-secret
 API_URL=https://api.your-domain.com
 FRONTEND_URL=https://your-domain.com
-CORS_ORIGIN=https://your-domain.com
+CORS_ALLOWED_ORIGINS=https://your-domain.com
+JWT_ACCESS_TOKEN_TTL=15m
 TRUST_PROXY=1
 VERIFICATION_LOG_RETENTION_DAYS=180
 SHARE_RECORD_RETENTION_DAYS=30
@@ -37,6 +38,17 @@ Keep `CREDENTIAL_KEY_ENCRYPTION_SECRET` stable and backed up securely. Changing 
 prevents existing institute private keys from being used. Production startup fails when required
 values are missing, secrets are short or reused, URLs are not HTTPS, CORS uses a wildcard, or
 proxy trust is unspecified.
+
+For development and tests, use
+`CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173`.
+Explicit origin configuration replaces the development defaults. The legacy `CORS_ORIGIN`
+setting is supported when `CORS_ALLOWED_ORIGINS` is absent. Production requires an explicit
+HTTPS allowlist; never copy the local allowlist into production.
+
+All login paths use `JWT_ACCESS_TOKEN_TTL` (15 minutes by default). Password changes and resets
+revoke existing sessions; users must sign in again. Public recovery and verification-status
+responses deliberately omit account existence and approval details. SMTP/SMS delivery failures
+remain in server logs and must be monitored.
 
 `TRUST_PROXY=1` is correct only when exactly one trusted reverse proxy is between the client and
 the API. The backend port must not be publicly reachable in that configuration.

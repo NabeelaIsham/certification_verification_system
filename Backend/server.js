@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const { initializeDatabase, loadModels } = require('./config/database');
-const { assertProductionConfig, splitCsv } = require('./config/production');
+const { assertProductionConfig, getAllowedOrigins } = require('./config/production');
 const { createRateLimit } = require('./middleware/rateLimit');
 
 dotenv.config();
@@ -21,7 +21,7 @@ if (trustProxyValue) {
   app.set('trust proxy', /^\d+$/.test(trustProxyValue) ? Number(trustProxyValue) : trustProxyValue);
 }
 
-const allowedOrigins = splitCsv(process.env.CORS_ORIGIN || process.env.FRONTEND_URL);
+const allowedOrigins = getAllowedOrigins();
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -98,6 +98,7 @@ app.use(logger);
 
 app.use('/api', generalApiRateLimit);
 app.use('/api/auth', authRateLimit, authRoutes);
+app.use('/api/teachers/login', authRateLimit);
 app.use('/api/admin', adminRoutes);
 app.use('/api/institute', instituteRoutes);
 app.use('/api/teachers', teacherRoutes);

@@ -129,20 +129,8 @@ const getStats = async (req, res) => {
 const updateSettings = async (req, res) => {
   try {
     const instituteId = req.userId;
-    const updates = req.body;
-    delete updates.twoFactorEnabled;
-
-    // Remove sensitive fields from updates
-    delete updates.password;
-    delete updates._id;
-    delete updates.userType;
-    delete updates.email;
-    delete updates.logo;
-    delete updates.isEmailVerified;
-    delete updates.isPhoneVerified;
-    delete updates.isVerifiedByAdmin;
-    delete updates.status;
-
+    const editableFields = ['instituteName', 'adminName', 'phone', 'address', 'instituteType', 'studentCount'];
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => editableFields.includes(key)));
     const institute = await User.findByIdAndUpdate(
       instituteId,
       { $set: updates },
@@ -264,11 +252,12 @@ const changePassword = async (req, res) => {
 
     // Set new password (will be hashed by pre-save hook)
     institute.password = newPassword;
+    institute.sessionVersion = (institute.sessionVersion || 0) + 1;
     await institute.save();
 
     res.json({
       success: true,
-      message: 'Password changed successfully'
+      message: 'Password changed successfully. Please sign in again.'
     });
   } catch (error) {
     console.error('Password change error:', error);

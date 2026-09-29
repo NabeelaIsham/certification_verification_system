@@ -13,7 +13,7 @@ services:
       MONGODB_URI: mongodb://mongo:27017/certverify
       API_URL: https://verifyawards.com
       FRONTEND_URL: https://verifyawards.com
-      CORS_ORIGIN: https://verifyawards.com
+      CORS_ALLOWED_ORIGINS: https://verifyawards.com
       TRUST_PROXY: '1'
       VERIFICATION_LOG_RETENTION_DAYS: '180'
       SHARE_RECORD_RETENTION_DAYS: '30'
