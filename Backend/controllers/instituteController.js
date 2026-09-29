@@ -25,11 +25,8 @@ const uploadLogoFile = multer({
   storage: logoStorage,
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
+    const expectedMime = { '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[path.extname(file.originalname).toLowerCase()];
+    if (expectedMime && file.mimetype === expectedMime) {
       return cb(null, true);
     }
 

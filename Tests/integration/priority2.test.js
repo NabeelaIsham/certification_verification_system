@@ -50,7 +50,7 @@ beforeEach(async () => {
   studentA = await Student.create({ instituteId: a._id, courseId: courseA._id, name: 'Student A', email: 'student@example.com' });
   studentB = await Student.create({ instituteId: b._id, courseId: courseB._id, name: 'Student B', email: 'student@example.com' });
   for (const institute of [a, b]) {
-    for (const folder of ['templates', 'template-assets', 'generated', 'qrcodes']) {
+    for (const folder of ['templates', 'template-assets', 'generated', 'qrcodes', 'logos']) {
       const dir = path.join(uploadRoot, folder, String(institute._id)); ownedDirs.add(dir);
       await fs.mkdir(dir, { recursive: true });
     }
@@ -70,7 +70,7 @@ beforeEach(async () => {
 afterEach(async () => {
   for (const dir of ownedDirs) {
     const relative = path.relative(uploadRoot, dir);
-    if (!/^(templates|template-assets|generated|qrcodes)[\\/][a-f\d]{24}$/.test(relative)) throw new Error('Unsafe test cleanup path');
+    if (!/^(templates|template-assets|generated|qrcodes|logos)[\\/][a-f\d]{24}$/.test(relative)) throw new Error('Unsafe test cleanup path');
     await fs.rm(dir, { recursive: true, force: true });
   }
   ownedDirs.clear();
@@ -272,4 +272,172 @@ test('legacy draft status and regeneration both go through shared issuance', asy
 
 test('global account email uniqueness is enforced by the database across institutes', async () => {
   await expect(User.collection.insertOne({ email: a.email, userType: 'teacher', instituteId: b._id })).rejects.toMatchObject({ code: 11000 });
+});
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
+
+async function fixtureFile() {
+  const code = 'AAA-260929-ABCDEFGHJK';
+  const relative = `uploads/generated/${a._id}/${code}.jpg`;
+  const qr = `uploads/qrcodes/${a._id}/${code}.png`;
+  await sharp({ create: { width: 32, height: 32, channels: 3, background: '#fff' } }).jpeg().toFile(path.join(uploadRoot, 'generated', String(a._id), `${code}.jpg`));
+  await fs.copyFile(path.join(uploadRoot, 'templates', String(a._id), 'test.png'), path.join(uploadRoot, 'qrcodes', String(a._id), `${code}.png`));
+  return Certificate.create({ instituteId: a._id, studentId: studentA._id, courseId: courseA._id, templateId: templateA._id,
+    certificateCode: code, studentName: studentA.name, courseName: courseA.courseName, awardDate: new Date(), status: 'issued',
+    generatedCertificateImage: relative, qrCodeImage: qr });
+}
+async function fixtureShare(fields = ['certificateImage', 'studentName']) {
+  const certificate = await fixtureFile();
+  const raw = crypto.randomBytes(32).toString('base64url');
+  const share = await Share.create({ institute: a._id, certificate: certificate._id, createdBy: a._id,
+    tokenHash: crypto.createHash('sha256').update(raw).digest('hex'), visibleFields: fields,
+    expiresAt: new Date(Date.now() + 3600000), maxViews: 1 });
+  return { certificate, share, url: `/api/certificates/verify/share/${raw}` };
+}
+const localUrl = url => { const parsed = new URL(url); return parsed.pathname + parsed.search; };
+
+test('raw files are inaccessible even when they exist; authenticated file access is scoped and uncached', async () => {
+  const certificate = await fixtureFile();
+  for (const raw of [certificate.generatedCertificateImage, certificate.qrCodeImage, templateA.templateImage]) {
+    expect((await request(app).get(`/${raw}`)).status).toBe(404);
+  }
+  for (const kind of ['image', 'qr', 'download']) {
+    const url = `/api/private-files/certificates/${certificate.certificateCode}/${kind}`;
+    expect((await request(app).get(url)).status).toBe(401);
+    expect((await api('get', url, {}, signAccessToken(b))).status).toBe(404);
+    const allowed = await api('get', url);
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers['cache-control']).toBe('private, no-store');
+    expect(allowed.headers['referrer-policy']).toBe('no-referrer');
+    expect(allowed.headers.etag).toBeUndefined();
+    if (kind === 'download') expect(allowed.headers['content-disposition']).toContain('attachment');
+    expect((await api('get', url, {}, teacherToken)).status).toBe(200);
+  }
+  await User.updateOne({ _id: teacher._id }, { $set: { assignedCourses: [] } });
+  expect((await api('get', `/api/private-files/certificates/${certificate.certificateCode}/image`, {}, teacherToken)).status).toBe(404);
+});
+
+test('private template backgrounds and assets enforce institute and teacher course scope', async () => {
+  const asset = `uploads/template-assets/${a._id}/signature.png`;
+  await fs.copyFile(path.join(uploadRoot, 'templates', String(a._id), 'test.png'), path.resolve(__dirname, '../../Backend', asset));
+  await Template.updateOne({ _id: templateA._id }, { $set: { imageFields: [{ imagePath: asset, imageType: 'signature' }] } });
+  for (const kind of ['background', '0']) {
+    const url = `/api/private-files/templates/${templateA._id}/${kind}`;
+    expect((await request(app).get(url)).status).toBe(401);
+    expect((await api('get', url, {}, signAccessToken(b))).status).toBe(404);
+    expect((await api('get', url)).status).toBe(200);
+    expect((await api('get', url, {}, teacherToken)).status).toBe(200);
+  }
+  await Template.updateOne({ _id: templateA._id }, { $set: { templateImage: templateB.templateImage } });
+  expect((await api('get', `/api/private-files/templates/${templateA._id}/background`)).status).toBe(403);
+});
+
+test('public verification discloses status but no file URLs, paths, lifecycle details or compact payload', async () => {
+  const certificate = await fixtureFile();
+  const result = await request(app).get(`/api/certificates/verify/${certificate.certificateCode}`);
+  expect(result.status).toBe(200);
+  expect(result.body.data.status).toBe('issued');
+  expect(JSON.stringify(result.body)).not.toMatch(/uploads|private-files|compactToken|lifecycleEvents|certificateImage|qrCodeImage/);
+});
+
+test('the last allowed share view grants bounded file access without spending a second view', async () => {
+  const { share, url } = await fixtureShare();
+  const result = await request(app).get(url);
+  expect(result.status).toBe(200);
+  expect(result.body.data.disclosure.remainingViews).toBe(0);
+  const imageUrl = localUrl(result.body.data.certificateImage);
+  expect((await request(app).get(imageUrl)).status).toBe(200);
+  expect((await request(app).get(`${imageUrl}&download=1`)).headers['content-disposition']).toContain('attachment');
+  expect((await request(app).get(url)).status).toBe(410);
+  expect((await Share.findById(share._id)).viewCount).toBe(1);
+  await Share.updateOne({ _id: share._id }, { $set: { revokedAt: new Date() } });
+  expect((await request(app).get(imageUrl)).status).toBe(410);
+});
+
+test.each(['expired-share', 'hidden-image', 'revoked-certificate', 'expired-certificate', 'foreign-institute'])('existing file grants reject %s immediately', async condition => {
+  const { share, certificate, url } = await fixtureShare();
+  const resolved = await request(app).get(url);
+  const imageUrl = localUrl(resolved.body.data.certificateImage);
+  if (condition === 'expired-share') await Share.updateOne({ _id: share._id }, { $set: { expiresAt: new Date(0) } });
+  if (condition === 'hidden-image') await Share.updateOne({ _id: share._id }, { $set: { visibleFields: ['studentName'] } });
+  if (condition === 'revoked-certificate') await Certificate.updateOne({ _id: certificate._id }, { $set: { status: 'revoked' } });
+  if (condition === 'expired-certificate') await Certificate.updateOne({ _id: certificate._id }, { $set: { validUntil: new Date(0) } });
+  if (condition === 'foreign-institute') await Share.updateOne({ _id: share._id }, { $set: { institute: b._id } });
+  expect((await request(app).get(imageUrl)).status).toBe(410);
+});
+
+test('restricted shares disclose no image and file endpoints reject login tokens and expired grants', async () => {
+  const { url, share, certificate } = await fixtureShare(['studentName']);
+  const result = await request(app).get(url);
+  expect(result.body.data.certificateImage).toBeUndefined();
+  expect((await request(app).get(`/api/private-files/share?grant=${token}`)).status).toBe(410);
+  const expired = jwt.sign({ shareId: String(share._id), certificateId: String(certificate._id) }, process.env.JWT_SECRET,
+    { audience: 'credential-file', issuer: 'certverify', expiresIn: -1 });
+  expect((await request(app).get(`/api/private-files/share?grant=${expired}`)).status).toBe(410);
+});
+
+test('concurrent resolution cannot exceed the share view limit', async () => {
+  const { url } = await fixtureShare();
+  const results = await Promise.all(Array.from({ length: 8 }, () => request(app).get(url)));
+  expect(results.filter(r => r.status === 200)).toHaveLength(1);
+  expect(results.filter(r => r.status === 410)).toHaveLength(7);
+});
+
+test('certificate delivery email contains an expiring controlled link, never a static file URL', async () => {
+  const { certificate } = await issue();
+  const delivered = email.sendCertificateEmail.mock.calls[0][0];
+  expect(delivered.certificateUrl).toMatch(/\/share\/[A-Za-z0-9_-]{43}$/);
+  expect(delivered.downloadUrl).toBe(delivered.certificateUrl);
+  const shares = await Share.find({ certificate: certificate._id });
+  expect(shares).toHaveLength(1);
+  expect(shares[0].visibleFields).toContain('certificateImage');
+  expect(shares[0].expiresAt.getTime()).toBeGreaterThan(Date.now());
+});
+
+async function templateUpload(buffer, name = 'template.png', contentType = 'image/png', asset) {
+  let req = request(app).post('/api/certificate-templates').set('Authorization', `Bearer ${token}`)
+    .field('courseId', String(courseA._id)).field('templateName', 'Uploaded')
+    .attach('templateImage', buffer, { filename: name, contentType });
+  if (asset) req = req.attach('assetImages', asset, { filename: 'asset.png', contentType: 'image/png' });
+  return req;
+}
+const pngBytes = () => sharp({ create: { width: 32, height: 32, channels: 3, background: '#fff' } }).png().toBuffer();
+
+test.each(['spoofed', 'wrong-encoding', 'oversized-dimensions', 'unsupported-extension', 'oversized-file', 'bad-asset'])('template upload rejects %s and cleans partial files', async scenario => {
+  let bytes = await pngBytes(); let name = 'template.png'; let asset;
+  if (scenario === 'spoofed') bytes = Buffer.from('<script>alert(1)</script>');
+  if (scenario === 'wrong-encoding') bytes = await sharp(bytes).jpeg().toBuffer();
+  if (scenario === 'oversized-dimensions') bytes = await sharp({ create: { width: 8001, height: 1, channels: 3, background: '#fff' } }).png().toBuffer();
+  if (scenario === 'unsupported-extension') name = 'payload.png.exe';
+  if (scenario === 'oversized-file') bytes = Buffer.alloc(11 * 1024 * 1024);
+  if (scenario === 'bad-asset') asset = Buffer.from('not an image');
+  const result = await templateUpload(bytes, name, 'image/png', asset);
+  expect(result.status).toBe(400);
+  expect(await fs.readdir(path.join(uploadRoot, 'templates', String(a._id)))).toEqual(['test.png']);
+  expect(await fs.readdir(path.join(uploadRoot, 'template-assets', String(a._id)))).toEqual([]);
+});
+
+test('valid template upload is reencoded, uses generated filenames and private URLs', async () => {
+  const result = await templateUpload(await pngBytes(), '../../untrusted.png');
+  expect(result.status).toBe(201);
+  expect(result.body.data.templateImage).toMatch(/^uploads\/templates\/[a-f\d]{24}\/template-[\d-]+\.png$/);
+  expect(result.body.data.templateImageUrl).toContain('/api/private-files/templates/');
+  expect((await api('get', localUrl(result.body.data.templateImageUrl))).status).toBe(200);
+});
+
+test.each(['spoofed', 'wrong-encoding', 'wrong-extension', 'too-large'])('logo upload rejects %s', async scenario => {
+  let bytes = await pngBytes(); let name = 'logo.png';
+  if (scenario === 'spoofed') bytes = Buffer.from('not an image');
+  if (scenario === 'wrong-encoding') bytes = await sharp(bytes).jpeg().toBuffer();
+  if (scenario === 'wrong-extension') name = 'logo.pngfoo';
+  if (scenario === 'too-large') bytes = Buffer.alloc(3 * 1024 * 1024);
+  const result = await request(app).post('/api/institute/logo').set('Authorization', `Bearer ${token}`).attach('logo', bytes, { filename: name, contentType: 'image/png' });
+  expect(result.status).toBe(400);
+  expect(await fs.readdir(path.join(uploadRoot, 'logos', String(a._id)))).toEqual([]);
+});
+const { validateTransactions } = require('../../Backend/scripts/validateStagingTransactions');
+test('staging transaction probe verifies commit and rollback and removes its temporary collection', async () => {
+  expect(await validateTransactions(mongoose.connection)).toEqual({ committed: 1, rolledBack: true });
+  const collections = await mongoose.connection.db.listCollections().toArray();
+  expect(collections.some(c => c.name.startsWith('_staging_probe_'))).toBe(false);
 });

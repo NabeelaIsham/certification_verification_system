@@ -815,7 +815,7 @@ const VerificationPortal = () => {
               </div>
             ) : (
               <div className="mb-8 p-6 bg-yellow-50 rounded-lg text-center">
-                <p className="text-yellow-700 mb-2">Certificate details are verified, but the certificate image is not available.</p>
+                <p className="text-yellow-700 mb-2">Public verification shows credential details and status. Ask the issuing institute for a controlled share link to view or download the certificate.</p>
                 <p className="text-sm text-gray-600">Certificate code: {verificationResult.certificateCode}</p>
               </div>
             )}

@@ -15,6 +15,8 @@ assertProductionConfig();
 loadModels();
 
 const app = express();
+// Express applies this setting to sendFile, overriding its per-response etag option.
+app.disable('etag');
 
 const trustProxyValue = process.env.TRUST_PROXY;
 if (trustProxyValue) {
@@ -38,6 +40,7 @@ app.use(cors({
   maxAge: 600
 }));
 app.use(helmet({
+  referrerPolicy: { policy: 'no-referrer' },
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   strictTransportSecurity: process.env.NODE_ENV === 'production'
     ? { maxAge: 31536000, includeSubDomains: true }
@@ -76,10 +79,7 @@ for (const dir of uploadDirs) {
   }
 }
 
-// Never expose the whole upload tree. Generated credentials are addressed by
-// high-entropy certificate codes; private templates and source files stay behind APIs.
-app.use('/uploads/generated', express.static(path.join(uploadsDir, 'generated'), { index: false, dotfiles: 'deny' }));
-app.use('/uploads/qrcodes', express.static(path.join(uploadsDir, 'qrcodes'), { index: false, dotfiles: 'deny' }));
+// Only public institute branding is static. Credential and template files require authorization.
 app.use('/uploads/logos', express.static(path.join(uploadsDir, 'logos'), { index: false, dotfiles: 'deny' }));
 
 const authRoutes = require('./routes/authRoutes');
@@ -106,6 +106,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/certificate-templates', certificateTemplateRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/private-files', require('./routes/privateFileRoutes'));
 app.use('/api/certificates/verify', verificationRoutes);
 app.use('/api/certificates', certificateRoutes);
 

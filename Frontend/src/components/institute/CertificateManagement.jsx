@@ -1,3 +1,5 @@
+import PrivateImage from '../shared/PrivateImage';
+import PrivateFileLink from '../shared/PrivateFileLink';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import CertificateTemplateCreator from './CertificateTemplateCreator';
@@ -306,7 +308,7 @@ const CertificateManagement = ({ API_URL }) => {
           </div>
 
           <div className="mb-4">
-            <img 
+            <PrivateImage
               src={selectedTemplate.templateImageUrl} 
               alt={selectedTemplate.templateName}
               className="w-full max-h-96 object-contain border rounded-lg"
@@ -405,7 +407,7 @@ const CertificateManagement = ({ API_URL }) => {
               {templates.map(template => (
                 <div key={template._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="h-48 bg-gray-100">
-                    <img 
+                    <PrivateImage
                       src={template.templateImageUrl} 
                       alt={template.templateName}
                       className="w-full h-full object-contain"
@@ -508,7 +510,7 @@ const CertificateManagement = ({ API_URL }) => {
                   <div className="flex items-start space-x-4">
                     <div className="w-32 h-32 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                       {cert.generatedCertificateUrl ? (
-                        <img 
+                        <PrivateImage
                           src={cert.generatedCertificateUrl} 
                           alt="Certificate"
                           className="w-full h-full object-cover"
@@ -544,14 +546,14 @@ const CertificateManagement = ({ API_URL }) => {
                       
                       <div className="mt-3 flex flex-wrap gap-2">
                         {cert.generatedCertificateUrl && (
-                          <a
+                          <PrivateFileLink
                             href={cert.generatedCertificateUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200"
                           >
                             View Certificate
-                          </a>
+                          </PrivateFileLink>
                         )}
                         {cert.status === 'draft' && (
                           <button

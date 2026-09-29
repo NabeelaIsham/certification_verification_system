@@ -1,16 +1,17 @@
 const { sendCertificateEmail } = require('../utils/emailService');
+const crypto = require('crypto');
+const Share = require('../models/CredentialShare');
 
-const buildCertificateUrls = ({ baseUrl, instituteId, certificateCode, generatedImagePath }) => {
-  const normalizedInstituteId = instituteId?.toString?.() || instituteId;
+const buildCertificateUrls = ({ baseUrl, certificateCode, generatedImagePath }) => {
   const generatedUrl = generatedImagePath
-    ? `${baseUrl}/uploads/generated/${normalizedInstituteId}/${certificateCode}.jpg`
+    ? `${baseUrl}/api/private-files/certificates/${certificateCode}/image`
     : null;
 
   return {
     generatedCertificateUrl: generatedUrl,
     certificateUrl: generatedUrl,
-    downloadUrl: generatedUrl,
-    qrCodeUrl: `${baseUrl}/uploads/qrcodes/${normalizedInstituteId}/${certificateCode}.png`
+    downloadUrl: generatedUrl ? `${baseUrl}/api/private-files/certificates/${certificateCode}/download` : null,
+    qrCodeUrl: `${baseUrl}/api/private-files/certificates/${certificateCode}/qr`
   };
 };
 
@@ -26,26 +27,31 @@ const sendIssuedCertificateNotification = async ({ certificate, student, institu
     return { sent: false, reason: 'certificate image or student email missing' };
   }
 
-  const urls = buildCertificateUrls({
-    baseUrl,
-    instituteId: certificate.instituteId,
-    certificateCode: certificate.certificateCode,
-    generatedImagePath: certificate.generatedCertificateImage
-  });
+  const token = crypto.randomBytes(32).toString('base64url');
+  const instituteId = certificate.instituteId?._id || certificate.instituteId;
+  const share = await Share.create({ certificate: certificate._id, institute: instituteId,
+    createdBy: instituteId, tokenHash: crypto.createHash('sha256').update(token).digest('hex'),
+    label: 'Certificate delivery', visibleFields: ['studentName', 'courseName', 'awardDate', 'instituteName', 'certificateCode', 'status', 'certificateImage'],
+    expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000), maxViews: 25 });
+  const shareUrl = `${(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')}/share/${token}`;
+  try {
+    await sendCertificateEmail({
+      to: student.email,
+      studentName: certificate.studentName || student.name,
+      courseName: certificate.courseName,
+      awardDate: certificate.awardDate,
+      certificateCode: certificate.certificateCode,
+      certificateUrl: shareUrl,
+      downloadUrl: shareUrl,
+      verificationUrl: certificate.verificationUrl,
+      instituteName: institute?.instituteName,
+      instituteLogoUrl: buildInstituteLogoUrl(baseUrl, institute)
+    });
 
-  await sendCertificateEmail({
-    to: student.email,
-    studentName: certificate.studentName || student.name,
-    courseName: certificate.courseName,
-    awardDate: certificate.awardDate,
-    certificateCode: certificate.certificateCode,
-    certificateUrl: urls.certificateUrl,
-    downloadUrl: urls.downloadUrl,
-    verificationUrl: certificate.verificationUrl,
-    instituteName: institute?.instituteName,
-    instituteLogoUrl: buildInstituteLogoUrl(baseUrl, institute)
-  });
-
+  } catch (error) {
+    await Share.updateOne({ _id: share._id }, { $set: { revokedAt: new Date() } });
+    throw error;
+  }
   certificate.emailSent = true;
   certificate.emailSentAt = new Date();
   await certificate.save();

@@ -74,10 +74,18 @@ const CredentialShare = () => {
 
           {credential.certificateImage && (
             <img
+              referrerPolicy="no-referrer"
               src={credential.certificateImage}
               alt="Shared certificate"
               className="mt-6 w-full rounded-lg border border-gray-200"
             />
+          )}
+
+          {credential.certificateImage && (
+            <p className="mt-3 text-center">
+              <a href={`${credential.certificateImage}&download=1`} rel="noreferrer" className="text-blue-700 underline">Download certificate</a>
+              <span className="block mt-1 text-xs text-gray-500">File access lasts five minutes. Reopen this share if it expires.</span>
+            </p>
           )}
 
           <div className={`mt-6 rounded-lg border p-4 text-sm ${

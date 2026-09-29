@@ -615,10 +615,10 @@ const getTemplatesForCourse = async (req, res) => {
         success: true,
         data: generalTemplates.map(template => ({
           ...template.toObject(),
-          templateImageUrl: `${baseUrl}/${template.templateImage}`,
-          imageFields: (template.imageFields || []).map(field => ({
+          templateImageUrl: `${baseUrl}/api/private-files/templates/${template._id}/background`,
+          imageFields: (template.imageFields || []).map((field, index) => ({
             ...field.toObject(),
-            imageUrl: `${baseUrl}/${field.imagePath}`
+            imageUrl: `${baseUrl}/api/private-files/templates/${template._id}/${index}`
           }))
         })),
         message: 'Showing all available templates for your institute'
@@ -630,10 +630,10 @@ const getTemplatesForCourse = async (req, res) => {
       success: true,
       data: templates.map(template => ({
         ...template.toObject(),
-        templateImageUrl: `${baseUrl}/${template.templateImage}`,
-        imageFields: (template.imageFields || []).map(field => ({
+        templateImageUrl: `${baseUrl}/api/private-files/templates/${template._id}/background`,
+        imageFields: (template.imageFields || []).map((field, index) => ({
           ...field.toObject(),
-          imageUrl: `${baseUrl}/${field.imagePath}`
+          imageUrl: `${baseUrl}/api/private-files/templates/${template._id}/${index}`
         }))
       }))
     });

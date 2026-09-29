@@ -161,7 +161,7 @@ async function issue({ actorId, input: rawInput, idempotencyKey, legacyCertifica
       if (!held) throw fail(409, 'Issuance reservation expired. Retry with the same key.');
       const values = { instituteId, studentId: student._id, courseId: course._id, templateId: template._id, issuanceId: op._id,
         certificateCode, studentName: student.name, courseName: course.courseName, awardDate: op.awardDate, validUntil, credential,
-        generatedCertificateImage: generated.replace(/\\/g, '/'), qrCodeImage: qrCodePath.replace(/\\/g, '/'), verificationUrl,
+        generatedCertificateImage: path.relative(path.resolve(__dirname, '..'), generated).replace(/\\/g, '/'), qrCodeImage: path.relative(path.resolve(__dirname, '..'), qrCodePath).replace(/\\/g, '/'), verificationUrl,
         status: 'issued', emailSent: false };
       const lifecycle = { action: 'issued', fromStatus: input.legacyCertificateId ? 'draft' : null, toStatus: 'issued',
         performedBy: actor._id, performedByType: actor.userType, createdAt: new Date() };
@@ -196,7 +196,7 @@ async function issue({ actorId, input: rawInput, idempotencyKey, legacyCertifica
       console.error('Issuance recovery is pending:', recoveryError.message);
       throw fail(503, 'Issuance outcome is pending. Retry with the same key.');
     }
-    if (committed && path.resolve(committed.generatedCertificateImage) === imagePath) return { certificate: committed, replayed: true };
+    if (committed && path.resolve(__dirname, '..', committed.generatedCertificateImage) === imagePath) return { certificate: committed, replayed: true };
     await Promise.all([qrCodePath, imagePath].map(file => fs.unlink(file).catch(e => {
       if (e.code !== 'ENOENT') console.error('Issuance file cleanup failed:', e.message);
     })));
