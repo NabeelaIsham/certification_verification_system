@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { sanitizeUploadedImages } = require('../utils/imageUploadSecurity');
+const { tenantFile } = require('../utils/tenantFiles');
 
 // Configure multer for template image and asset upload
 const storage = multer.diskStorage({
@@ -76,7 +77,7 @@ const createTemplate = async (req, res) => {
         // Verify course belongs to institute
         const course = await Course.findOne({ _id: courseId, instituteId });
         if (!course) {
-          return res.status(400).json({ 
+          return res.status(404).json({
             success: false, 
             message: 'Invalid course selected' 
           });
@@ -102,6 +103,7 @@ const createTemplate = async (req, res) => {
             ? toRelativeUploadPath(assetFiles[index].path)
             : field.imagePath
         })).filter(field => field.imagePath);
+        for (const field of imageFieldsWithPaths) tenantFile(field.imagePath, instituteId, ['template-assets']);
 
         const templatePath = toRelativeUploadPath(templateFile.path);
 
@@ -125,7 +127,7 @@ const createTemplate = async (req, res) => {
         });
       } catch (error) {
         console.error('Create template error:', error);
-        res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
+        res.status(error.status || (error.code === 'INVALID_IMAGE' ? 400 : 500)).json({
           success: false, 
           message: 'Failed to create template',
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -150,6 +152,7 @@ const getTemplates = async (req, res) => {
 
     let query = { instituteId };
     if (courseId) {
+      if (!await Course.findOne({ _id: courseId, instituteId })) return res.status(404).json({ success: false, message: 'Course not found' });
       query.courseId = courseId;
     }
 
@@ -185,7 +188,7 @@ const getTemplateById = async (req, res) => {
       .populate('courseId', 'courseName courseCode');
 
     if (!template) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Template not found' 
       });
@@ -218,12 +221,16 @@ const updateTemplateFields = async (req, res) => {
     const template = await CertificateTemplate.findOne({ _id: id, instituteId });
 
     if (!template) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Template not found' 
       });
     }
 
+    if (imageFields) {
+      if (!Array.isArray(imageFields)) return res.status(400).json({ success: false, message: 'Image fields must be an array.' });
+      for (const field of imageFields) tenantFile(field.imagePath, instituteId, ['template-assets']);
+    }
     template.fields = fields || template.fields;
     template.imageFields = imageFields || template.imageFields;
     template.qrCodePosition = qrCodePosition || template.qrCodePosition;
@@ -238,7 +245,7 @@ const updateTemplateFields = async (req, res) => {
     });
   } catch (error) {
     console.error('Update template fields error:', error);
-    res.status(500).json({ 
+    res.status(error.status || 500).json({
       success: false, 
       message: 'Failed to update template fields',
       error: error.message
@@ -255,13 +262,15 @@ const deleteTemplate = async (req, res) => {
     const template = await CertificateTemplate.findOne({ _id: id, instituteId });
 
     if (!template) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Template not found' 
       });
     }
 
     // Delete template image file
+    if (template.templateImage) tenantFile(template.templateImage, instituteId, ['templates']);
+    for (const field of template.imageFields || []) tenantFile(field.imagePath, instituteId, ['template-assets']);
     if (template.templateImage && fs.existsSync(template.templateImage)) {
       fs.unlinkSync(template.templateImage);
     }

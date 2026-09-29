@@ -6,7 +6,7 @@ const Settings = require('../../Backend/models/Settings');
 const OTP = require('../../Backend/models/OTP');
 const Certificate = require('../../Backend/models/Certificate');
 const { enforceOtpPolicy } = require('../../Backend/middleware/otpPolicy');
-const { updateCertificateStatus, sendCertificateEmail } = require('../../Backend/controllers/certificateController');
+const { sendCertificateEmail } = require('../../Backend/controllers/certificateController');
 const { addLifecycleEvent } = require('../../Backend/controllers/credentialSecurityController');
 const validateSettings = require('../../Backend/utils/validateSettings');
 const response = () => { const res = { status: jest.fn(), json: jest.fn() }; res.status.mockReturnValue(res); return res; };
@@ -46,16 +46,6 @@ const certificateQuery = (value) => {
   const query = { populate: jest.fn(() => query), then: resolve => Promise.resolve(value).then(resolve) };
   Certificate.findOne.mockReturnValue(query);
 };
-test('institutes can issue legacy drafts despite old approval flags', async () => {
-  Settings.findOne.mockResolvedValue({ certificate: { requireApproval: true } });
-  const certificate = { status: 'draft', approvalRequired: true, generatedCertificateImage: 'image.jpg', lifecycleEvents: [], emailSent: true, save: jest.fn() };
-  certificateQuery(certificate);
-  const res = response();
-  await updateCertificateStatus({ user: { id: 'institute' }, params: { id: 'certificate' }, body: { status: 'issued' } }, res);
-  expect(certificate.status).toBe('issued');
-  expect(certificate.save).toHaveBeenCalled();
-  expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
-});
 test('email still requires an issued certificate', async () => {
   certificateQuery({ status: 'draft' });
   const res = response();

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { generateCertificateCode } = require('../utils/CertificateCodeGenerator');
 
 const certificateSchema = new mongoose.Schema({
+  issuanceId: { type: mongoose.Schema.Types.ObjectId, ref: 'CertificateIssuance' },
   instituteId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -141,5 +142,7 @@ certificateSchema.pre('save', async function(next) {
   this.updatedAt = new Date();
   next();
 });
+
+certificateSchema.index({ issuanceId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Certificate', certificateSchema);

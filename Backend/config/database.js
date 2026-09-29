@@ -13,6 +13,9 @@ const loadModels = () => {
   require('../models/ActivityLog');
   require('../models/VerificationLog');
   require('../models/CredentialShare');
+  require('../models/CertificateIssuance');
+  require('../models/IssuanceLock');
+  require('../models/IssuanceEvent');
 };
 
 const connectDatabase = async () => {
@@ -41,7 +44,10 @@ const ensureCollections = async () => {
     'LoginChallenge',
     'ActivityLog',
     'VerificationLog',
-    'CredentialShare'
+    'CredentialShare',
+    'CertificateIssuance',
+    'IssuanceLock',
+    'IssuanceEvent'
   ];
 
   for (const modelName of modelNames) {

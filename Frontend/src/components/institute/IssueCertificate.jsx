@@ -1,8 +1,10 @@
+import useIssuanceKey from '../../hooks/useIssuanceKey';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
 const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
+  const issuanceKey = useIssuanceKey();
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -102,7 +104,7 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
       console.log('Sending certificate request:', requestData);
 
       const response = await axios.post(`${API_URL}/certificates`, requestData, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey(requestData) }
       });
 
       console.log('Certificate response:', response.data);

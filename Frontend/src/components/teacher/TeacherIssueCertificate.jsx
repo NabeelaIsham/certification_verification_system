@@ -1,9 +1,11 @@
+import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
 const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, onCertificateIssued }) => {
+  const issuanceKey = useIssuanceKey();
   const [searchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -150,7 +152,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
         templateId: selectedTemplate,
         awardDate
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey({ studentId: selectedStudent, courseId: selectedCourse, templateId: selectedTemplate, awardDate }) }
       });
 
       console.log('Issue response:', response.data);

@@ -17,6 +17,11 @@ const run = async () => {
   await connectDatabase();
   await mongoose.connection.db.admin().ping();
   console.log('MongoDB connection: healthy');
+  const topology = await mongoose.connection.db.admin().command({ hello: 1 });
+  if (!topology.setName && topology.msg !== 'isdbgrid') {
+    throw new Error('Certificate issuance requires a MongoDB replica set or Atlas with transaction support.');
+  }
+  console.log('MongoDB transaction topology: supported');
 
   const uploadsDir = path.resolve(__dirname, '../uploads');
   fs.mkdirSync(uploadsDir, { recursive: true });

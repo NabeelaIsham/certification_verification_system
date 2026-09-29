@@ -19,7 +19,7 @@ const createStudent = async (req, res) => {
     // Check if course exists and belongs to this institute
     const course = await Course.findOne({ _id: courseId, instituteId });
     if (!course) {
-      return res.status(400).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Invalid course selected' 
       });
@@ -89,6 +89,7 @@ const getStudents = async (req, res) => {
 
     // Add course filter
     if (courseId && courseId !== 'all') {
+      if (!await Course.findOne({ _id: courseId, instituteId })) return res.status(404).json({ success: false, message: 'Course not found' });
       query.courseId = courseId;
     }
 
@@ -151,7 +152,7 @@ const getStudentById = async (req, res) => {
       .populate('courseId');
 
     if (!student) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Student not found' 
       });
@@ -185,12 +186,15 @@ const updateStudent = async (req, res) => {
   try {
     const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
-    const updates = req.body;
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => ['name', 'email', 'phone', 'courseId', 'enrollmentDate', 'status'].includes(key)));
 
     // Prevent updating certain fields
     delete updates._id;
     delete updates.instituteId;
     delete updates.createdAt;
+
+    const currentStudent = await Student.findOne({ _id: id, instituteId });
+    if (!currentStudent) return res.status(404).json({ success: false, message: 'Student not found' });
 
     // If updating email, check if it's already taken
     if (updates.email) {
@@ -199,7 +203,7 @@ const updateStudent = async (req, res) => {
       const existingStudent = await Student.findOne({
         instituteId,
         email: updates.email,
-        courseId: updates.courseId || (await Student.findById(id))?.courseId,
+        courseId: updates.courseId || currentStudent.courseId,
         _id: { $ne: id }
       });
 
@@ -219,7 +223,7 @@ const updateStudent = async (req, res) => {
       });
       
       if (!course) {
-        return res.status(400).json({
+        return res.status(404).json({
           success: false,
           message: 'Invalid course selected'
         });
@@ -233,7 +237,7 @@ const updateStudent = async (req, res) => {
     ).populate('courseId', 'courseName courseCode');
 
     if (!student) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Student not found' 
       });
@@ -276,7 +280,7 @@ const deleteStudent = async (req, res) => {
     const student = await Student.findOneAndDelete({ _id: id, instituteId });
 
     if (!student) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Student not found' 
       });
@@ -434,6 +438,7 @@ const getStudentsByCourse = async (req, res) => {
   try {
     const instituteId = req.instituteId || req.user.id;
     const { courseId } = req.params;
+    if (!await Course.findOne({ _id: courseId, instituteId })) return res.status(404).json({ success: false, message: 'Course not found' });
 
     const students = await Student.find({ 
       instituteId, 

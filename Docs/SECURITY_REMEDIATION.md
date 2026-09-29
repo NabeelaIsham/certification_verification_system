@@ -1,6 +1,6 @@
 # Stabilization checklist
 
-Baseline: `2e18b650`. Repair branch: `fix/priority-1-security`.
+Baseline: `2e18b650`. Repair branches: `fix/priority-1-security` and `fix/priority-2-foundation`.
 This document tracks implementation separately from operational acceptance. It does not
 declare the application ready for production SaaS.
 
@@ -33,10 +33,10 @@ or payments until the acceptance gate below is complete.
 
 | Priority | Checklist items | Remaining work and acceptance |
 | --- | --- | --- |
-| 2 | 7. Tenant isolation | Expand Institute A versus Institute B tests across all institute-owned controllers, downloads, shares, logs, analytics and notifications. Existing teacher tests are not a complete isolation audit. |
-| 2 | 8. Central issuance | Extract one service used by institute, teacher and bulk issuance, including rendering, signing, validation and audit events. Generation failures must not leave successful issuance records. |
-| 2 | 9. Idempotency and usage ledger | Add request deduplication and concurrency tests. Credit reservation depends on the subscription/usage models in Priority 6; design it here and implement it together with entitlements after the gate. |
-| 2 | 10. Identity rules | Documented in README: globally unique email for the initial pilot. Multiple institute memberships require a separate membership design. |
+| 2 | 7. Tenant isolation | Implemented scoped API fixes and two-institute integration tests for existing resources, downloads, shares, logs and analytics. Notification read/update and subscription/payment APIs are absent. Raw public file paths remain Priority 3. |
+| 2 | 8. Central issuance | Implemented one service for institute, teacher, bulk and legacy draft issuance; rendering/signing, reference validation, transaction commit and ledger are shared. Replica-set deployment is required. |
+| 2 | 9. Idempotency and usage ledger | Implemented deduplication, transactional reservation/consumption/release ledger, concurrent-request tests and stale-worker recovery. PARTIAL: subscription allowance checks and purchased-credit reservation remain Priority 6 dependencies. |
+| 2 | 10. Identity rules | Globally unique normalized account email, including teacher creation across roles; database uniqueness tested. Multiple institute memberships require a separate membership design. |
 | 3 | 11. File access | Replace public generated-certificate and QR static paths with authorized file delivery; update previews, downloads and email/share links together. Preserve limited public verification. |
 | 3 | 12. Metadata versus storage | Audit remaining embedded file data and standardize filesystem metadata; select an object-storage adapter before expansion. |
 | 3 | 13. Upload validation | Extend existing image sanitization tests to MIME spoofing, signatures, dimension limits, unsafe filenames and every upload route. Evaluate malware scanning for supported file types. |
@@ -87,3 +87,13 @@ container checks must run in CI or a Docker-enabled staging host. Fresh-clone va
 published-branch CI results must also be checked before merge.
 
 For the remaining credential work, use [SECRET_ROTATION.md](SECRET_ROTATION.md).
+
+## Priority 2 validation
+
+See [PRIORITY_2.md](PRIORITY_2.md) for the issuance protocol, API retry rules,
+transaction-capable database deployment requirement, and remaining scope.
+Local validation: backend unit tests 86/86 (the old mocked draft test is replaced by
+real transaction coverage), replica-set integration tests 42/42, frontend tests 12/12,
+both linters, the frontend production build, and both dependency audits passed (zero
+vulnerabilities). The full tenant/file-access acceptance gate above stays open
+until Priority 3 replaces raw public file delivery.

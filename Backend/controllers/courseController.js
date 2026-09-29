@@ -31,7 +31,7 @@ const createCourse = async (req, res) => {
         instituteId 
       });
       if (!template) {
-        return res.status(400).json({ 
+        return res.status(404).json({
           success: false, 
           message: 'Invalid certificate template' 
         });
@@ -131,7 +131,7 @@ const getCourseById = async (req, res) => {
       .populate('certificateTemplateId');
 
     if (!course) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Course not found' 
       });
@@ -156,7 +156,7 @@ const updateCourse = async (req, res) => {
   try {
     const instituteId = req.instituteId || req.user.id;
     const { id } = req.params;
-    const updates = req.body;
+    const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => ['courseName', 'courseCode', 'certificateTemplateId', 'description', 'duration', 'status'].includes(key)));
 
     // Prevent updating certain fields
     delete updates._id;
@@ -187,7 +187,7 @@ const updateCourse = async (req, res) => {
         instituteId 
       });
       if (!template) {
-        return res.status(400).json({ 
+        return res.status(404).json({
           success: false, 
           message: 'Invalid certificate template' 
         });
@@ -201,7 +201,7 @@ const updateCourse = async (req, res) => {
     ).populate('certificateTemplateId', 'templateName templateId');
 
     if (!course) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Course not found' 
       });
@@ -245,7 +245,7 @@ const deleteCourse = async (req, res) => {
     const course = await Course.findOneAndDelete({ _id: id, instituteId });
 
     if (!course) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false, 
         message: 'Course not found' 
       });
@@ -311,6 +311,7 @@ const getCoursesByTemplate = async (req, res) => {
   try {
     const instituteId = req.instituteId || req.user.id;
     const { templateId } = req.params;
+    if (!await CertificateTemplate.findOne({ _id: templateId, instituteId })) return res.status(404).json({ success: false, message: 'Template not found' });
 
     const courses = await Course.find({ 
       instituteId, 

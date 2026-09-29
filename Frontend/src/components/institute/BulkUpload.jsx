@@ -1,7 +1,9 @@
+import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const BulkUpload = ({ API_URL }) => {
+  const issuanceKey = useIssuanceKey();
   const [activeTab, setActiveTab] = useState('students');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -87,7 +89,7 @@ const BulkUpload = ({ API_URL }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.post(`${API_URL}/certificates/bulk-issue`, { certificates }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey({ certificates }) }
       });
 
       if (response.data.success) {

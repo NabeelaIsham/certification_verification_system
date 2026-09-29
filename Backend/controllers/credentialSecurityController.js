@@ -132,7 +132,7 @@ const listShares = async (req, res) => {
     if (!certificate) {
       return res.status(404).json({ success: false, message: 'Certificate not found' });
     }
-    const shares = await CredentialShare.find({ certificate: certificate._id })
+    const shares = await CredentialShare.find({ certificate: certificate._id, institute: req.userId })
       .select('-tokenHash')
       .sort({ createdAt: -1 });
     return res.json({ success: true, data: shares });
@@ -147,7 +147,7 @@ const revokeShare = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid share ID' });
     }
     const share = await CredentialShare.findOneAndUpdate(
-      { _id: req.params.shareId, institute: req.userId, revokedAt: null },
+      { _id: req.params.shareId, certificate: req.params.id, institute: req.userId, revokedAt: null },
       { $set: { revokedAt: new Date() } },
       { new: true }
     ).select('-tokenHash');

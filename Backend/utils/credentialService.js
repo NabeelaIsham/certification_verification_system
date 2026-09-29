@@ -85,10 +85,20 @@ const ensureInstituteSigningKey = async (institute) => {
     return signingOwner.credentialSigning;
   }
 
-  signingOwner.credentialSigning = {
+  const material = {
     ...generateSigningMaterial(),
     previousKeys: []
   };
+  if (signingOwner.constructor?.findOneAndUpdate) {
+    const initialized = await signingOwner.constructor.findOneAndUpdate({
+      _id: signingOwner._id, 'credentialSigning.keyId': { $exists: false }
+    }, { $set: { credentialSigning: material } }, { new: true }).select('+credentialSigning.encryptedPrivateKey');
+    const owner = initialized || await signingOwner.constructor.findById(signingOwner._id).select('+credentialSigning.encryptedPrivateKey');
+    if (!owner?.credentialSigning?.encryptedPrivateKey) throw new Error('Institute signing key unavailable');
+    institute.credentialSigning = owner.credentialSigning;
+    return owner.credentialSigning;
+  }
+  signingOwner.credentialSigning = material;
   await signingOwner.save();
   institute.credentialSigning = signingOwner.credentialSigning;
   return signingOwner.credentialSigning;
