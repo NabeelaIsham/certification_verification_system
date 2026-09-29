@@ -164,7 +164,10 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
       });
 
       if (response.data.success) {
-        alert('Password changed successfully');
+        alert('Password changed successfully. Please sign in again.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.assign('/login');
         setFormData({
           ...formData,
           currentPassword: '',

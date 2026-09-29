@@ -1,10 +1,12 @@
 const express = require('express');
 const request = require('supertest');
-const { validateProductionConfig } = require('../../Backend/config/production');
+const { validateProductionConfig, getAllowedOrigins } = require('../../Backend/config/production');
 const {
   createRateLimit,
   resetRateLimitStores
 } = require('../../Backend/middleware/rateLimit');
+// Pin test origins before server initialization; developer .env files must not control this test.
+process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3000,http://localhost:5173';
 const { app } = require('../../Backend/server');
 const { generateCertificateCode } = require('../../Backend/utils/CertificateCodeGenerator');
 const { isValidPassword } = require('../../Backend/utils/validators');
@@ -28,6 +30,19 @@ describe('Production security controls', () => {
 
   it('accepts a complete production environment', () => {
     expect(validateProductionConfig(validEnvironment)).toEqual({ valid: true, errors: [] });
+  });
+
+  it('uses local defaults only outside production', () => {
+    expect(getAllowedOrigins({ NODE_ENV: 'test' })).toEqual(['http://localhost:3000', 'http://localhost:5173']);
+    expect(getAllowedOrigins({ NODE_ENV: 'production' })).toEqual([]);
+    expect(validateProductionConfig({ ...validEnvironment, CORS_ORIGIN: undefined }).valid).toBe(false);
+  });
+
+  it('supports explicit origins and rejects insecure production overrides', () => {
+    const env = { ...validEnvironment, CORS_ALLOWED_ORIGINS: 'https://portal.example.com' };
+    expect(getAllowedOrigins(env)).toEqual(['https://portal.example.com']);
+    expect(validateProductionConfig(env).valid).toBe(true);
+    expect(validateProductionConfig({ ...env, CORS_ALLOWED_ORIGINS: 'http://localhost:5173' }).valid).toBe(false);
   });
 
   it('rejects reused secrets and insecure URLs', () => {
@@ -65,12 +80,21 @@ describe('Production security controls', () => {
     expect(response.body.database).toBe('disconnected');
   });
 
+  it('rate limits public account-status requests and the separate teacher login', async () => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      expect((await request(app).get('/api/auth/verification-status/test@example.com')).status).toBe(200);
+    }
+    expect((await request(app).get('/api/auth/verification-status/test@example.com')).status).toBe(429);
+    expect((await request(app).post('/api/teachers/login').send({})).status).toBe(429);
+  });
+
   it('allows the configured local frontend and rejects unknown browser origins', async () => {
     const allowed = await request(app)
       .get('/health')
       .set('Origin', 'http://localhost:3000');
     expect(allowed.status).toBe(503);
     expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+    expect((await request(app).get('/health').set('Origin', 'http://localhost:5173')).status).toBe(503);
 
     const blocked = await request(app)
       .get('/health')

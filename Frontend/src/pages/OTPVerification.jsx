@@ -75,13 +75,13 @@ const OTPVerification = () => {
     setMessage('');
 
     try {
-      await axios.post(`${API_URL}/auth/resend-otp`, {
+      const response = await axios.post(`${API_URL}/auth/resend-otp`, {
         email,
         type: 'account'
       });
       setTimer(policy.otpExpiry * 60);
       setCooldown(policy.resendCooldown);
-      setMessage('OTP resent successfully!');
+      setMessage(response.data.message);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend OTP');
     }

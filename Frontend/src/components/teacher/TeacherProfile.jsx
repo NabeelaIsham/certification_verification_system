@@ -112,7 +112,10 @@ console.log('Teacher data:', teacher);
       });
 
       if (response.data.success) {
-        setMessage({ type: 'success', text: 'Password changed successfully' });
+        alert('Password changed successfully. Please sign in again.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.assign('/login');
         setFormData({
           ...formData,
           currentPassword: '',

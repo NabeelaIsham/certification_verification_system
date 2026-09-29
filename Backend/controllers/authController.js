@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+const { signAccessToken } = require('../config/jwt');
 const crypto = require('crypto');
 const User = require('../models/User');
 const OTP = require('../models/OTP');
@@ -9,6 +9,7 @@ const { sendOtpSms } = require('../utils/smsService');
 const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/validators');
 const { hashOtp } = require('../utils/otpSecurity');
 const ActivityLog = require('../models/ActivityLog');
+const { accountInstructionsResponse } = require('../utils/authResponses');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -149,7 +150,7 @@ const verifyOtp = async (req, res) => {
     const otpValue = otp.toString().trim();
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
 
     const verificationTypes = ['email', 'phone'];
@@ -196,24 +197,20 @@ const resendOtp = async (req, res) => {
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res.json(accountInstructionsResponse());
     }
 
     if (user.status === 'admin_approval_pending' || user.isEmailVerified || user.isPhoneVerified) {
-      return res.status(400).json({ success: false, message: 'Account already verified.' });
+      return res.json(accountInstructionsResponse());
     }
 
     const otp = generateOTP();
     await OTP.deleteMany({ email: user.email, type: { $in: ['email', 'phone'] } });
 
-    let emailSent = false;
-    let smsSent = false;
-
     if (type === 'email' || type === 'account') {
       await OTP.create({ email: user.email, phone: user.phone || '', otpHash: hashOtp(user.email, 'email', otp), type: 'email' });
       try {
         await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
-        emailSent = true;
       } catch (emailError) {
         console.warn('Warning: failed to resend email OTP:', emailError.message);
       }
@@ -223,26 +220,15 @@ const resendOtp = async (req, res) => {
       await OTP.create({ email: user.email, phone: user.phone || '', otpHash: hashOtp(user.email, 'phone', otp), type: 'phone' });
       try {
         await sendSMSOTP(user.phone, otp);
-        smsSent = true;
       } catch (smsError) {
         console.warn('Warning: failed to resend SMS OTP:', smsError.message);
       }
     }
 
-    if (!emailSent && !smsSent) {
-      return res.status(500).json({ success: false, message: 'Failed to resend OTP. Please check email/SMS settings.' });
-    }
-
-    return res.json({
-      success: true,
-      message: 'OTP resent successfully.',
-      emailSent,
-      smsSent,
-      otp: process.env.NODE_ENV === 'test' ? otp : undefined
-    });
+    return res.json(accountInstructionsResponse());
   } catch (error) {
     console.error('Resend OTP error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to resend OTP', error: error.message });
+    return res.json(accountInstructionsResponse());
   }
 };
 
@@ -254,7 +240,7 @@ const forgotPassword = async (req, res) => {
     }
 
     const user = await User.findOne({ email });
-    const genericResponse = { success: true, message: 'If an account exists for this email, password reset instructions have been sent.' };
+    const genericResponse = accountInstructionsResponse();
     if (!user) return res.json(genericResponse);
 
     const otp = generateOTP();
@@ -262,10 +248,10 @@ const forgotPassword = async (req, res) => {
     await OTP.create({ email, phone: user.phone || '', otpHash: hashOtp(email, 'reset_password', otp), type: 'reset_password' });
     await sendOtpEmail({ to: email, otp, purpose: 'reset_password' });
 
-    return res.json({ ...genericResponse, otp: process.env.NODE_ENV === 'test' ? otp : undefined });
+    return res.json(genericResponse);
   } catch (error) {
     console.error('Forgot password error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to send password reset OTP', error: error.message });
+    return res.json(accountInstructionsResponse());
   }
 };
 
@@ -281,7 +267,7 @@ const resetPassword = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res.status(400).json({ success: false, message: 'Invalid OTP.' });
     }
 
     const otpRecord = await OTP.findOneAndDelete({ email, otpHash: hashOtp(email, 'reset_password', otp), type: 'reset_password' });
@@ -371,11 +357,7 @@ const login = async (req, res) => {
       if (settings?.security?.twoFactorAuth) return await beginTwoFactor(user, res);
     }
 
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, userType: user.userType, sessionVersion: user.sessionVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '15m' }
-    );
+    const token = signAccessToken(user);
 
     const userData = {
       id: user._id,
@@ -418,19 +400,9 @@ const verificationStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid email is required.' });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    return res.json({ success: true, data: {
-      isEmailVerified: user.isEmailVerified,
-      isPhoneVerified: user.isPhoneVerified,
-      isVerifiedByAdmin: user.isVerifiedByAdmin,
-      status: user.status,
-      userType: user.userType,
-      instituteName: user.instituteName
-    }});
+    // Public callers must not learn account existence, approval state, or profile data.
+    // Authenticated users can retrieve their own profile through /me.
+    return res.json(accountInstructionsResponse());
   } catch (error) {
     console.error('Verification status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to check verification status', error: error.message });

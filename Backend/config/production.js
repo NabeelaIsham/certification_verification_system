@@ -5,6 +5,13 @@ const splitCsv = (value) => String(value || '')
   .map((item) => item.trim())
   .filter(Boolean);
 
+const getAllowedOrigins = (env = process.env) => splitCsv(
+  env.CORS_ALLOWED_ORIGINS ?? env.CORS_ORIGIN ?? (
+    env.NODE_ENV === 'production' ? '' :
+      [env.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:5173'].filter(Boolean).join(',')
+  )
+);
+
 const validateSecret = (name, value, errors) => {
   if (!value || value.length < 32 || PLACEHOLDER_PATTERN.test(value)) {
     errors.push(`${name} must be a non-placeholder value of at least 32 characters`);
@@ -22,7 +29,6 @@ const validateProductionConfig = (env = process.env) => {
     'VERIFICATION_PRIVACY_SECRET',
     'API_URL',
     'FRONTEND_URL',
-    'CORS_ORIGIN',
     'TRUST_PROXY'
   ];
   for (const name of required) {
@@ -51,21 +57,21 @@ const validateProductionConfig = (env = process.env) => {
     }
   }
 
-  const origins = splitCsv(env.CORS_ORIGIN);
+  const origins = getAllowedOrigins(env);
   if (origins.length === 0 || origins.includes('*')) {
-    errors.push('CORS_ORIGIN must contain explicit trusted origins and cannot use *');
+    errors.push('CORS_ALLOWED_ORIGINS (or legacy CORS_ORIGIN) must contain explicit trusted origins and cannot use *');
   }
   for (const origin of origins) {
     try {
       const parsed = new URL(origin);
       if (parsed.protocol !== 'https:') {
-        errors.push(`CORS_ORIGIN entries must use HTTPS in production: ${origin}`);
+        errors.push(`CORS_ALLOWED_ORIGINS / CORS_ORIGIN entries must use HTTPS in production: ${origin}`);
       }
-      if (parsed.origin !== origin.replace(/\/+$/, '')) {
-        errors.push(`CORS_ORIGIN entry must be an origin without a path: ${origin}`);
+      if (parsed.origin !== origin) {
+        errors.push(`CORS_ALLOWED_ORIGINS / CORS_ORIGIN entry must be an origin without a path: ${origin}`);
       }
     } catch {
-      errors.push(`Invalid CORS_ORIGIN entry: ${origin}`);
+      errors.push(`Invalid CORS_ALLOWED_ORIGINS / CORS_ORIGIN entry: ${origin}`);
     }
   }
 
@@ -108,5 +114,6 @@ const assertProductionConfig = (env = process.env) => {
 module.exports = {
   assertProductionConfig,
   splitCsv,
+  getAllowedOrigins,
   validateProductionConfig
 };
