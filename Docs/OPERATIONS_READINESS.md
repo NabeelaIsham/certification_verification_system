@@ -55,6 +55,22 @@ proxy trust against the actual host topology before exposing the application. Se
 | Secrets/history | Rotate exposed provider/database credentials; preserve signing-key decryptability. Coordinate Git history cleanup across published branches and clones. |
 
 Detailed completed migration evidence is in [ATLAS_STAGING.md](ATLAS_STAGING.md).
+
+### File-path migration
+
+From `Backend`, run `node scripts/normalizeStagingFilePaths.js --dry-run`. It reads the
+explicitly selected database and checks that each replacement file exists within its
+restored tenant directory, rejecting linked, missing and unsafe files. No records change.
+For an Atlas staging run, supply `STAGING_MONGODB_URI` through the secret environment;
+otherwise a dry run uses `MONGODB_URI`. Output contains counts, not paths or credentials.
+
+After a fresh backup, reviewing the dry run and restoring the correct upload snapshot,
+use `node scripts/normalizeStagingFilePaths.js --apply`. Apply requires a dedicated
+`STAGING_MONGODB_URI`; it has no production fallback. All changes commit in one transaction
+with original-value guards; missing files or concurrently changed records prevent a partial
+migration. Re-run the dry run and production preflight afterward. This repairs path strings
+only; signing keys and missing related records remain separate blockers.
+
 Only after these gates pass should PR #2 become ready, the stacked changes be reviewed and
 deployed, and manual subscriptions/credit enforcement begin. PayHere follows validated
 manual subscriptions.
