@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { requireDatabaseUri } = require('./databaseUri');
 
 const loadModels = () => {
   require('../models/User');
@@ -18,13 +19,14 @@ const loadModels = () => {
   require('../models/IssuanceEvent');
 };
 
-const connectDatabase = async () => {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/certverify';
+const connectDatabase = async (options = {}) => {
+  const mongoUri = requireDatabaseUri();
 
   await mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 10000),
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
-    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1)
+    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1),
+    ...options
   });
   console.log('MongoDB connected successfully');
 

@@ -6,7 +6,6 @@ const Settings = require('../models/Settings');
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const {
-  MONGODB_URI = 'mongodb://localhost:27017/certverify',
   EMAIL_HOST,
   EMAIL_PORT,
   EMAIL_USER,
@@ -19,7 +18,7 @@ const setupEmailSettings = async () => {
     throw new Error('EMAIL_HOST, EMAIL_PORT, EMAIL_USER, and EMAIL_PASS are required.');
   }
 
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(require('../config/databaseUri').requireDatabaseUri());
 
   let settings = await Settings.findOne();
   if (!settings) {

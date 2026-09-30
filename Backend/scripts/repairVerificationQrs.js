@@ -35,7 +35,7 @@ const invokeRegeneration = (certificate) => new Promise((resolve, reject) => {
 
 const run = async () => {
   if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect(require('../config/databaseUri').requireDatabaseUri());
 
   const query = {
     'credential.signature': { $exists: true, $ne: '' },
