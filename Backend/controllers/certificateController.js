@@ -5,13 +5,12 @@ const Course = require('../models/Course');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-const { sendCertificateEmail } = require('../utils/emailService');
 const {
   buildOnlineVerificationUrl,
   createSignedCredential
 } = require('../utils/credentialService');
 
-const { buildCertificateUrls, buildInstituteLogoUrl } = require('../services/certificateDeliveryService');
+const { buildCertificateUrls, sendIssuedCertificateNotification } = require('../services/certificateDeliveryService');
 const { generateCertificateImage } = require('../services/certificateRenderingService');
 const issuance = require('../services/certificateIssuanceService');
 
@@ -100,7 +99,7 @@ const getCertificateById = async (req, res) => {
         generatedImagePath: certificate.generatedCertificateImage
       }),
       templateImageUrl: certificate.templateId?.templateImage ?
-        `${baseUrl}/${certificate.templateId.templateImage.replace(/\\/g, '/')}` : null
+        `${baseUrl}/api/private-files/templates/${certificate.templateId._id}/background` : null
     };
 
     res.json({
@@ -117,90 +116,8 @@ const getCertificateById = async (req, res) => {
   }
 };
 
-// Get certificate by certificate code (public verification) - FIXED VERSION
-const verifyCertificate = async (req, res) => {
-  try {
-    const rawCode = req.params.code || '';
-    const code = decodeURIComponent(rawCode).trim().toUpperCase();
+const { verifyCertificate } = require('./verificationController');
 
-    console.log('Verifying certificate with code:', code);
-
-    const certificate = await Certificate.findOne({ certificateCode: code })
-      .populate('studentId', 'name')
-      .populate('courseId', 'courseName')
-      .populate('instituteId', 'instituteName');
-
-    if (!certificate) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Certificate not found' 
-      });
-    }
-
-    if (certificate.status === 'revoked') {
-      return res.status(400).json({
-        success: false,
-        message: 'This certificate has been revoked',
-        data: {
-          status: certificate.status,
-          revokedAt: certificate.revokedAt
-        }
-      });
-    }
-
-    // Construct proper URLs for images
-    const baseUrl = process.env.API_URL || 'http://localhost:5000';
-    const instituteId = certificate.instituteId?._id || certificate.instituteId;
-    const instituteIdString = instituteId ? instituteId.toString() : null;
-    
-    // Build image URLs using certificate code and institute ID
-    let certificateImageUrl = null;
-    if (certificate.generatedCertificateImage && instituteIdString) {
-      certificateImageUrl = `${baseUrl}/uploads/generated/${instituteIdString}/${certificate.certificateCode}.jpg`;
-    }
-
-    let qrCodeUrl = null;
-    if (certificate.qrCodeImage && instituteIdString) {
-      qrCodeUrl = `${baseUrl}/uploads/qrcodes/${instituteIdString}/${certificate.certificateCode}.png`;
-    }
-
-    // Check if files actually exist (optional but good for debugging)
-    const imagePath = instituteIdString
-      ? path.join(__dirname, '../uploads/generated', instituteIdString, `${certificate.certificateCode}.jpg`)
-      : null;
-    const imageExists = imagePath ? fs.existsSync(imagePath) : false;
-    
-    if (!imageExists) {
-      console.warn(`Certificate image file missing: ${imagePath}`);
-    }
-
-    res.json({
-      success: true,
-      data: {
-        certificateCode: certificate.certificateCode,
-        studentName: certificate.studentName,
-        courseName: certificate.courseName,
-        awardDate: certificate.awardDate,
-        instituteName: certificate.instituteId?.instituteName,
-        instituteId: certificate.instituteId,
-        status: certificate.status,
-        issuedAt: certificate.createdAt,
-        certificateImage: certificateImageUrl,
-        qrCodeImage: qrCodeUrl,
-        imageExists: imageExists // Optional: send this for debugging
-      }
-    });
-  } catch (error) {
-    console.error('Verify certificate error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to verify certificate',
-      error: error.message
-    });
-  }
-};
-
-// Update certificate status
 const issueDraft = async (req, res, certificate) => {
   try {
     const result = await issuance.issue({ actorId: req.userId,
@@ -254,32 +171,8 @@ const sendCertificateEmailHandler = async (req, res) => {
     }
 
     const baseUrl = process.env.API_URL || 'http://localhost:5000';
-    const urls = buildCertificateUrls({
-      baseUrl,
-      instituteId,
-      certificateCode: certificate.certificateCode,
-      generatedImagePath: certificate.generatedCertificateImage
-    });
-
-    await sendCertificateEmail({
-      to: certificate.studentId.email,
-      studentName: certificate.studentName,
-      courseName: certificate.courseName,
-      awardDate: certificate.awardDate,
-      certificateCode: certificate.certificateCode,
-      certificateUrl: urls.certificateUrl,
-      downloadUrl: urls.downloadUrl,
-      verificationUrl: certificate.verificationUrl,
-      instituteName: certificate.instituteId?.instituteName,
-      instituteLogoUrl: buildInstituteLogoUrl(baseUrl, certificate.instituteId)
-    });
-
-    certificate.emailSent = true;
-    certificate.emailSentAt = new Date();
-    // Regeneration replaces the rendered image/QR only. Never undo an existing
-    // suspension or revocation as a side effect.
-
-    await certificate.save();
+    await sendIssuedCertificateNotification({ certificate, student: certificate.studentId,
+      institute: certificate.instituteId, baseUrl });
 
     res.json({
       success: true,
@@ -371,8 +264,8 @@ const regenerateCertificateImage = async (req, res) => {
     });
 
     // Update certificate
-    certificate.generatedCertificateImage = generatedImagePath.replace(/\\/g, '/');
-    certificate.qrCodeImage = qrCodePath.replace(/\\/g, '/');
+    certificate.generatedCertificateImage = path.relative(path.resolve(__dirname, '..'), generatedImagePath).replace(/\\/g, '/');
+    certificate.qrCodeImage = path.relative(path.resolve(__dirname, '..'), qrCodePath).replace(/\\/g, '/');
     certificate.verificationUrl = verificationUrl;
     if (!certificate.credential?.signature) certificate.credential = signedCredential;
     await certificate.save();
@@ -383,7 +276,7 @@ const regenerateCertificateImage = async (req, res) => {
       message: 'Certificate image regenerated successfully',
       data: {
         ...certificate.toObject(),
-        generatedCertificateUrl: `${baseUrl}/uploads/generated/${instituteId}/${certificate.certificateCode}.jpg`
+        generatedCertificateUrl: `${baseUrl}/api/private-files/certificates/${certificate.certificateCode}/image`
       }
     });
   } catch (error) {
@@ -404,7 +297,7 @@ const getCertificateImage = async (req, res) => {
     if (!/^[A-Z0-9-]+\.jpg$/.test(filename)) return res.status(404).json({ success: false, message: 'Certificate not found' });
     const certificate = await Certificate.findOne({ instituteId: req.userId, certificateCode: filename.slice(0, -4) });
     if (!certificate?.generatedCertificateImage) return res.status(404).json({ success: false, message: 'Certificate not found' });
-    return res.sendFile(tenantFile(certificate.generatedCertificateImage, req.userId, ['generated']));
+    return require('../services/privateFiles').sendPrivateFile(res, certificate.generatedCertificateImage, req.userId, 'generated');
   } catch (error) { return res.status(error.status || 500).json({ success: false, message: 'Certificate file unavailable' }); }
 };
 
@@ -432,7 +325,7 @@ const downloadCertificate = async (req, res) => {
       });
     }
 
-    res.download(filePath, `${certificate.certificateCode}.jpg`);
+    require('../services/privateFiles').sendPrivateFile(res, certificate.generatedCertificateImage, instituteId, 'generated', `${certificate.certificateCode}.jpg`);
   } catch (error) {
     console.error('Download certificate error:', error);
     res.status(500).json({

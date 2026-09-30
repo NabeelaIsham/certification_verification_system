@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+router.use((req, res, next) => { require('../services/privateFiles').privateHeaders(res); next(); });
 const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware');
 
 // Import all certificate controller functions

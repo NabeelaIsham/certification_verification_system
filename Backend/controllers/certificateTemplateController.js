@@ -38,12 +38,12 @@ const toRelativeUploadPath = (filePath) => path
 
 const addTemplateAssetUrls = (template, baseUrl) => ({
   ...template.toObject(),
-  templateImageUrl: `${baseUrl}/${template.templateImage}`,
-  imageFields: (template.imageFields || []).map(field => {
+  templateImageUrl: `${baseUrl}/api/private-files/templates/${template._id}/background`,
+  imageFields: (template.imageFields || []).map((field, index) => {
     const fieldObject = field.toObject?.() || field;
     return {
       ...fieldObject,
-      imageUrl: `${baseUrl}/${fieldObject.imagePath}`
+      imageUrl: `${baseUrl}/api/private-files/templates/${template._id}/${index}`
     };
   })
 });
@@ -57,6 +57,7 @@ const createTemplate = async (req, res) => {
         return res.status(400).json({ success: false, message: err.message });
       }
 
+      let saved = false;
       try {
         const instituteId = req.user.id;
         const { templateName, courseId, fields, imageFields, qrCodePosition } = req.body;
@@ -119,6 +120,7 @@ const createTemplate = async (req, res) => {
         });
 
         await template.save();
+        saved = true;
 
         res.status(201).json({
           success: true,
@@ -132,6 +134,8 @@ const createTemplate = async (req, res) => {
           message: 'Failed to create template',
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
+      } finally {
+        if (!saved) await Promise.allSettled(Object.values(req.files || {}).flat().map(file => fs.promises.unlink(file.path)));
       }
     });
   } catch (error) {

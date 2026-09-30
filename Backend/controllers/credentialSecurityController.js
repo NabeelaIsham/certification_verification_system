@@ -26,15 +26,9 @@ const SHARE_FIELDS = [
 ];
 
 const getFrontendUrl = () => (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-const getApiUrl = () => (process.env.API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+const { shareImageUrl, privateHeaders } = require('../services/privateFiles');
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const isValidId = (value) => mongoose.Types.ObjectId.isValid(value);
-
-const certificateImageUrl = (certificate) => {
-  if (!certificate.generatedCertificateImage) return null;
-  const instituteId = certificate.instituteId?._id || certificate.instituteId;
-  return `${getApiUrl()}/uploads/generated/${instituteId}/${certificate.certificateCode}.jpg`;
-};
 
 const createShare = async (req, res) => {
   try {
@@ -161,6 +155,7 @@ const revokeShare = async (req, res) => {
 };
 
 const resolveShare = async (req, res) => {
+  privateHeaders(res);
   try {
     const token = String(req.params.token || '');
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
@@ -193,6 +188,7 @@ const resolveShare = async (req, res) => {
     if (!certificate) {
       return res.status(404).json({ success: false, message: 'Certificate not found' });
     }
+    if (String(certificate.instituteId?._id || certificate.instituteId) !== String(share.institute)) return res.sendStatus(404);
     const complete = {
       studentName: certificate.studentName,
       courseName: certificate.courseName,
@@ -200,7 +196,7 @@ const resolveShare = async (req, res) => {
       instituteName: certificate.instituteId?.instituteName,
       certificateCode: certificate.certificateCode,
       status: effectiveStatus(certificate),
-      certificateImage: certificateImageUrl(certificate)
+      certificateImage: shareImageUrl(share, certificate)
     };
     const disclosed = Object.fromEntries(
       share.visibleFields

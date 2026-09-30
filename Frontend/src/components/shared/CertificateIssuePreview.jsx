@@ -1,3 +1,4 @@
+import PrivateImage from './PrivateImage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const formatAwardDate = (awardDate) => {
@@ -87,7 +88,7 @@ const CertificateIssuePreview = ({ template, values, emptyMessage = 'Select a st
     <div>
       <div className="overflow-auto rounded-lg border border-gray-200 bg-gray-50">
         <div className="relative">
-          <img
+          <PrivateImage
             ref={imageRef}
             src={template.templateImageUrl}
             alt={template.templateName || 'Certificate template'}
@@ -127,7 +128,7 @@ const CertificateIssuePreview = ({ template, values, emptyMessage = 'Select a st
           ))}
 
           {imageSize.naturalWidth > 0 && template.imageFields?.map((field, index) => (
-            <img
+            <PrivateImage
               key={`${field.label || field.imageType}-${index}`}
               src={field.imageUrl}
               alt={field.label || field.imageType || 'Template image asset'}
