@@ -1,8 +1,14 @@
 # Atlas staging acceptance gate
 
-Status: NOT PROVISIONED or validated by this repair. The Atlas project, region/tier,
-authenticated account access and a staging connection secret are still required.
-PR #1 is merged; PR #2 targets main and must remain draft until the checks below pass.
+Status on 2026-09-30: the supplied Atlas cluster is reachable (MongoDB 8.0.34).
+The local `certverify` database (8.0.5) was backed up and migrated into
+`certverify_staging_20260930`, then independently backed up and restored into
+`certverify_staging_restore_20260930`. Both copies exactly matched all 12 source
+collections, 111 documents, collection options and indexes. Transaction commit and
+rollback passed on both Atlas copies. No application connection settings were changed.
+
+PR #1 is merged; PR #2 targets main and remains draft. Full staging acceptance is still
+blocked by existing source-data issues and application/operational validation below.
 
 1. Create a separate Atlas staging project/cluster with the approved cloud region and tier.
    Restrict the IP access list to the staging host and operator IPs. Create a database user
@@ -37,11 +43,11 @@ PR #1 is merged; PR #2 targets main and must remain draft until the checks below
 
 | Evidence | Result |
 | --- | --- |
-| Project, region/tier, staging host and tested commit | Pending |
-| Source backup and restored collection/index comparison | Pending |
-| Existing signature validation and upload inventory | Pending |
-| Atlas transaction commit/rollback and issuance retry tests | Pending |
-| Independent restore drill and rebuild persistence | Pending |
+| Project, region/tier, staging host and tested commit | Database access verified; application staging host/region/tier review pending. Probe code: `5eb03d7c`. |
+| Source backup and restored collection/index comparison | Passed: 12 collections, 111 documents; exact document hashes, options and indexes match in both Atlas copies. |
+| Existing signature validation and upload inventory | 3 signed certificates verify; 11 unsigned legacy records. One signing-key record fails validation, 4 certificates have missing references, 26 file paths are absolute. All findings also exist in the source. |
+| Atlas transaction commit/rollback and issuance retry tests | Commit/rollback passed on both copies. Application issuance/retry UAT remains pending. |
+| Independent restore drill and rebuild persistence | Atlas backup restored into a second empty database and verified. All 35 upload files restored with matching hashes. Deployment rebuild persistence remains pending. |
 | Separate secrets, restricted network, email sandbox | Pending |
 | Monitoring destination, encrypted off-server backup and rotation | Pending |
 
@@ -50,3 +56,21 @@ procedure or choose a tier with suitable backup support. See the official
 [cluster setup](https://www.mongodb.com/docs/atlas/tutorial/deploy-free-tier-cluster/),
 [migration options](https://www.mongodb.com/docs/atlas/import/) and
 [free-cluster limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/).
+
+## Backup custody and remaining blockers
+
+Encrypted local recovery files and detailed manifests are in the Git-ignored directory
+`Backend/backups/migration-20260930/`. Original and Atlas database archives, upload ZIP
+and recovery configuration were encrypted with Windows DPAPI for the operator's Windows
+account; decryption was verified. Plaintext working copies and temporary Atlas credential
+caches were removed. This encryption depends on that Windows profile; an independently
+recoverable encrypted off-server copy is still required. The source database and existing
+Atlas sample data were not modified.
+
+Recover or deliberately rotate the invalid institute signing key with an appropriate
+credential continuity plan; resolve orphan references without inventing/deleting records;
+normalize absolute file paths for the eventual staging host; isolate staging secrets and
+email/SMS delivery; validate application issuance, private-file/share flows and persisted
+deployment. Rotate the Atlas password disclosed in chat. No database URI/password is
+recorded in this document, Git, or the validation output. These findings prevent marking
+PR #2 ready despite successful data migration and restoration.

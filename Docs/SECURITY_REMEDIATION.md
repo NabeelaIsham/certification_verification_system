@@ -105,5 +105,19 @@ Atlas staging migration, transaction, restoration and persistence evidence.
 See [PRIORITY_3.md](PRIORITY_3.md) for the controlled file protocol and
 [ATLAS_STAGING.md](ATLAS_STAGING.md) for the outstanding staging gate.
 Database/operational preparation, secrets and monitoring must precede Priority 6.
-Implement manual subscriptions before PayHere. No Atlas provisioning or production
-deployment has been performed by these code changes.
+Implement manual subscriptions before PayHere. Atlas migration/restoration was completed on 2026-09-30 for the local database;
+see the staging record for existing data blockers. No production deployment or
+application connection switch has been performed.
+
+## Database migration and restoration ? 2026-09-30
+
+The locally configured MongoDB 8.0.5 database was consistently backed up, migrated to
+Atlas 8.0.34 and independently restored. All 12 collections, 111 documents, options and
+indexes match; both Atlas databases pass transaction commit/rollback. The 35-file upload
+backup passed byte/hash comparison after restoration. Backups are encrypted locally and
+excluded from Git. This does not validate an uninspected production MongoDB 4.4 volume.
+
+The source and both restored copies share one invalid signing-key record, four certificates
+with missing references, eleven unsigned legacy certificates and twenty-six absolute file
+references. These existing issues, application UAT, staging isolation, persistent deployment
+and off-server recovery keep the operational acceptance gate and PR #2 draft status open.
