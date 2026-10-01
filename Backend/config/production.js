@@ -1,3 +1,4 @@
+const { requireDatabaseUri } = require('./databaseUri');
 const PLACEHOLDER_PATTERN = /replace|example|your[-_]|change[-_]|development|secret[-_]?here/i;
 
 const splitCsv = (value) => String(value || '')
@@ -22,6 +23,15 @@ const validateProductionConfig = (env = process.env) => {
   if (env.NODE_ENV !== 'production') return { valid: true, errors: [] };
 
   const errors = [];
+  if (!['staging', 'production'].includes(env.DEPLOYMENT_ENV)) {
+    errors.push('DEPLOYMENT_ENV must be staging or production');
+  }
+  try { requireDatabaseUri(env); } catch (error) { errors.push(error.message); }
+  const deliveryMode = env.OUTBOUND_DELIVERY_MODE || (env.DEPLOYMENT_ENV === 'staging' ? 'disabled' : 'live');
+  if (!['disabled', 'allowlist', 'live'].includes(deliveryMode) ||
+      (env.DEPLOYMENT_ENV === 'staging' && deliveryMode === 'live')) {
+    errors.push('OUTBOUND_DELIVERY_MODE must be disabled or allowlist in staging, or disabled, allowlist or live in production');
+  }
   const required = [
     'MONGODB_URI',
     'JWT_SECRET',

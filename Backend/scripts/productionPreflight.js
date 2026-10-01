@@ -8,13 +8,15 @@ dotenv.config();
 const { assertProductionConfig } = require('../config/production');
 const { connectDatabase, loadModels } = require('../config/database');
 const { validateSigningKeyMaterial } = require('../utils/credentialService');
+const { auditDeploymentData } = require('../utils/deploymentDataAudit');
 
 const run = async () => {
+  if (process.env.NODE_ENV !== 'production') throw new Error('Preflight requires NODE_ENV=production.');
   assertProductionConfig();
   console.log('Production environment configuration: valid');
 
   loadModels();
-  await connectDatabase();
+  await connectDatabase({ autoCreate: false, autoIndex: false });
   await mongoose.connection.db.admin().ping();
   console.log('MongoDB connection: healthy');
   const topology = await mongoose.connection.db.admin().command({ hello: 1 });
@@ -41,8 +43,10 @@ const run = async () => {
       console.error(`Signing key validation failed for institute ${institute._id}`);
     }
   }
-  if (invalidKeys > 0) {
-    throw new Error(`${invalidKeys} institute signing key(s) cannot be decrypted or do not match their public key`);
+  const dataIssues = await auditDeploymentData(mongoose.connection.db);
+  console.log(`Deployment data audit: ${JSON.stringify(dataIssues)}`);
+  if (invalidKeys > 0 || Object.values(dataIssues).some(count => count > 0)) {
+    throw new Error(`Deployment blocked: ${invalidKeys} invalid signing key(s); resolve the reported data issues before deployment.`);
   }
   console.log(`Institute signing keys: ${institutes.length} checked`);
   console.log('Production preflight: PASSED');
