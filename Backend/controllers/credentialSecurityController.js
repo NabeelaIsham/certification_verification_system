@@ -33,6 +33,7 @@ const isValidId = (value) => mongoose.Types.ObjectId.isValid(value);
 const createShare = async (req, res) => {
   try {
     const instituteId = req.userId;
+    await require('../services/subscriptionService').requirePlanFeature(instituteId, 'secureSharing');
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, message: 'Invalid certificate ID' });
     }
@@ -113,7 +114,7 @@ const createShare = async (req, res) => {
     });
   } catch (error) {
     console.error('Create credential share error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create share link' });
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Failed to create share link' });
   }
 };
 

@@ -1,8 +1,9 @@
 # VerifyAwards SaaS implementation contract
 
-Status: foundation gate preserved by the project owner. Do not implement subscriptions on
-the current unmerged branches. No payment integration, billing or automatic credit deduction
-is enabled by this document.
+Status (2026-10-01): the owner explicitly approved isolated SaaS development before foundation
+merges, while preserving the production deployment gate. The draft implementation is on
+`feat/saas-manual-subscriptions`, stacked on the operations branch. No live database,
+subscription, charge or deployment is changed by this branch. PayHere remains deferred.
 
 ## Release sequence
 
@@ -11,8 +12,8 @@ is enabled by this document.
 2. Review and merge PR #2, then retarget/review/merge PR #3 and the operations changes.
 3. Verify credential rotation and coordinated Git-history cleanup; pass lint, tests,
    dependency audits and builds on the merged foundation.
-4. Implement Plan, Subscription, UsageTransaction and SubscriptionEvent, then the central
-   entitlement service and transactional credit enforcement on that validated main branch.
+4. Review the isolated Plan, Subscription, UsageTransaction, SubscriptionEvent and Payment
+   implementation and entitlement enforcement against the validated foundation before merging it.
 5. Implement audited super-admin management, institute subscription pages and manual payment
    activation with pilot tests. Introduce Payment records for bank payments and receipts.
 6. Add locked scheduled jobs and notifications. Only after manual subscriptions pass
@@ -21,7 +22,9 @@ is enabled by this document.
 
 ## Proposed annual packages
 
-These are the supplied proposal, not published prices or activated entitlements.
+The owner confirmed these packages for the draft, with no trial or automatic renewal.
+They become visible only when an administrator initializes the draft catalogue in a
+SaaS-enabled environment. No packages or subscriptions are seeded into the existing database.
 
 | Plan | Price (LKR) | Certificates | Teachers | Templates |
 | --- | ---: | ---: | ---: | ---: |

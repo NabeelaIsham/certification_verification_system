@@ -7,6 +7,7 @@ import SystemLogs from '../components/admin/SystemLogs.jsx';
 import SystemSettings from '../components/admin/SystemSetting.jsx';
 import UserManagement from '../components/admin/UserManagement.jsx';
 import UserProfile from '../components/admin/UserProfile.jsx';
+import { AdminSubscriptions } from '../components/shared/Subscriptions';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -85,6 +86,7 @@ const SuperAdminDashboard = () => {
   };
 
   const tabs = [
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscriptions', name: 'Subscriptions', icon: '' }] : []),
     { id: 'institutes', name: 'Institutes', icon: '🏛️' },
     { id: 'users', name: 'Users', icon: '👥' },
     { id: 'analytics', name: 'Analytics', icon: '📊' },
@@ -167,6 +169,7 @@ const SuperAdminDashboard = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {activeTab === 'subscriptions' && <AdminSubscriptions />}
         {activeTab === 'institutes' && (
           <InstituteManagement 
             API_URL={API_URL} 

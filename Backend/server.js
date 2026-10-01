@@ -107,6 +107,7 @@ app.use('/api/certificate-templates', certificateTemplateRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/private-files', require('./routes/privateFileRoutes'));
+app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 app.use('/api/certificates/verify', verificationRoutes);
 app.use('/api/certificates', certificateRoutes);
 

@@ -8,6 +8,7 @@ import { InstituteProvider } from './contexts/InstituteContext'
 
 // Components
 import Navbar from './components/shared/Navbar'
+import { Pricing, InstituteSubscription } from './components/shared/Subscriptions'
 import Footer from './components/shared/Footer'
 
 // Pages
@@ -80,6 +81,8 @@ function App() {
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
+              {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/pricing" element={<Pricing />} />}
+              {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription" element={<ProtectedRoute allowedUserType="institute"><InstituteSubscription /></ProtectedRoute>} />}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

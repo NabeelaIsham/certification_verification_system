@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { requireDatabaseUri } = require('./databaseUri');
 
 const loadModels = () => {
+  require('../models/Saas');
   require('../models/User');
   require('../models/Notification');
   require('../models/Course');
@@ -35,6 +36,7 @@ const connectDatabase = async (options = {}) => {
 
 const ensureCollections = async () => {
   const modelNames = [
+    'Plan', 'Subscription', 'UsageTransaction', 'SubscriptionEvent', 'Payment',
     'User',
     'Notification',
     'Course',

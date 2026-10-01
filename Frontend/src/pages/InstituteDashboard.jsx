@@ -7,6 +7,7 @@ import TeacherManagement from '../components/institute/TeacherManagement';
 import CertificateManagement from '../components/institute/CertificateManagement'; // Changed this line
 import BulkUpload from '../components/institute/BulkUpload';
 import InstituteSettings from '../components/institute/InstituteSettings';
+import { InstituteSubscription } from '../components/shared/Subscriptions';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -35,6 +36,7 @@ const InstituteDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const tabs = [
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscription', name: 'Subscription', icon: '' }] : []),
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'courses', name: 'Courses', icon: '📚' },
     { id: 'students', name: 'Students', icon: '👨‍🎓' },
@@ -264,6 +266,7 @@ const InstituteDashboard = () => {
         )}
 
         {activeTab === 'courses' && <CourseManagement API_URL={API_URL} />}
+        {activeTab === 'subscription' && <InstituteSubscription />}
         {activeTab === 'students' && <StudentManagement API_URL={API_URL} />}
         {activeTab === 'teachers' && <TeacherManagement API_URL={API_URL} />}
         {activeTab === 'certificates' && <CertificateManagement API_URL={API_URL} />}

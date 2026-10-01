@@ -46,6 +46,8 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --audit-level=high
       - name: Build frontend production bundle
+        env:
+          VITE_SAAS_ENABLED: 'true'
         run: npm run build
 
   container-builds:
@@ -61,4 +63,4 @@ jobs:
       - name: Build backend production image
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx
-        run: docker build --tag certverify-frontend-ci ./Frontend
+        run: docker build --build-arg VITE_SAAS_ENABLED=true --tag certverify-frontend-ci ./Frontend

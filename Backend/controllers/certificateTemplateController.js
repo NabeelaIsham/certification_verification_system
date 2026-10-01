@@ -108,7 +108,7 @@ const createTemplate = async (req, res) => {
 
         const templatePath = toRelativeUploadPath(templateFile.path);
 
-        const template = new CertificateTemplate({
+        let template = new CertificateTemplate({
           instituteId,
           templateName,
           courseId,
@@ -119,7 +119,7 @@ const createTemplate = async (req, res) => {
           isActive: true
         });
 
-        await template.save();
+        template = await require('../services/subscriptionService').saveLimitedResource(template, 'templates');
         saved = true;
 
         res.status(201).json({

@@ -80,7 +80,7 @@ const createTeacher = async (req, res) => {
     }
 
     // Create teacher with proper institute link
-    const teacher = new User({
+    let teacher = new User({
       firstName,
       lastName,
       email: normalizedEmail,
@@ -107,7 +107,7 @@ const createTeacher = async (req, res) => {
       isVerifiedByAdmin: true
     });
 
-    await teacher.save();
+    teacher = await require('../services/subscriptionService').saveLimitedResource(teacher, 'teachers');
     console.log('Teacher saved successfully with ID:', teacher._id);
     console.log('Linked to institute:', teacher.instituteId);
     console.log('Assigned courses:', teacher.assignedCourses);
@@ -127,6 +127,7 @@ const createTeacher = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Create teacher error:', error);
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];

@@ -7,6 +7,7 @@ const Navbar = () => {
   const location = useLocation();
 
   const navigation = [
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ name: 'Pricing', href: '/pricing', current: location.pathname === '/pricing' }] : []),
     { name: 'Home', href: '/', current: location.pathname === '/' },
     { name: 'Verify Certificate', href: '/verify', current: location.pathname === '/verify' },
     { name: 'Login', href: '/login', current: location.pathname === '/login' },

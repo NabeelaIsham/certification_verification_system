@@ -13,6 +13,7 @@ const Lock = require('../models/IssuanceLock');
 const Event = require('../models/IssuanceEvent');
 const rendering = require('./certificateRenderingService');
 const delivery = require('./certificateDeliveryService');
+const subscriptions = require('./subscriptionService');
 const { getPolicy } = require('../utils/settingsPolicy');
 const { createSignedCredential, buildOnlineVerificationUrl } = require('../utils/credentialService');
 const { generateCertificateCode } = require('../utils/CertificateCodeGenerator');
@@ -67,6 +68,7 @@ const lockId = (instituteId, input) => `${instituteId}:${input.studentId}:${inpu
 async function reserve({ actor, instituteId, input, key, fingerprint }) {
   return transaction(async session => {
     const now = new Date();
+    if (subscriptions.enabled()) await subscriptions.recoverExpiredCredits(instituteId, session);
     let op = await Operation.findOne({ instituteId, key }).session(session);
     if (op && op.fingerprint !== fingerprint) throw fail(409, 'Idempotency key was already used for different certificate details.');
     if (op?.state === 'consumed') {
@@ -88,7 +90,10 @@ async function reserve({ actor, instituteId, input, key, fingerprint }) {
     if (held) {
       const expired = await Operation.findOneAndUpdate({ _id: held.operationId, attempt: held.attempt, state: 'reserved' },
         { $set: { state: 'released' } }, { new: true, session });
-      if (expired) await event(expired, 'released', session);
+      if (expired) {
+        await subscriptions.settleCredit(expired, false, session);
+        await event(expired, 'released', session);
+      }
     }
     if (!op) op = new Operation({ instituteId, key, fingerprint, studentId: input.studentId, courseId: input.courseId, attempt: 0, awardDate: input.awardDate || now });
     op.actorId = actor._id;
@@ -96,6 +101,7 @@ async function reserve({ actor, instituteId, input, key, fingerprint }) {
     op.state = 'reserved';
     op.markModified('state');
     op.leaseUntil = new Date(now.getTime() + LEASE_MS);
+    await subscriptions.reserveCredit(op, session);
     await op.save({ session });
     await Lock.updateOne({ _id: pair }, { $set: { operationId: op._id, attempt: op.attempt, leaseUntil: op.leaseUntil } }, { upsert: true, session });
     await event(op, 'reserved', session);
@@ -112,6 +118,7 @@ async function release(op, input) {
     const released = await Operation.findOneAndUpdate({ _id: op._id, attempt: op.attempt, state: 'reserved' },
       { $set: { state: 'released' } }, { new: true, session });
     if (released) {
+      await subscriptions.settleCredit(released, false, session);
       await Lock.deleteOne({ _id: lockId(op.instituteId, input), operationId: op._id, attempt: op.attempt }, { session });
       await event(op, 'released', session);
     }
@@ -176,6 +183,7 @@ async function issue({ actorId, input: rawInput, idempotencyKey, legacyCertifica
       const completed = await Operation.updateOne({ _id: op._id, attempt: op.attempt, state: 'reserved' },
         { $set: { state: 'consumed', certificateId: saved._id } }, { session });
       if (completed.modifiedCount !== 1) throw fail(409, 'Issuance reservation changed.');
+      await subscriptions.settleCredit(op, true, session);
       const updatedStudent = await Student.updateOne({ _id: student._id, instituteId, courseId: course._id }, { $set: { status: 'completed' } }, { session });
       if (updatedStudent.matchedCount !== 1) throw fail(409, 'Student enrollment changed.');
       await event(op, 'consumed', session, saved._id);
@@ -226,6 +234,7 @@ async function bulkHttp(req, res) {
     if (!Array.isArray(rows) || rows.length === 0 || rows.length > 100) throw fail(400, 'Provide between 1 and 100 certificates.');
     const actor = await User.findById(req.userId);
     if (actor?.userType !== 'institute' || !actor.isActive) throw fail(403, 'Institute access required.');
+    await subscriptions.requirePlanFeature(actor._id, 'bulkCertificateIssue');
     const batchKey = req.get('Idempotency-Key');
     if (batchKey !== undefined && !/^[A-Za-z0-9:_-]{16,128}$/.test(batchKey)) throw fail(400, 'Invalid Idempotency-Key.');
     const results = { successful: [], failed: [] };
