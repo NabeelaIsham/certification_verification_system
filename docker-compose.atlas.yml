@@ -19,6 +19,11 @@ services:
     security_opt: ['no-new-privileges:true']
     cap_drop: ['ALL']
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
     healthcheck:
       test: ['CMD', 'node', '-e', 'require("http").get("http://127.0.0.1:5000/health",r=>process.exit(r.statusCode===200?0:1)).on("error",()=>process.exit(1))']
       interval: 30s
@@ -36,6 +41,11 @@ services:
         condition: service_healthy
     security_opt: ['no-new-privileges:true']
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
 volumes:
   uploads:
   backups:

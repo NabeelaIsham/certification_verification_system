@@ -43,8 +43,8 @@ proxy trust against the actual host topology before exposing the application. Se
 
 | Gate | Current state / required action |
 | --- | --- |
-| Signing key | One invalid record; the current JWT fallback also cannot validate it. Recover the original encryption key or approve an explicit signing-key continuity migration. |
-| References | Four certificates have missing related records. Identify authoritative records; do not invent replacements or delete history. |
+| Signing key | Original private key recovered in memory using historical configuration; public-key match validated. Three associated signed certificates verify. Reencryption and Atlas application remain pending behind a fresh verified off-server backup. |
+| References | Four unsigned legacy certificates reference missing institutes; one also references a missing template. Recover authoritative records; do not assign another institute or invent replacements. |
 | Portable uploads | 26 absolute references need a reviewed mapping to relative tenant paths and matching restored files. |
 | Legacy certificates | 11 unsigned records need an agreed legacy policy; the three signed records verify. |
 | Hosting | Choose staging/production host and install environment-specific secrets, network rules and HTTPS. |
@@ -70,6 +70,37 @@ use `node scripts/normalizeStagingFilePaths.js --apply`. Apply requires a dedica
 with original-value guards; missing files or concurrently changed records prevent a partial
 migration. Re-run the dry run and production preflight afterward. This repairs path strings
 only; signing keys and missing related records remain separate blockers.
+
+Each applied field change is recorded in `migrationaudits` in the same transaction, including
+its original and replacement value. Output distinguishes fields modified from documents
+modified and includes a migration ID. Protect this collection with the database's access
+controls; it contains historical private file paths.
+
+### Original signing-key recovery
+
+Read-only inspection on 2026-10-01 found seven historical backend configuration versions.
+Of three distinct candidate encryption secrets (including local configuration), one
+successfully decrypted the existing private key and matched its stored public key/fingerprint.
+All three associated signed certificates already verify. No private key or secret was
+printed or written into this report, and no database or runtime configuration was changed.
+
+After a fresh encrypted backup has been stored outside the server/Atlas account and restored
+successfully, configure `STAGING_MONGODB_URI`, `RECOVERY_INSTITUTE_ID`,
+`RECOVERY_PREVIOUS_ENCRYPTION_SECRET` and a distinct `CREDENTIAL_KEY_ENCRYPTION_SECRET`
+through the protected environment. The historical secret is exposed and must not be reused
+as a deployment secret. Use the same destination encryption secret in the staging backend.
+
+Run `node scripts/recoverStagingSigningKey.js --dry-run`, then `--apply` after reviewing the
+evidence. The script checks the original public fingerprint and existing matching certificate
+signatures, changes only encryption, and records an audit in the same guarded transaction.
+It refuses a production database and never generates a replacement signing identity. Remove
+the recovery-only secret from the environment afterward. Re-run preflight, issuance and
+verification checks. Other institutes with different encryption histories require individual
+recovery; do not change their keys blindly.
+
+Latest published CI checked on 2026-10-01: PR #2 head `72d399c9`, PR #3 head `a5068c64`,
+and PR #4 head `e90493ed` all passed. This evidence does not replace staging acceptance;
+new commits require their own CI.
 
 Only after these gates pass should PR #2 become ready, the stacked changes be reviewed and
 deployed, and manual subscriptions/credit enforcement begin. PayHere follows validated

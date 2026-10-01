@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { randomUUID } = require('crypto');
 const { requireDatabaseUri } = require('../config/databaseUri');
 
 function portablePath(value, instituteId, folder, backendRoot) {
@@ -43,6 +44,8 @@ async function planFilePaths(db, backendRoot = path.resolve(__dirname, '..')) {
 async function applyFilePaths(connection, plan) {
   if (!/^certverify_staging(?:_[a-z0-9_]+)?$/.test(connection.db.databaseName)) throw new Error('Only dedicated staging databases may be changed');
   if (plan.blocked) throw new Error('Resolve all blocked file references before applying');
+  const migrationId = randomUUID();
+  const documentsModified = new Set(plan.changes.map(change => `${change.collection}:${change.id}`)).size;
   const session = await connection.startSession();
   try {
     await session.withTransaction(async () => {
@@ -53,8 +56,21 @@ async function applyFilePaths(connection, plan) {
         );
         if (result.modifiedCount !== 1) throw new Error('Record changed after planning; no changes committed');
       }
+      if (plan.changes.length) {
+        await connection.db.collection('migrationaudits').insertMany(plan.changes.map(change => ({
+          migrationId,
+          operation: 'normalize-staging-file-path',
+          collection: change.collection,
+          documentId: change.id,
+          field: change.field,
+          before: change.before,
+          after: change.after,
+          appliedAt: new Date()
+        })), { session });
+      }
     });
   } finally { await session.endSession(); }
+  return { migrationId, fieldsModified: plan.changes.length, documentsModified };
 }
 
 async function main() {
@@ -70,8 +86,8 @@ async function main() {
   // Do not print paths, connection strings or certificate identifiers.
   console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', proposedChanges: plan.changes.length, blocked: plan.blocked }));
   if (apply) {
-    await applyFilePaths(mongoose.connection, plan);
-    console.log(JSON.stringify({ applied: plan.changes.length }));
+    const result = await applyFilePaths(mongoose.connection, plan);
+    console.log(JSON.stringify(result));
   }
   if (plan.blocked) process.exitCode = 1;
 }
