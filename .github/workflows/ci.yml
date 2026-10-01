@@ -4,7 +4,6 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
 
 jobs:
   backend:
@@ -25,6 +24,8 @@ jobs:
         run: npm audit --audit-level=high
       - name: Run backend tests
         run: npm test
+      - name: Test tenant isolation and transactional issuance
+        run: npm run test:integration
 
   frontend:
     runs-on: ubuntu-latest
@@ -45,13 +46,21 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --audit-level=high
       - name: Build frontend production bundle
+        env:
+          VITE_SAAS_ENABLED: 'true'
         run: npm run build
 
   container-builds:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate standalone Atlas deployment configuration
+        env:
+          DEPLOYMENT_NAME: certverify-staging-ci
+          DEPLOYMENT_ENV: staging
+          BACKEND_ENV_FILE: ./Backend/.env.example
+        run: docker compose -f docker-compose.atlas.yml config --quiet
       - name: Build backend production image
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx
-        run: docker build --tag certverify-frontend-ci ./Frontend
+        run: docker build --build-arg VITE_SAAS_ENABLED=true --tag certverify-frontend-ci ./Frontend

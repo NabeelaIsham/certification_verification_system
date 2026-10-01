@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { assertDeliveryAllowed } = require('./deliveryPolicy');
 
 const DEFAULT_TEXTLK_ENDPOINT = 'https://app.text.lk/api/v3/sms/send';
 const DEFAULT_AUTH_PREFIX = 'Bearer';
@@ -15,6 +16,7 @@ const normalizeSriLankanPhone = (phone) => {
 };
 
 const sendTextLkSms = async ({ to, message }) => {
+  assertDeliveryAllowed('sms', to);
   const apiToken = (process.env.TEXTLK_API_TOKEN || '').trim();
   const senderId = (process.env.TEXTLK_SENDER_ID || 'CVS').trim();
   const endpoint = (process.env.TEXTLK_SMS_ENDPOINT || DEFAULT_TEXTLK_ENDPOINT).trim();

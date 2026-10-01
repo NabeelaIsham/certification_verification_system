@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+router.use((req, res, next) => { require('../services/privateFiles').privateHeaders(res); next(); });
 const { authenticateToken, authorizeInstitute } = require('../middleware/authMiddleware');
 
 // Import all certificate controller functions
@@ -24,8 +25,8 @@ const {
   rotateSigningKey
 } = require('../controllers/credentialSecurityController');
 
-// Public route for serving certificate images (no auth required)
-router.get('/image/:instituteId/:filename', getCertificateImage);
+// Institute-scoped image delivery.
+router.get('/image/:instituteId/:filename', authenticateToken, authorizeInstitute, getCertificateImage);
 
 // Protected routes (require authentication)
 router.use(authenticateToken, authorizeInstitute);
@@ -33,6 +34,13 @@ router.use(authenticateToken, authorizeInstitute);
 // Certificate CRUD operations
 router.post('/', issueCertificate);
 router.get('/', getCertificates);
+router.get('/issuance/history', async (req, res) => {
+  try {
+    const events = await require('../models/IssuanceEvent').find({ instituteId: req.userId })
+      .sort({ createdAt: -1 }).limit(100);
+    res.json({ success: true, data: events });
+  } catch (error) { res.status(500).json({ success: false, message: 'Unable to load issuance history.' }); }
+});
 router.get('/security/analytics', getSecurityAnalytics);
 router.get('/security/signing-key', getSigningKeyStatus);
 router.post('/security/signing-key/rotate', rotateSigningKey);

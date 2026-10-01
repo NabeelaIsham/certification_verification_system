@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
+const { requireDatabaseUri } = require('./databaseUri');
 
 const loadModels = () => {
+  require('../models/Saas');
   require('../models/User');
   require('../models/Notification');
   require('../models/Course');
@@ -13,15 +15,19 @@ const loadModels = () => {
   require('../models/ActivityLog');
   require('../models/VerificationLog');
   require('../models/CredentialShare');
+  require('../models/CertificateIssuance');
+  require('../models/IssuanceLock');
+  require('../models/IssuanceEvent');
 };
 
-const connectDatabase = async () => {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/certverify';
+const connectDatabase = async (options = {}) => {
+  const mongoUri = requireDatabaseUri();
 
   await mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 10000),
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
-    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1)
+    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1),
+    ...options
   });
   console.log('MongoDB connected successfully');
 
@@ -30,6 +36,7 @@ const connectDatabase = async () => {
 
 const ensureCollections = async () => {
   const modelNames = [
+    'Plan', 'Subscription', 'UsageTransaction', 'SubscriptionEvent', 'Payment',
     'User',
     'Notification',
     'Course',
@@ -41,7 +48,10 @@ const ensureCollections = async () => {
     'LoginChallenge',
     'ActivityLog',
     'VerificationLog',
-    'CredentialShare'
+    'CredentialShare',
+    'CertificateIssuance',
+    'IssuanceLock',
+    'IssuanceEvent'
   ];
 
   for (const modelName of modelNames) {

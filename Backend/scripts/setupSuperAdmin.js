@@ -6,7 +6,6 @@ const User = require('../models/User');
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const {
-  MONGODB_URI = 'mongodb://localhost:27017/certverify',
   SUPERADMIN_EMAIL,
   SUPERADMIN_PASSWORD,
   SUPERADMIN_NAME = 'System Administrator'
@@ -17,7 +16,7 @@ const setupSuperAdmin = async () => {
     throw new Error('SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD are required.');
   }
 
-  await mongoose.connect(MONGODB_URI);
+  await mongoose.connect(require('../config/databaseUri').requireDatabaseUri());
 
   const existing = await User.findOne({
     email: SUPERADMIN_EMAIL.toLowerCase(),

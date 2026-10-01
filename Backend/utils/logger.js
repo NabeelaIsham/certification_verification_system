@@ -9,7 +9,7 @@ morgan.token('safe-url', (req) => {
 });
 
 const logger = morgan(
-  ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
+  ':remote-addr - :remote-user [:date[clf]] ":method :safe-url HTTP/:http-version" :status :res[content-length] ":user-agent"'
 );
 
 const errorLogger = (err, req, res, next) => {

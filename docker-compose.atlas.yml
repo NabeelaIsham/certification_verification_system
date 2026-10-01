@@ -1,0 +1,52 @@
+# Use as a standalone file: docker compose -f docker-compose.atlas.yml ...
+name: ${DEPLOYMENT_NAME:?Set a distinct deployment name for staging or production}
+services:
+  backend:
+    build: ./Backend
+    env_file:
+      - ${BACKEND_ENV_FILE:?Provide the environment-specific backend secret file}
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:?Choose staging or production}
+    command: ['sh', '-c', 'node scripts/productionPreflight.js && exec node server.js']
+    expose: ['5000']
+    volumes:
+      - uploads:/usr/src/app/uploads
+      - backups:/usr/src/app/backups
+    read_only: true
+    tmpfs: ['/tmp']
+    security_opt: ['no-new-privileges:true']
+    cap_drop: ['ALL']
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'require("http").get("http://127.0.0.1:5000/health",r=>process.exit(r.statusCode===200?0:1)).on("error",()=>process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+  frontend:
+    build:
+      context: ./Frontend
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_SAAS_ENABLED: ${VITE_SAAS_ENABLED:-false}
+    ports: ['127.0.0.1:${FRONTEND_PORT:-3000}:80']
+    depends_on:
+      backend:
+        condition: service_healthy
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+volumes:
+  uploads:
+  backups:
