@@ -1,29 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
+import { ArrowUpRightIcon, CheckCircleIcon, ShieldCheckIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
+import './Subscriptions.css';
 
 const money = value => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR' }).format(value / 100);
 const date = value => value ? new Date(value).toLocaleDateString() : 'Not activated';
 const message = error => error.response?.data?.message || 'Unable to complete the request. Please retry.';
-const button = 'rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50';
-const input = 'rounded border p-2 w-full';
+const button = 'saas-button';
+const input = 'saas-input';
+
+function PageHeading({ eyebrow, title, description }) {
+  return <header className="saas-heading"><div className="saas-eyebrow"><ShieldCheckIcon aria-hidden="true" />{eyebrow}</div><h1>{title}</h1><p>{description}</p></header>;
+}
+function Metric({ label, value, detail }) {
+  return <div className="saas-metric"><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+}
 
 function PlanCards({ plans, select, disabled }) {
-  return <div className="grid gap-4 md:grid-cols-3">{plans.map(plan => <article key={plan._id} className="rounded-xl border bg-white p-6 shadow-sm">
-    {plan.recommended && <p className="text-blue-700">Most popular</p>}<h2 className="text-xl font-semibold">{plan.name}</h2>
-    <p className="my-3 text-2xl">{money(plan.priceMinor)} <span className="text-sm">/ year</span></p>
-    <ul className="mb-4 space-y-2"><li>{plan.limits.certificates} certificate credits</li><li>{plan.limits.teachers} teachers</li><li>{plan.limits.templates} templates</li>
+  return <div className="saas-plans">{plans.map(plan => <article key={plan._id} className={`saas-plan ${plan.recommended ? 'saas-plan-featured' : ''}`}>
+    <div className="saas-plan-top"><Squares2X2Icon aria-hidden="true" />{plan.recommended && <span className="saas-badge">Most popular</span>}</div><h2>{plan.name}</h2>
+    <p className="saas-plan-caption">An annual home for your institute's achievements.</p>
+    <p className="saas-price">{money(plan.priceMinor)} <span>/ year</span></p>
+    <ul className="saas-features"><li><CheckCircleIcon aria-hidden="true" />{plan.limits.certificates} certificate credits</li><li><CheckCircleIcon aria-hidden="true" />{plan.limits.teachers} teachers</li><li><CheckCircleIcon aria-hidden="true" />{plan.limits.templates} templates</li>
       <li>Bulk issuance: {plan.features?.bulkCertificateIssue ? 'Included' : 'Not included'}</li><li>Secure sharing: {plan.features?.secureSharing ? 'Included' : 'Not included'}</li></ul>
-    {select ? <button className={button} disabled={disabled} onClick={() => select(plan._id)}>Request {plan.name}</button> : <Link className={button} to="/institute/subscription">Choose package</Link>}
+    {select ? <button className={button} disabled={disabled} onClick={() => select(plan._id)}>Request {plan.name}<ArrowUpRightIcon aria-hidden="true" /></button> : <Link className={button} to="/institute/subscription">Choose package<ArrowUpRightIcon aria-hidden="true" /></Link>}
   </article>)}</div>;
 }
 export function Pricing() {
   const [plans, setPlans] = useState(null), [error, setError] = useState('');
   useEffect(() => { api.get('/subscriptions/plans').then(res => setPlans(res.data.data)).catch(error => setError(message(error))); }, []);
-  return <section className="mx-auto max-w-6xl space-y-6 p-8"><h1 className="text-3xl font-bold">Annual packages</h1>
+  return <section className="saas-shell saas-pricing space-y-6"><PageHeading eyebrow="Certiverxia / PLANS" title="Big achievements. Simple plans." description="Give every achievement a credential people can trust. Choose the annual package that fits your institute." /><div className="saas-term"><span className="saas-dot" /> Annual packages · 12 months of access</div>
     <p>Choose a package after institute verification. Activation follows manual bank-payment review.</p>{error && <p role="alert">{error}</p>}
     {plans ? <PlanCards plans={plans} /> : !error && <p>Loading packages…</p>}{plans?.length === 0 && <p>Packages are not available yet.</p>}
-    <h2 className="text-xl font-semibold">How subscriptions work</h2><p>Plans last 12 months from activation. Unused credits expire with the term. No trial or automatic renewal.</p>
+    <div className="saas-section-title"><span>GOOD TO KNOW</span><h2>How subscriptions work</h2></div><p>Plans last 12 months from activation. Unused credits expire with the term. No trial or automatic renewal.</p>
     <p>Expiry stops new issuance. Existing verification and revocation remain available. Contact the administrator for payment instructions and applicable billing terms before transferring funds.</p>
   </section>;
 }
@@ -44,8 +54,9 @@ export function InstituteSubscription() {
     const url = URL.createObjectURL(new Blob([JSON.stringify({ record: 'Manual payment acknowledgement', ...payment }, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a'); link.href = url; link.download = `payment-${payment._id}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  return <section className="space-y-6 p-6"><h1 className="text-2xl font-bold">Subscription and usage</h1>{error && <p role="alert" className="text-red-700">{error}</p>}
-    {!data && !error && <p>Loading subscription…</p>}{current && <article className="space-y-2 rounded-xl border bg-white p-6"><h2 className="text-xl">{current.snapshot.name}</h2>
+  return <section className="saas-shell space-y-6"><PageHeading eyebrow="YOUR INSTITUTE / MEMBERSHIP" title="Subscription and usage" description="Your plan, your allowance, and your next milestone. Everything in one place." />{error && <p role="alert" className="text-red-700">{error}</p>}
+    {data && <div className="saas-metrics"><Metric label="Available credits" value={current?.remaining ?? 0} detail="Ready for your next achievement" /><Metric label="Certificates issued" value={current?.consumed ?? 0} detail={`${current?.reserved ?? 0} currently processing`} /><Metric label="Teachers" value={`${data.teachers} / ${current?.snapshot.limits.teachers ?? '—'}`} detail="Institute teaching team" /><Metric label="Templates" value={`${data.templates} / ${current?.snapshot.limits.templates ?? '—'}`} detail="Your certificate designs" /></div>}
+    {!data && !error && <p>Loading subscription…</p>}{current && <article className="saas-current-plan space-y-2"><span className="saas-eyebrow">CURRENT PLAN</span><h2 className="text-xl">{current.snapshot.name}</h2><div className="saas-progress" role="progressbar" aria-label="Certificate allowance used" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, percent)}><span style={{ width: `${Math.min(100, percent)}%` }} /></div>
       <p>Status: {current.effectiveStatus}</p><p>{current.consumed} / {current.allocated} certificates issued · {current.reserved} processing · {current.remaining} available</p>
       <p>Starts: {date(current.startsAt)} · Expires: {date(current.endsAt)}</p><p>Teachers: {data.teachers}/{current.snapshot.limits.teachers} · Templates: {data.templates}/{current.snapshot.limits.templates}</p>
       {percent >= 75 && <p role="status">{percent >= 100 ? 'Certificate allowance exhausted.' : `${percent >= 90 ? '90%' : '75%'} usage threshold reached.`}</p>}
@@ -97,7 +108,8 @@ export function AdminSubscriptions() {
     try { await api[method](url, body); await refresh(); setEditing(null); } catch (error) { setError(message(error)); } finally { setBusy(false); }
   }
   const save = value => act(`/subscriptions/admin/plans${value._id ? `/${value._id}` : ''}`, Object.fromEntries(['name', 'priceMinor', 'limits', 'features', 'active', 'recommended', 'displayOrder'].map(key => [key, value[key]])), value._id ? 'put' : 'post');
-  return <section className="space-y-6 p-6"><h1 className="text-2xl font-bold">Plans and manual subscriptions</h1>{error && <p role="alert" className="text-red-700">{error}</p>}{!loaded && !error && <p>Loading subscriptions…</p>}
+  return <section className="saas-shell saas-admin space-y-6"><PageHeading eyebrow="ADMIN WORKSPACE / SUBSCRIPTIONS" title="Plans and manual subscriptions" description="Shape your packages, review payments, and keep every institute moving forward." />{error && <p role="alert" className="text-red-700">{error}</p>}{!loaded && !error && <p>Loading subscriptions…</p>}
+    {loaded && <div className="saas-metrics"><Metric label="Published plans" value={plans.filter(plan => plan.active).length} detail="Available in your catalogue" /><Metric label="Pending review" value={subscriptions.filter(sub => sub.status === 'pending').length} detail="Awaiting payment verification" /><Metric label="Active subscriptions" value={subscriptions.filter(sub => sub.status === 'active' && new Date(sub.endsAt) > new Date()).length} detail="Within the latest 200 records" /><Metric label="Suspended" value={subscriptions.filter(sub => sub.status === 'suspended').length} detail="Accounts requiring your attention" /></div>}
     {loaded && !plans.length && <button className={button} disabled={busy} onClick={() => act('/subscriptions/admin/plans/bootstrap', {})}>Create the three draft packages</button>}
     <div className="flex flex-wrap gap-3">{plans.map(plan => <button className="rounded border p-3" key={plan._id} onClick={() => setEditing(plan)}>{plan.name} · {money(plan.priceMinor)} · {plan.active ? 'Active' : 'Hidden'}</button>)}<button className={button} onClick={() => setEditing({})}>New plan</button></div>
     {editing && <PlanEditor key={editing._id || 'new'} plan={editing._id ? editing : null} save={save} busy={busy} />}<p>Plan edits affect future requests. Purchased prices and limits remain unchanged.</p>

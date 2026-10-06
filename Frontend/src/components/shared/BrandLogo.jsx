@@ -6,12 +6,12 @@ const BrandLogo = ({
   return (
     <div className={`flex items-center ${className}`}>
       <img
-        src="\verifyawards-logo.png"
-        alt="VerifyAwards"
+        src="/certiverxia-logo.svg"
+        alt="Certiverxia"
         className={`${imageClassName} object-contain`}
       />
       {compact && (
-        <span className="sr-only">VerifyAwards</span>
+        <span className="sr-only">Certiverxia</span>
       )}
     </div>
   );

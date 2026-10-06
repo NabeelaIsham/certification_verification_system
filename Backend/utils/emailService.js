@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 const Settings = require('../models/Settings');
 const { assertDeliveryAllowed } = require('./deliveryPolicy');
 
-const DEFAULT_FROM_NAME = 'Certificate Verification System';
+const DEFAULT_FROM_NAME = 'Certiverxia';
 
 const getEmailSettings = async () => {
   try {
@@ -21,8 +21,8 @@ const createTransporter = async () => {
   const settingsHaveAuth = hasValue(emailConfig.smtpUsername) || hasValue(emailConfig.smtpPassword);
   const host = hasValue(emailConfig.smtpServer)
     ? emailConfig.smtpServer.trim()
-    : process.env.EMAIL_HOST || 'smtp.gmail.com';
-  const port = Number(emailConfig.smtpPort ? emailConfig.smtpPort : process.env.EMAIL_PORT || 587);
+    : process.env.EMAIL_HOST || 'smtp.hostinger.com';
+  const port = Number(emailConfig.smtpPort ? emailConfig.smtpPort : process.env.EMAIL_PORT || 465);
   const smtpUser = (settingsHaveAuth && hasValue(emailConfig.smtpUsername) ? emailConfig.smtpUsername : process.env.EMAIL_USER || '').trim();
   const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '');
 

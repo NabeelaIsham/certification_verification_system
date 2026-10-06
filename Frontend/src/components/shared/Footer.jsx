@@ -46,7 +46,7 @@ const Footer = () => {
               <li><a href="/verify" className="text-base text-gray-300 hover:text-white transition-colors">Verify Certificate</a></li>
               <li><a href="/login" className="text-base text-gray-300 hover:text-white transition-colors">Institute Login</a></li>
               <li><a href="/verify" className="text-base text-gray-300 hover:text-white transition-colors">Verification Guide</a></li>
-              <li><a href="mailto:info@verifyawards.com" className="text-base text-gray-300 hover:text-white transition-colors">Support</a></li>
+              <li><a href="mailto:info@certiverxia.com" className="text-base text-gray-300 hover:text-white transition-colors">Support</a></li>
             </ul>
           </div>
 
@@ -56,7 +56,7 @@ const Footer = () => {
               Contact
             </h3>
             <ul className="space-y-2">
-              <li className="text-base text-gray-300">info@verifyawards.com</li>
+              <li className="text-base text-gray-300">info@certiverxia.com</li>
               <li className="text-base text-gray-300">+94 76 454 5756</li>
               <li className="text-base text-gray-300">109/4 , Manning Place Colombo 06</li>
               <li className="text-base text-gray-300">Sri Lanka</li>
@@ -70,7 +70,7 @@ const Footer = () => {
             Developed and designed by Nabeela Isham. Copyright @ 2026 Nabeela Isham.
           </p>
           <a
-            href="mailto:info@verifyawards.com"
+            href="mailto:info@certiverxia.com"
             className="mt-4 text-sm text-gray-400 transition-colors hover:text-white md:mt-0"
           >
             Privacy and support enquiries

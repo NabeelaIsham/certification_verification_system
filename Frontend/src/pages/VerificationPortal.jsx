@@ -495,7 +495,7 @@ const VerificationPortal = () => {
           
           <div class="footer">
             <p>Verified on ${new Date().toLocaleString()}</p>
-            <p>This is an official verification from the Certificate Verification System</p>
+            <p>This is an official verification from Certiverxia</p>
           </div>
         </body>
       </html>

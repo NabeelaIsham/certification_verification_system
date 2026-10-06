@@ -83,8 +83,8 @@ const Register = () => {
         <div className="flex justify-center">
           <img
             className="h-20 w-auto"
-            src="/verifyawards-logo.png"
-            alt="VerifyAwards"
+            src="/certiverxia-logo.svg"
+            alt="Certiverxia"
           />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">

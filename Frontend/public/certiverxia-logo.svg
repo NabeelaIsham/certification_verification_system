@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="64" viewBox="0 0 300 64" role="img" aria-label="Certiverxia">
+  <rect x="2" y="6" width="50" height="50" rx="14" fill="#126452"/>
+  <path d="M27 15 42 21v11c0 9-9 15-15 18-6-3-15-9-15-18V21z" fill="#e4f4d9"/>
+  <path d="m20 32 5 5 10-11" fill="none" stroke="#126452" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="37" font-family="Arial, sans-serif" font-size="31" font-weight="700" fill="#173d34">Certiverxia</text>
+  <text x="66" y="52" font-family="Arial, sans-serif" font-size="9" letter-spacing="2" fill="#42645c">CREDENTIALS YOU CAN TRUST</text>
+</svg>

@@ -148,7 +148,7 @@ const SuperAdminDashboard = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex space-x-1 -mb-px">
+          <div className="flex space-x-1 -mb-px overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}

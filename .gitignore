@@ -14,3 +14,6 @@ Tests/coverage/
 Frontend/node_modules/
 Frontend/dist/
 Frontend/.env
+.local-secrets/
+deploy/hostinger/secrets/*
+!deploy/hostinger/secrets/.gitignore
