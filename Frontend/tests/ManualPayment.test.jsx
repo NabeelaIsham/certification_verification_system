@@ -1,0 +1,34 @@
+import userEvent from '@testing-library/user-event';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
+import { ManualPayment } from '../src/components/shared/ManualPayment';
+import api from '../src/services/api';
+vi.mock('../src/services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+const subscription = { _id: 'sub', snapshot: { name: 'Professional', priceMinor: 2990000 } };
+beforeEach(() => vi.resetAllMocks());
+test('shows configured bank, fixes the reference to the selected package and submits receipt and transaction', async () => {
+  api.get.mockResolvedValue({ data: { data: { bankName: 'Test bank', accountHolder: 'Test holder', accountNumber: '123456', branch: 'Test branch' } } });
+  api.post.mockResolvedValue({ data: {} });
+  const refresh = vi.fn();
+  render(<ManualPayment subscription={subscription} refresh={refresh} />);
+  expect(await screen.findByText('123456')).toBeInTheDocument();
+  expect(screen.getByLabelText('Payment reference (package)')).toHaveValue('Professional');
+  expect(screen.getByLabelText('Payment reference (package)')).toHaveAttribute('readonly');
+  fireEvent.change(screen.getByLabelText('Bank transaction number'), { target: { value: 'BANK-123' } });
+  const file = new File(['receipt'], 'receipt.png', { type: 'image/png' });
+  await userEvent.upload(screen.getByLabelText(/Receipt image/), file);
+  expect(screen.getByLabelText(/Receipt image/).files).toHaveLength(1);
+  fireEvent.submit(screen.getByRole('button', { name: 'Submit payment receipt' }).closest('form'));
+  await waitFor(() => expect(refresh).toHaveBeenCalled());
+  const [url, body] = api.post.mock.calls[0];
+  expect(url).toBe('/subscriptions/sub/payment-proof');
+  expect(body.get('transactionNumber')).toBe('BANK-123');
+  expect(body.get('receipt')).toBe(file);
+  expect(body.has('packageReference')).toBe(false);
+});
+test('does not offer payment upload when bank details are missing', async () => {
+  api.get.mockResolvedValue({ data: { data: null } });
+  render(<ManualPayment subscription={subscription} refresh={vi.fn()} />);
+  expect(await screen.findByText(/Bank details are not configured/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Submit payment receipt' })).not.toBeInTheDocument();
+});

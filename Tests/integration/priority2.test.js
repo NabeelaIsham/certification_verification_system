@@ -440,6 +440,56 @@ const { validateTransactions } = require('../../Backend/scripts/validateStagingT
 const subscriptions = require('../../Backend/services/subscriptionService');
 const { Plan, Subscription, UsageTransaction, Payment, SubscriptionEvent } = require('../../Backend/models/Saas');
 
+describe('Manual receipt submission and review', () => {
+  let pending, reviewer, reviewerToken;
+  beforeEach(async () => {
+    process.env.SAAS_ENABLED = 'true';
+    process.env.PAYMENT_BANK_NAME = 'Test Bank'; process.env.PAYMENT_ACCOUNT_HOLDER = 'Test Holder';
+    process.env.PAYMENT_ACCOUNT_NUMBER = '123456'; process.env.PAYMENT_BANK_BRANCH = 'Test Branch';
+    reviewer = { _id: id(), userType: 'superadmin', email: 'receipt-reviewer@example.com', isActive: true };
+    await User.collection.insertOne(reviewer); reviewerToken = signAccessToken(reviewer);
+    const plan = await Plan.create({ name: 'Receipt package', priceMinor: 1490000, active: true, limits: { certificates: 100, teachers: 2, templates: 2 } });
+    pending = await subscriptions.requestSubscription(a._id, plan._id, 'request-receipt-test');
+  });
+  afterEach(() => {
+    process.env.SAAS_ENABLED = 'false';
+    for (const key of ['PAYMENT_BANK_NAME', 'PAYMENT_ACCOUNT_HOLDER', 'PAYMENT_ACCOUNT_NUMBER', 'PAYMENT_BANK_BRANCH']) delete process.env[key];
+  });
+  const upload = async (subId, bytes, auth = token) => request(app).post(`/api/subscriptions/${subId}/payment-proof`)
+    .set('Authorization', `Bearer ${auth}`).field('transactionNumber', 'BANK-RECEIPT-123')
+    .attach('receipt', bytes, { filename: 'receipt.png', contentType: 'image/png' });
+  test('proof stays pending, is tenant-private, and requires current receipt approval before allocating credits', async () => {
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { reference: 'BANK-RECEIPT-123', amountMinor: 1490000 }, reviewerToken)).status).toBe(409);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    let saved = await Subscription.findById(pending._id);
+    expect(saved.status).toBe('pending'); expect(saved.allocated).toBe(0);
+    expect(saved.paymentProof.packageReference).toBe('Receipt package');
+    expect(saved.paymentProof.receipt).toBeUndefined();
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`)).status).toBe(200);
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`, {}, signAccessToken(b))).status).toBe(404);
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`, {}, reviewerToken)).headers['cache-control']).toBe('private, no-store');
+    const body = { reference: 'BANK-RECEIPT-123', amountMinor: 1490000, receiptVersion: saved.paymentProof.receiptVersion };
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, body)).status).toBe(403);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { ...body, receiptVersion: 'stale' }, reviewerToken)).status).toBe(409);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, body, reviewerToken)).status).toBe(200);
+    saved = await Subscription.findById(pending._id);
+    expect(saved.status).toBe('active'); expect(saved.allocated).toBe(100); expect(saved.paymentProof.status).toBe('approved');
+    expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(1);
+  });
+  test('rejects spoofed images and cross-tenant uploads; permits corrected receipt after rejection', async () => {
+    expect((await upload(pending._id, Buffer.from('not a PNG'))).status).toBe(400);
+    expect((await upload(pending._id, await pngBytes(), signAccessToken(b))).status).toBe(404);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    const before = await Subscription.findById(pending._id);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(409);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/reject-receipt`, { reason: 'Amount is not visible', receiptVersion: before.paymentProof.receiptVersion }, reviewerToken)).status).toBe(200);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    const after = await Subscription.findById(pending._id);
+    expect(after.paymentProof.receiptVersion).not.toBe(before.paymentProof.receiptVersion);
+    expect(after.status).toBe('pending');
+  });
+});
+
 describe('Manual SaaS subscriptions and real certificate issuance', () => {
   let plan, subscription, admin, adminToken;
   beforeEach(async () => {
@@ -449,7 +499,8 @@ describe('Manual SaaS subscriptions and real certificate issuance', () => {
     plan = await Plan.create({ name: 'Test annual plan', priceMinor: 1490000, active: true,
       limits: { certificates: 1, teachers: 2, templates: 2 }, features: { bulkCertificateIssue: true, secureSharing: true } });
     subscription = await subscriptions.requestSubscription(a._id, plan._id, 'request-subscription-a');
-    subscription = await subscriptions.activateManual(subscription._id, admin._id, { reference: 'BANK-A', amountMinor: 1490000 });
+    await Subscription.updateOne({ _id: subscription._id }, { $set: { paymentProof: { transactionNumber: 'BANK-A', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-a' } } });
+    subscription = await subscriptions.activateManual(subscription._id, admin._id, { reference: 'BANK-A', amountMinor: 1490000, receiptVersion: 'fixture-a' });
   });
   afterEach(() => { process.env.SAAS_ENABLED = 'false'; });
 
@@ -457,9 +508,10 @@ describe('Manual SaaS subscriptions and real certificate issuance', () => {
     const pending = await subscriptions.requestSubscription(b._id, plan._id, 'request-subscription-b');
     expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { reference: 'BANK-B', amountMinor: 1 }, adminToken)).status).toBe(400);
     expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(0);
-    const results = await Promise.allSettled([1, 2].map(() => subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000 })));
+    await Subscription.updateOne({ _id: pending._id }, { $set: { paymentProof: { transactionNumber: 'BANK-B', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-b' } } });
+    const results = await Promise.allSettled([1, 2].map(() => subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000, receiptVersion: 'fixture-b' })));
     expect(results.some(result => result.status === 'fulfilled')).toBe(true);
-    await subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000 });
+    await subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000, receiptVersion: 'fixture-b' });
     expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(1);
     expect(await UsageTransaction.countDocuments({ subscriptionId: pending._id, event: 'credit_allocated' })).toBe(1);
     expect(await SubscriptionEvent.countDocuments({ subscriptionId: pending._id, event: 'manual_payment_activated' })).toBe(1);
@@ -585,7 +637,8 @@ describe('Manual SaaS subscriptions and real certificate issuance', () => {
   test('renewal creates a new snapshot and leaves the old ledger intact', async () => {
     await issue(); await Subscription.updateOne({ _id: subscription._id }, { $set: { endsAt: new Date(0) } });
     const renewed = await subscriptions.requestSubscription(a._id, plan._id, 'request-renewal-key');
-    await subscriptions.activateManual(renewed._id, admin._id, { reference: 'BANK-RENEWAL', amountMinor: 1490000 });
+    await Subscription.updateOne({ _id: renewed._id }, { $set: { paymentProof: { transactionNumber: 'BANK-RENEWAL', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-renewal' } } });
+    await subscriptions.activateManual(renewed._id, admin._id, { reference: 'BANK-RENEWAL', amountMinor: 1490000, receiptVersion: 'fixture-renewal' });
     expect((await Subscription.findById(subscription._id)).status).toBe('expired');
     expect((await Subscription.findById(renewed._id)).consumed).toBe(0);
     expect(await UsageTransaction.countDocuments({ subscriptionId: subscription._id, event: 'credit_consumed' })).toBe(1);

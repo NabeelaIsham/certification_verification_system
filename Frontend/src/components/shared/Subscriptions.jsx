@@ -1,3 +1,4 @@
+import { ManualPayment, ReceiptReview } from './ManualPayment';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
@@ -61,8 +62,9 @@ export function InstituteSubscription() {
       <p>Starts: {date(current.startsAt)} · Expires: {date(current.endsAt)}</p><p>Teachers: {data.teachers}/{current.snapshot.limits.teachers} · Templates: {data.templates}/{current.snapshot.limits.templates}</p>
       {percent >= 75 && <p role="status">{percent >= 100 ? 'Certificate allowance exhausted.' : `${percent >= 90 ? '90%' : '75%'} usage threshold reached.`}</p>}
       {days !== null && days <= 30 && <p role="status">{days <= 0 ? 'Subscription expired. Request renewal to continue issuing.' : `${days <= 7 ? 'Renew soon: ' : ''}${days} days until expiry.`}</p>}
-      {current.effectiveStatus === 'pending' && <p>Request saved. Contact the administrator for bank-payment instructions. Activation follows payment verification.</p>}
+      {current.effectiveStatus === 'pending' && <p>Request saved. Follow the bank-payment instructions below. Activation follows receipt and payment verification.</p>}
     </article>}
+    {current?.effectiveStatus === 'pending' && <ManualPayment key={current._id} subscription={current} refresh={refresh} />}
     <h2 className="text-xl">Packages and renewal</h2>{outstanding && <p>Contact the administrator about an existing pending, active or suspended subscription. A new request is available after expiry.</p>}
     <PlanCards plans={plans} select={select} disabled={busy || outstanding || !data} />
     <h2 className="text-xl">Payment history</h2>{data?.payments.length === 0 && <p>No recorded payments.</p>}
@@ -84,10 +86,11 @@ function PlanEditor({ plan, save, busy }) {
   </form>;
 }
 function SubscriptionActions({ sub, act, busy }) {
-  const [reference, setReference] = useState(''), [amount, setAmount] = useState(''), [reason, setReason] = useState('');
+  const reference = sub.paymentProof?.transactionNumber || '';
+  const [amount, setAmount] = useState(''), [reason, setReason] = useState('');
   const expired = sub.endsAt && new Date(sub.endsAt) <= new Date();
-  return <div className="space-y-3">{sub.status === 'pending' && <form className="space-y-2" onSubmit={event => { event.preventDefault(); act(`/subscriptions/admin/subscriptions/${sub._id}/activate`, { reference, amountMinor: Math.round(Number(amount) * 100) }); }}>
-    <label>Bank reference<input required minLength={3} maxLength={100} className={input} value={reference} onChange={event => setReference(event.target.value)} /></label>
+  return <div className="space-y-3"><ReceiptReview sub={sub} act={act} busy={busy} />{sub.status === 'pending' && sub.paymentProof?.status === 'submitted' && <form className="space-y-2" onSubmit={event => { event.preventDefault(); act(`/subscriptions/admin/subscriptions/${sub._id}/activate`, { reference, amountMinor: Math.round(Number(amount) * 100), receiptVersion: sub.paymentProof.receiptVersion }); }}>
+    <label>Bank transaction number<input required minLength={3} maxLength={100} className={input} value={reference} readOnly /></label>
     <label>Amount received (LKR)<input required type="number" min="0" step="0.01" className={input} value={amount} onChange={event => setAmount(event.target.value)} /></label>
     <label className="block"><input type="checkbox" required /> I verified this bank payment.</label><button className={button} disabled={busy}>Record payment and activate</button>
   </form>}{['pending', 'active', 'suspended'].includes(sub.status) && <form className="flex gap-2" onSubmit={event => { event.preventDefault(); act(`/subscriptions/admin/subscriptions/${sub._id}/status`, { status: sub.status === 'pending' ? 'cancelled' : expired ? 'expired' : sub.status === 'active' ? 'suspended' : 'active', reason }); }}>
@@ -113,7 +116,7 @@ export function AdminSubscriptions() {
     {loaded && !plans.length && <button className={button} disabled={busy} onClick={() => act('/subscriptions/admin/plans/bootstrap', {})}>Create the three draft packages</button>}
     <div className="flex flex-wrap gap-3">{plans.map(plan => <button className="rounded border p-3" key={plan._id} onClick={() => setEditing(plan)}>{plan.name} · {money(plan.priceMinor)} · {plan.active ? 'Active' : 'Hidden'}</button>)}<button className={button} onClick={() => setEditing({})}>New plan</button></div>
     {editing && <PlanEditor key={editing._id || 'new'} plan={editing._id ? editing : null} save={save} busy={busy} />}<p>Plan edits affect future requests. Purchased prices and limits remain unchanged.</p>
-    <h2 className="text-xl">Subscriptions (latest 200)</h2>{subscriptions.map(sub => <article key={sub._id} className="space-y-3 rounded border bg-white p-5"><h3 className="font-semibold">{sub.instituteId?.instituteName || sub.instituteId?._id || 'Institute unavailable'} · {sub.snapshot.name}</h3>
+    <h2 className="text-xl">Subscriptions (latest 200)</h2>{subscriptions.map(sub => <article key={`${sub._id}-${sub.paymentProof?.receiptVersion || 'none'}`} className="space-y-3 rounded border bg-white p-5"><h3 className="font-semibold">{sub.instituteId?.instituteName || sub.instituteId?._id || 'Institute unavailable'} · {sub.snapshot.name}</h3>
       <p>{sub.status === 'active' && new Date(sub.endsAt) <= new Date() ? 'expired' : sub.status} · {money(sub.snapshot.priceMinor)} · {sub.consumed}/{sub.allocated} consumed · {sub.reserved} reserved · Expires {date(sub.endsAt)}</p><SubscriptionActions sub={sub} act={act} busy={busy} />
     </article>)}<h2 className="text-xl">Recent audit events</h2><ul>{events.map(event => <li key={event._id}>{date(event.createdAt)} · {event.event.replaceAll('_', ' ')}</li>)}</ul>
   </section>;

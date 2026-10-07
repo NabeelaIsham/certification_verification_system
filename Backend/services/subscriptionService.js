@@ -49,7 +49,7 @@ function annualExpiry(start) {
   if (end.getUTCMonth() !== start.getUTCMonth()) end.setUTCDate(0);
   return end;
 }
-async function activateManual(subscriptionId, actorId, { reference, amountMinor }) {
+async function activateManual(subscriptionId, actorId, { reference, amountMinor, receiptVersion }) {
   if (typeof reference !== 'string' || !/^[a-zA-Z0-9_:/-]{3,100}$/.test(reference) || !Number.isSafeInteger(amountMinor)) throw fail(400, 'Bank reference and exact amount in minor currency units required.');
   reference = reference.toUpperCase();
   return transaction(async session => {
@@ -62,11 +62,15 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor 
       return sub;
     }
     if (sub.status !== 'pending') throw fail(409, 'Only pending subscriptions can be activated.');
+    if (sub.paymentProof?.status !== 'submitted' || !receiptVersion || sub.paymentProof.receiptVersion !== receiptVersion || sub.paymentProof.transactionNumber !== reference) {
+      throw fail(409, 'Review the current uploaded receipt and its transaction number before activation.');
+    }
     if (!await User.exists({ _id: sub.instituteId, userType: 'institute', isActive: true, isVerifiedByAdmin: true }).session(session)) throw fail(403, 'Institute is unavailable.');
     const startsAt = new Date();
     sub.set({ status: 'active', activation: 'manual', startsAt, endsAt: annualExpiry(startsAt), allocated: sub.snapshot.limits.certificates });
+    sub.paymentProof.status = 'approved'; sub.paymentProof.reviewedAt = startsAt; sub.paymentProof.reviewedBy = actorId;
     await sub.save({ session });
-    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, amountMinor, recordedBy: actorId }], { session });
+    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId }], { session });
     await UsageTransaction.create([{ instituteId: sub.instituteId, subscriptionId, key: 'initial-allocation', event: 'credit_allocated', units: sub.allocated }], { session });
     await audit({ instituteId: sub.instituteId, subscriptionId, actorId, event: 'manual_payment_activated', details: { amountMinor, reference } }, session);
     return sub;

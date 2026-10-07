@@ -16,11 +16,21 @@ const subscriptionSchema = new Schema({
   instituteId: { ...id, ref: 'User' }, planId: id, requestKey: { type: String, required: true },
   snapshot: { type: snapshot, required: true, immutable: true },
   status: { type: String, enum: ['pending', 'active', 'expired', 'suspended', 'cancelled'], default: 'pending' },
+  paymentProof: {
+    transactionNumber: { type: String, maxlength: 100 },
+    packageReference: String,
+    status: { type: String, enum: ['submitted', 'rejected', 'approved'] },
+    submittedAt: Date, reviewedAt: Date, reviewedBy: Schema.Types.ObjectId,
+    rejectionReason: String, receiptVersion: String,
+    receipt: { type: Buffer, select: false },
+    receiptType: String
+  },
   startsAt: Date, endsAt: Date, allocated: { ...integer(), default: 0 },
   consumed: { ...integer(), default: 0 }, reserved: { ...integer(), default: 0 },
   entitlementVersion: { type: Number, default: 0 }, activation: { type: String, enum: ['manual'] }
 }, { timestamps: true });
 subscriptionSchema.index({ instituteId: 1, requestKey: 1 }, { unique: true });
+subscriptionSchema.index({ 'paymentProof.transactionNumber': 1 }, { unique: true, partialFilterExpression: { 'paymentProof.transactionNumber': { $type: 'string' } } });
 subscriptionSchema.index({ instituteId: 1 }, { unique: true, partialFilterExpression: { status: { $in: ['pending', 'active', 'suspended'] } } });
 const usageSchema = new Schema({
   instituteId: id, subscriptionId: id, key: { type: String, required: true },
@@ -37,6 +47,7 @@ const auditSchema = new Schema({
 const paymentSchema = new Schema({
   instituteId: id, subscriptionId: { ...id, unique: true },
   reference: { type: String, required: true, unique: true }, amountMinor: integer(),
+  packageReference: String,
   currency: { type: String, enum: ['LKR'], default: 'LKR' },
   gateway: { type: String, enum: ['manual'], default: 'manual' },
   status: { type: String, enum: ['paid'], default: 'paid' }, recordedBy: id, paidAt: { type: Date, default: Date.now }

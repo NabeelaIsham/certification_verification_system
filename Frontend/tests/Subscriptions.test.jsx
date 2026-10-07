@@ -34,13 +34,13 @@ test('institute dashboard shows quota warnings and blocks a second active reques
   expect(screen.getByText(/Renew soon/)).toBeInTheDocument();
 });
 test('manual activation submits entered bank reference and exact minor-unit amount', async () => {
-  const sub = { _id: 'subscription', instituteId: { instituteName: 'Test Institute' }, snapshot: plan, status: 'pending', consumed: 0, allocated: 0, reserved: 0 };
+  const sub = { _id: 'subscription', instituteId: { instituteName: 'Test Institute' }, snapshot: plan, status: 'pending', paymentProof: { transactionNumber: 'BANK-123', status: 'submitted', receiptVersion: 'receipt-1' }, consumed: 0, allocated: 0, reserved: 0 };
   api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/plans') ? [plan] : url.endsWith('/events') ? [] : [sub] } }));
   api.post.mockResolvedValue({ data: {} });
   render(<AdminSubscriptions />);
-  fireEvent.change(await screen.findByLabelText('Bank reference'), { target: { value: 'BANK-123' } });
+  expect(await screen.findByLabelText('Bank transaction number')).toHaveValue('BANK-123');
   fireEvent.change(screen.getByLabelText('Amount received (LKR)'), { target: { value: '14900' } });
   fireEvent.click(screen.getByLabelText('I verified this bank payment.'));
   fireEvent.click(screen.getByRole('button', { name: 'Record payment and activate' }));
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/subscriptions/admin/subscriptions/subscription/activate', { reference: 'BANK-123', amountMinor: 1490000 }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/subscriptions/admin/subscriptions/subscription/activate', { reference: 'BANK-123', amountMinor: 1490000, receiptVersion: 'receipt-1' }));
 });
