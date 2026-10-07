@@ -1,3 +1,4 @@
+import ShareCertificate from '../components/student/ShareCertificate';
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import {
@@ -787,6 +788,8 @@ const VerificationPortal = () => {
                 </div>
               </div>
             )}
+
+            {verificationResult.status === 'issued' && <ShareCertificate key={verificationResult.certificateCode} certificateCode={verificationResult.certificateCode} />}
 
             {/* Certificate Image */}
             {verificationResult.certificateImage && !imageError ? (

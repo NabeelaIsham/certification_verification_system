@@ -1,114 +1,47 @@
-import { useState } from 'react'
+import { useId, useState } from 'react';
 
-const ShareCertificate = ({ certificateId }) => {
-  const [shareMethod, setShareMethod] = useState('link')
-  const [copied, setCopied] = useState(false)
-
-  const certificateUrl = `${window.location.origin}/certificates/${certificateId}`
-
-  const copyToClipboard = async () => {
+const ShareCertificate = ({ certificateCode }) => {
+  const inputId = useId();
+  const [message, setMessage] = useState('');
+  if (!certificateCode) return null;
+  const url = 'https://certiverxia.com/verify/' + encodeURIComponent(certificateCode);
+  const text = 'View my certificate on Certiverxia';
+  const options = [
+    ['LinkedIn', 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(url)],
+    ['Facebook', 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url)],
+    ['WhatsApp', 'https://wa.me/?text=' + encodeURIComponent(text + ' ' + url)],
+    ['X', 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text)]
+  ];
+  const copy = async () => {
     try {
-      await navigator.clipboard.writeText(certificateUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy: ', err)
+      await navigator.clipboard.writeText(url);
+      setMessage('Verification link copied.');
+    } catch {
+      setMessage('Copy is unavailable. Select the link above and copy it manually.');
     }
-  }
-
-  const shareOptions = [
-    { method: 'link', name: 'Copy Link', icon: '🔗' },
-    { method: 'email', name: 'Email', icon: '📧' },
-    { method: 'whatsapp', name: 'WhatsApp', icon: '💬' },
-    { method: 'linkedin', name: 'LinkedIn', icon: '💼' }
-  ]
-
+  };
+  const share = async () => {
+    try {
+      await navigator.share({ title: 'Certiverxia certificate', text, url });
+    } catch (error) {
+      if (error.name !== 'AbortError') setMessage('Sharing is unavailable. Use a social button or copy the link.');
+    }
+  };
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold mb-4">Share Certificate</h2>
-      
-      <div className="space-y-4">
-        {/* Share Method Selection */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {shareOptions.map((option) => (
-            <button
-              key={option.method}
-              onClick={() => setShareMethod(option.method)}
-              className={`p-3 text-center rounded-lg border transition-colors duration-200 ${
-                shareMethod === option.method
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="text-2xl mb-1">{option.icon}</div>
-              <div className="text-sm font-medium">{option.name}</div>
-            </button>
-          ))}
-        </div>
-
-        {/* Share Content */}
-        {shareMethod === 'link' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Certificate Link
-            </label>
-            <div className="flex">
-              <input
-                type="text"
-                value={certificateUrl}
-                readOnly
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg bg-gray-50"
-              />
-              <button
-                onClick={copyToClipboard}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-lg"
-              >
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {shareMethod === 'email' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Addresses
-            </label>
-            <textarea
-              placeholder="Enter email addresses separated by commas"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              rows="3"
-            />
-            <button className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-              Send Emails
-            </button>
-          </div>
-        )}
-
-        {['whatsapp', 'linkedin'].includes(shareMethod) && (
-          <div className="text-center py-4">
-            <p className="text-gray-600 mb-4">
-              Share your certificate on {shareMethod === 'whatsapp' ? 'WhatsApp' : 'LinkedIn'}
-            </p>
-            <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold">
-              Share on {shareMethod === 'whatsapp' ? 'WhatsApp' : 'LinkedIn'}
-            </button>
-          </div>
-        )}
-
-        {/* Preview */}
-        <div className="border-t pt-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Preview</h3>
-          <div className="bg-gray-50 p-4 rounded-lg border">
-            <p className="text-gray-600">
-              Check out my certificate for Bachelor of Information Technology from University of Moratuwa!
-            </p>
-            <p className="text-sm text-gray-400 mt-2">{certificateUrl}</p>
-          </div>
-        </div>
+    <section aria-label="Share certificate" className="my-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
+      <h2 className="text-xl font-semibold text-emerald-950">Share your achievement</h2>
+      <p className="mt-2 text-sm text-gray-700">Share the public verification page. Anyone with the link can see its public certificate details; private files stay protected.</p>
+      <div className="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {options.map(([name, href]) => <a key={name} href={href} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-emerald-300 bg-white px-4 py-3 text-center font-medium text-emerald-900 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2">{name}</a>)}
       </div>
-    </div>
-  )
-}
-
-export default ShareCertificate
+      <label htmlFor={inputId} className="text-sm font-medium text-gray-700">Public verification link</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <input id={inputId} readOnly value={url} onFocus={event => event.target.select()} className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white p-3 text-sm" />
+        <button type="button" onClick={copy} className="rounded-lg bg-emerald-800 px-4 py-3 text-white">Copy link</button>
+      </div>
+      {typeof navigator.share === 'function' && <button type="button" onClick={share} className="mt-3 rounded-lg border border-emerald-700 px-4 py-2 text-emerald-900">Share with an app</button>}
+      <p role="status" className="mt-2 text-sm text-gray-700">{message}</p>
+    </section>
+  );
+};
+export default ShareCertificate;

@@ -162,9 +162,7 @@ function App() {
               <Route 
                 path="/student/dashboard" 
                 element={
-                  <ProtectedRoute allowedUserType="student">
-                    <StudentDashboard API_URL={API_URL} />
-                  </ProtectedRoute>
+                  <StudentDashboard />
                 } 
               />
 
