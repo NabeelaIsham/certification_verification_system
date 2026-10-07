@@ -17,14 +17,16 @@ export function ReceiptDownload({ subscriptionId }) {
 
 export function ManualPayment({ subscription, refresh }) {
   const [bank, setBank] = useState(null), [loaded, setLoaded] = useState(false);
+  const [bankRefresh, setBankRefresh] = useState(0);
   const [transactionNumber, setTransactionNumber] = useState(''), [receipt, setReceipt] = useState(null);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
+    setBank(null); setLoaded(false);
     api.get('/subscriptions/bank-details').then(res => { if (active) { setBank(res.data.data); setLoaded(true); } })
       .catch(() => { if (active) setError('Bank details could not be loaded. Please refresh before paying.'); });
     return () => { active = false; };
-  }, []);
+  }, [bankRefresh]);
   async function submit(event) {
     event.preventDefault(); setError('');
     if (!receipt || !['image/jpeg', 'image/png'].includes(receipt.type) || receipt.size > 5 * 1024 * 1024) {
@@ -41,6 +43,7 @@ export function ManualPayment({ subscription, refresh }) {
   const proof = subscription.paymentProof;
   return <section className="saas-current-plan space-y-4" aria-label="Manual bank payment">
     <h2 className="text-xl font-semibold">Pay by bank transfer</h2>
+    <button type="button" className="saas-button" onClick={() => { setError(''); setBankRefresh(value => value + 1); }}>Refresh bank details</button>
     <p>Amount: {new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR' }).format(subscription.snapshot.priceMinor / 100)}</p>
     <label className="block">Payment reference (package)<input className="saas-input" readOnly value={subscription.snapshot.name} /></label>
     <p>Use this package name as the reference on your bank transfer receipt. Enter the bank's transaction number separately below.</p>

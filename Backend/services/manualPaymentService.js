@@ -1,15 +1,32 @@
 const sharp = require('sharp');
 const crypto = require('crypto');
-const { Subscription } = require('../models/Saas');
+const { Subscription, BankPaymentDetails } = require('../models/Saas');
 const service = require('./subscriptionService');
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
-function bankDetails(env = process.env) {
+async function bankDetails(env = process.env) {
+  const saved = await BankPaymentDetails.findById('manual-payment').lean();
+  if (saved) return saved;
   const bank = {
     bankName: env.PAYMENT_BANK_NAME?.trim(), accountHolder: env.PAYMENT_ACCOUNT_HOLDER?.trim(),
     accountNumber: env.PAYMENT_ACCOUNT_NUMBER?.trim(), branch: env.PAYMENT_BANK_BRANCH?.trim()
   };
   return Object.values(bank).every(Boolean) ? bank : null;
+}
+
+async function saveBankDetails(actorId, input) {
+  const fields = { bankName: 120, accountHolder: 160, accountNumber: 60, branch: 120 };
+  if (!input || Object.keys(input).some(key => !Object.hasOwn(fields, key)) ||
+      Object.entries(fields).some(([key, max]) => typeof input[key] !== 'string' || !input[key].trim() || input[key].trim().length > max || [...input[key]].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127))) {
+    throw fail(400, 'Enter valid bank name, account holder, account number and branch.');
+  }
+  const details = Object.fromEntries(Object.keys(fields).map(key => [key, input[key].trim()]));
+  return service.transaction(async session => {
+    const before = await BankPaymentDetails.findById('manual-payment').session(session).lean();
+    const after = await BankPaymentDetails.findByIdAndUpdate('manual-payment', { $set: details }, { upsert: true, new: true, runValidators: true, session });
+    await service.audit({ actorId, event: 'payment_bank_details_updated', details: { before, after: after.toObject() } }, session);
+    return after;
+  });
 }
 
 async function receiptImage(file) {
@@ -27,7 +44,7 @@ async function receiptImage(file) {
 }
 
 async function submitProof(instituteId, subscriptionId, transactionNumber, file) {
-  if (!bankDetails()) throw fail(409, 'Bank payment details are not configured. Contact support before paying.');
+  if (!await bankDetails()) throw fail(409, 'Bank payment details are not configured. Contact support before paying.');
   if (typeof transactionNumber !== 'string' || !/^[a-zA-Z0-9_:/-]{3,100}$/.test(transactionNumber.trim())) {
     throw fail(400, 'Enter a valid bank transaction number (3–100 characters).');
   }
@@ -57,4 +74,4 @@ async function rejectProof(subscriptionId, actorId, reason, receiptVersion) {
     return sub;
   });
 }
-module.exports = { bankDetails, receiptImage, submitProof, rejectProof };
+module.exports = { bankDetails, saveBankDetails, receiptImage, submitProof, rejectProof };

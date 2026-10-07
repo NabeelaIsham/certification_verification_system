@@ -45,6 +45,8 @@ router.get('/mine', authorizeInstitute, handler(async req => {
 }));
 router.post('/requests', authorizeInstitute, handler(req => service.requestSubscription(req.userId, req.body.planId, req.get('Idempotency-Key'))));
 router.use('/admin', authorizeSuperAdmin);
+router.get('/admin/bank-details', handler(() => manualPayment.bankDetails()));
+router.put('/admin/bank-details', handler(req => manualPayment.saveBankDetails(req.userId, req.body)));
 router.get('/admin/plans', handler(() => Plan.find({}).sort({ displayOrder: 1 })));
 router.post('/admin/plans/bootstrap', handler(req => service.transaction(async session => {
   if (await Plan.exists({}).session(session)) throw Object.assign(new Error('The plan catalogue already exists.'), { status: 409 });

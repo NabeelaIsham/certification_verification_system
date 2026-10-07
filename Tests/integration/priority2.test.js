@@ -458,6 +458,21 @@ describe('Manual receipt submission and review', () => {
   const upload = async (subId, bytes, auth = token) => request(app).post(`/api/subscriptions/${subId}/payment-proof`)
     .set('Authorization', `Bearer ${auth}`).field('transactionNumber', 'BANK-RECEIPT-123')
     .attach('receipt', bytes, { filename: 'receipt.png', contentType: 'image/png' });
+  test('only super admins can update durable bank instructions, and every change is audited', async () => {
+    const url = '/api/subscriptions/admin/bank-details';
+    const bank = { bankName: 'New Bank', accountHolder: 'New Holder', accountNumber: '00123456', branch: 'Main' };
+    expect((await request(app).put(url).send(bank)).status).toBe(401);
+    expect((await api('put', url, bank)).status).toBe(403);
+    expect((await api('get', url)).status).toBe(403);
+    expect((await api('put', url, { ...bank, branch: '' }, reviewerToken)).status).toBe(400);
+    expect((await api('put', url, { ...bank, extra: true }, reviewerToken)).status).toBe(400);
+    expect((await api('put', url, bank, reviewerToken)).status).toBe(200);
+    expect((await api('get', '/api/subscriptions/bank-details')).body.data).toMatchObject(bank);
+    expect((await api('put', url, { ...bank, accountNumber: '00987654' }, reviewerToken)).status).toBe(200);
+    expect((await api('get', '/api/subscriptions/bank-details')).body.data.accountNumber).toBe('00987654');
+    expect(await SubscriptionEvent.countDocuments({ event: 'payment_bank_details_updated', actorId: reviewer._id })).toBe(2);
+    expect((await Subscription.findById(pending._id)).status).toBe('pending');
+  });
   test('proof stays pending, is tenant-private, and requires current receipt approval before allocating credits', async () => {
     expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { reference: 'BANK-RECEIPT-123', amountMinor: 1490000 }, reviewerToken)).status).toBe(409);
     expect((await upload(pending._id, await pngBytes())).status).toBe(200);

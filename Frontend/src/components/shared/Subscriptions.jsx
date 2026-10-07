@@ -1,4 +1,5 @@
 import { ManualPayment, ReceiptReview } from './ManualPayment';
+import BankDetailsEditor from './BankDetailsEditor';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
@@ -113,6 +114,7 @@ export function AdminSubscriptions() {
   const save = value => act(`/subscriptions/admin/plans${value._id ? `/${value._id}` : ''}`, Object.fromEntries(['name', 'priceMinor', 'limits', 'features', 'active', 'recommended', 'displayOrder'].map(key => [key, value[key]])), value._id ? 'put' : 'post');
   return <section className="saas-shell saas-admin space-y-6"><PageHeading eyebrow="ADMIN WORKSPACE / SUBSCRIPTIONS" title="Plans and manual subscriptions" description="Shape your packages, review payments, and keep every institute moving forward." />{error && <p role="alert" className="text-red-700">{error}</p>}{!loaded && !error && <p>Loading subscriptions…</p>}
     {loaded && <div className="saas-metrics"><Metric label="Published plans" value={plans.filter(plan => plan.active).length} detail="Available in your catalogue" /><Metric label="Pending review" value={subscriptions.filter(sub => sub.status === 'pending').length} detail="Awaiting payment verification" /><Metric label="Active subscriptions" value={subscriptions.filter(sub => sub.status === 'active' && new Date(sub.endsAt) > new Date()).length} detail="Within the latest 200 records" /><Metric label="Suspended" value={subscriptions.filter(sub => sub.status === 'suspended').length} detail="Accounts requiring your attention" /></div>}
+    <BankDetailsEditor />
     {loaded && !plans.length && <button className={button} disabled={busy} onClick={() => act('/subscriptions/admin/plans/bootstrap', {})}>Create the three draft packages</button>}
     <div className="flex flex-wrap gap-3">{plans.map(plan => <button className="rounded border p-3" key={plan._id} onClick={() => setEditing(plan)}>{plan.name} · {money(plan.priceMinor)} · {plan.active ? 'Active' : 'Hidden'}</button>)}<button className={button} onClick={() => setEditing({})}>New plan</button></div>
     {editing && <PlanEditor key={editing._id || 'new'} plan={editing._id ? editing : null} save={save} busy={busy} />}<p>Plan edits affect future requests. Purchased prices and limits remain unchanged.</p>

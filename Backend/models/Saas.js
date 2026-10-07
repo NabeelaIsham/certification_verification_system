@@ -53,6 +53,13 @@ const paymentSchema = new Schema({
   status: { type: String, enum: ['paid'], default: 'paid' }, recordedBy: id, paidAt: { type: Date, default: Date.now }
 });
 module.exports = {
+  BankPaymentDetails: mongoose.model('BankPaymentDetails', new Schema({
+    _id: { type: String, default: 'manual-payment' },
+    bankName: { type: String, required: true, maxlength: 120 },
+    accountHolder: { type: String, required: true, maxlength: 160 },
+    accountNumber: { type: String, required: true, maxlength: 60 },
+    branch: { type: String, required: true, maxlength: 120 }
+  }, { timestamps: true })),
   Plan: mongoose.model('Plan', planSchema), Subscription: mongoose.model('Subscription', subscriptionSchema),
   UsageTransaction: mongoose.model('UsageTransaction', usageSchema),
   SubscriptionEvent: mongoose.model('SubscriptionEvent', auditSchema), Payment: mongoose.model('Payment', paymentSchema)
