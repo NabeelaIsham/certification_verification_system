@@ -52,6 +52,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate standalone Atlas deployment configuration
+        env:
+          DEPLOYMENT_NAME: certverify-staging-ci
+          DEPLOYMENT_ENV: staging
+          BACKEND_ENV_FILE: ./Backend/.env.example
+        run: docker compose -f docker-compose.atlas.yml config --quiet
       - name: Build backend production image
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx

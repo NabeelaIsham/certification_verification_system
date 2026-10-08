@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const Settings = require('../models/Settings');
+const { assertDeliveryAllowed } = require('./deliveryPolicy');
 
 const DEFAULT_FROM_NAME = 'Certificate Verification System';
 
@@ -45,6 +46,7 @@ const getFromDetails = async () => {
 };
 
 const sendEmail = async ({ to, subject, html }) => {
+  assertDeliveryAllowed('email', to);
   const transporter = await createTransporter();
   const { fromName, fromEmail } = await getFromDetails();
 
