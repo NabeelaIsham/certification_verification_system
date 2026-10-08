@@ -240,7 +240,17 @@ const Register = () => {
             checked={formData.agreeToTerms}
             onChange={handleChange}
           />
-          <span>I agree to the Terms and Conditions and Privacy Policy.</span>
+          <span>
+            I agree to the{" "}
+            <Link to="/terms" target="_blank" rel="noopener noreferrer">
+              Terms and Conditions
+            </Link>{" "}
+            and acknowledge the{" "}
+            <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+              Privacy Policy
+            </Link>
+            . <span className="sr-only">These links open in a new tab.</span>
+          </span>
         </label>
         {error && (
           <div className="cvx-alert" role="alert">

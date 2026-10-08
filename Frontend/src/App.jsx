@@ -15,6 +15,7 @@ import Footer from './components/shared/Footer'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import LegalPages from './pages/LegalPages'
 import ForgotPassword from './pages/Forgotpassword'
 import VerificationPortal from './pages/VerificationPortal'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
@@ -88,6 +89,8 @@ function App() {
               {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription/payment/:subscriptionId" element={<ProtectedRoute allowedUserType="institute"><PackagePayment /></ProtectedRoute>} />}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/terms" element={<LegalPages kind="terms" />} />
+              <Route path="/privacy" element={<LegalPages kind="privacy" />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/verify" element={<VerificationPortal />} />
               <Route path="/verify/:code" element={<VerificationPortal />} />
