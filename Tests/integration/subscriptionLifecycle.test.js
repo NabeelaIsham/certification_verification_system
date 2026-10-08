@@ -1,4 +1,4 @@
-jest.mock('../../Backend/utils/emailService', () => ({ sendSubscriptionExpiredEmail: jest.fn() }));
+jest.mock('../../Backend/utils/emailService', () => ({ sendSubscriptionExpiredEmail: jest.fn(), sendPaidInvoiceEmail: jest.fn() }));
 process.env.NODE_ENV = 'test';
 process.env.SAAS_ENABLED = 'true';
 process.env.JWT_SECRET = 'subscription-lifecycle-integration-secret';
@@ -8,7 +8,7 @@ const express = require('express');
 const request = require('supertest');
 const User = require('../../Backend/models/User');
 const Notification = require('../../Backend/models/Notification');
-const { Plan, Subscription, Payment, SubscriptionExpiryEmail, SubscriptionEvent } = require('../../Backend/models/Saas');
+const { Plan, Subscription, Payment, SubscriptionExpiryEmail, SubscriptionEvent, PaymentInvoiceEmail } = require('../../Backend/models/Saas');
 const service = require('../../Backend/services/subscriptionService');
 const lifecycle = require('../../Backend/services/subscriptionLifecycleService');
 const analytics = require('../../Backend/services/subscriberAnalyticsService');
@@ -39,6 +39,71 @@ beforeEach(async () => {
   plan = await Plan.create({ name: 'Starter', priceMinor: 1490050, active: true, limits: { certificates: 100, teachers: 2, templates: 2 } });
 });
 afterAll(async () => { await mongoose.disconnect(); await replset?.stop(); });
+
+test('paid upgrade preserves access during review, switches atomically, and queues one paid invoice', async () => {
+  const old = await subscription({ endsAt: new Date(Date.now() + 86400000), consumed: 12 });
+  const higher = await Plan.create({ name: 'Professional', priceMinor: plan.priceMinor * 2, active: true,
+    limits: { certificates: 500, teachers: 5, templates: 5 } });
+  await expect(service.requestSubscription(institute._id, plan._id, String(id()))).rejects.toMatchObject({ status: 409 });
+  const upgrade = await service.requestSubscription(institute._id, higher._id, String(id()));
+  expect(String(upgrade.replacesSubscriptionId)).toBe(String(old._id));
+  expect(String((await service.requireActiveSubscription(institute._id))._id)).toBe(String(old._id));
+  expect(await PaymentInvoiceEmail.countDocuments()).toBe(0);
+  upgrade.paymentProof = { status: 'submitted', transactionNumber: 'UPGRADE-123', receiptVersion: 'upgrade-proof' };
+  await upgrade.save();
+  const approve = () => service.activateManual(upgrade._id, admin._id, { reference: 'UPGRADE-123', amountMinor: higher.priceMinor, receiptVersion: 'upgrade-proof' });
+  await Subscription.updateOne({ _id: old._id }, { $set: { reserved: 1 } });
+  await expect(approve()).rejects.toMatchObject({ status: 409 });
+  expect(await PaymentInvoiceEmail.countDocuments()).toBe(0);
+  await Subscription.updateOne({ _id: old._id }, { $set: { reserved: 0 } });
+  await approve(); await approve();
+  expect((await Subscription.findById(old._id)).status).toBe('expired');
+  const active = await service.requireActiveSubscription(institute._id);
+  expect(String(active._id)).toBe(String(upgrade._id)); expect(active.allocated).toBe(500); expect(active.consumed).toBe(0);
+  expect(await Payment.countDocuments()).toBe(1); expect(await PaymentInvoiceEmail.countDocuments()).toBe(1);
+  expect(await SubscriptionExpiryEmail.countDocuments()).toBe(0);
+  email.sendPaidInvoiceEmail.mockRejectedValueOnce(new Error('SMTP failed')).mockResolvedValue({ messageId: 'invoice-test' });
+  expect(await lifecycle.processInvoiceEmails()).toEqual({ sent: 0, failed: 1 });
+  expect((await service.requireActiveSubscription(institute._id)).status).toBe('active');
+  const job = await PaymentInvoiceEmail.findOne();
+  await Promise.all([lifecycle.processInvoiceEmails({ now: job.nextAttemptAt }), lifecycle.processInvoiceEmails({ now: job.nextAttemptAt })]);
+  expect(email.sendPaidInvoiceEmail).toHaveBeenCalledTimes(2);
+  expect(email.sendPaidInvoiceEmail).toHaveBeenLastCalledWith(expect.objectContaining({ to: institute.email, packageName: 'Professional', buffer: expect.any(Buffer) }));
+  expect((await PaymentInvoiceEmail.findOne()).status).toBe('sent');
+});
+
+test('legacy combined uniqueness index is safely replaced without losing the active package', async () => {
+  const old = await subscription({ endsAt: new Date(Date.now() + 86400000) });
+  await Subscription.collection.createIndex({ instituteId: 1 }, { name: 'instituteId_1', unique: true,
+    partialFilterExpression: { status: { $in: ['pending', 'active', 'suspended'] } } });
+  await Subscription.cleanLegacyIndexes();
+  const indexes = await Subscription.collection.indexes();
+  expect(indexes.map(index => index.name)).toEqual(expect.arrayContaining(['one_current_paid_package', 'one_pending_package']));
+  expect(indexes.some(index => index.name === 'instituteId_1')).toBe(false);
+  await subscription({ status: 'pending' });
+  await expect(subscription({ status: 'pending' })).rejects.toMatchObject({ code: 11000 });
+  await expect(subscription({ status: 'active' })).rejects.toMatchObject({ code: 11000 });
+  expect((await Subscription.findById(old._id)).status).toBe('active');
+});
+
+test('upgrade cancellation preserves the current package and suspension cannot be bypassed', async () => {
+  const old = await subscription({ endsAt: new Date(Date.now() + 86400000) });
+  const higher = await Plan.create({ name: 'Professional', priceMinor: plan.priceMinor * 2, active: true,
+    limits: { certificates: 500, teachers: 5, templates: 5 } });
+  const fewer = await Plan.create({ name: 'Fewer limits', priceMinor: plan.priceMinor * 3, active: true,
+    limits: { certificates: 50, teachers: 5, templates: 5 } });
+  await expect(service.requestSubscription(institute._id, fewer._id, String(id()))).rejects.toMatchObject({ status: 409 });
+  const cancelled = await service.requestSubscription(institute._id, higher._id, String(id()));
+  await service.setStatus(cancelled._id, admin._id, 'cancelled', 'User changed their mind');
+  expect(String((await service.requireActiveSubscription(institute._id))._id)).toBe(String(old._id));
+  const upgrade = await service.requestSubscription(institute._id, higher._id, String(id()));
+  upgrade.paymentProof = { status: 'submitted', transactionNumber: 'STOPPED-123', receiptVersion: 'stopped-proof' };
+  await upgrade.save();
+  await service.setStatus(old._id, admin._id, 'suspended', 'Account review required');
+  await expect(service.activateManual(upgrade._id, admin._id, { reference: 'STOPPED-123', amountMinor: higher.priceMinor, receiptVersion: 'stopped-proof' })).rejects.toMatchObject({ status: 409 });
+  expect(await Payment.countDocuments()).toBe(0); expect(await PaymentInvoiceEmail.countDocuments()).toBe(0);
+  await expect(service.requireActiveSubscription(institute._id)).rejects.toMatchObject({ status: 402 });
+});
 
 test('expiry blocks access before the worker runs and durably emails exactly once during normal retries', async () => {
   const sub = await subscription();

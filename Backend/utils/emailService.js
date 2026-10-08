@@ -48,7 +48,7 @@ const getFromDetails = async () => {
   };
 };
 
-const sendEmail = async ({ to, subject, html }) => {
+const sendEmail = async ({ to, subject, html, attachments }) => {
   assertDeliveryAllowed('email', to);
   const transporter = await createTransporter();
   const { fromName, fromEmail } = await getFromDetails();
@@ -61,7 +61,8 @@ const sendEmail = async ({ to, subject, html }) => {
     from: `"${fromName}" <${fromEmail}>`,
     to,
     subject,
-    html
+    html,
+    ...(attachments ? { attachments } : {})
   });
 };
 
@@ -295,7 +296,19 @@ const sendSubscriptionExpiredEmail = async ({ to, packageName, expiredAt }) => {
     </div>` });
 };
 
+const sendPaidInvoiceEmail = ({ to, packageName, number, buffer }) => sendEmail({
+  to, subject: `CERTIVERXIA: paid invoice for ${packageName}`,
+  html: `<div style="font-family:Arial,sans-serif;color:#071A4D;padding:28px">
+    <h1>Payment approved <span style="color:#10B981">PAID</span></h1>
+    <p>Your <strong>${escapeHtml(packageName)}</strong> package payment has been verified by the super admin.</p>
+    <p>Your paid invoice ${escapeHtml(number)} is attached. It includes the amount received, approval date, and package term.</p>
+    <p>You can also download it any time from My Package &gt; Payment history.</p>
+    <p>CERTIVERXIA<br>info@certiverxia.com</p></div>`,
+  attachments: [{ filename: `${number}-PAID.pdf`, content: buffer, contentType: 'application/pdf' }]
+});
+
 module.exports = {
+  sendPaidInvoiceEmail,
   sendSubscriptionExpiredEmail,
   createTransporter,
   sendEmail,

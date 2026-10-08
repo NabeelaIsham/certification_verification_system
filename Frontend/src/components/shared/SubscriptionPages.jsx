@@ -200,7 +200,10 @@ export function InstituteSubscription() {
     refresh();
     const timer = setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
-    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
   const pending = data?.subscriptions.find(
     (sub) => sub.effectiveStatus === "pending",
@@ -212,9 +215,22 @@ export function InstituteSubscription() {
   const blocked =
     !data ||
     !!pending ||
-    !!data?.subscriptions.some((sub) =>
-      ["active", "suspended"].includes(sub.effectiveStatus),
-    );
+    !!data?.subscriptions.some((sub) => sub.effectiveStatus === "suspended");
+  const availablePlans =
+    current?.effectiveStatus === "active"
+      ? plans.filter(
+          (plan) =>
+            plan._id !== current.planId &&
+            plan.priceMinor > current.snapshot.priceMinor &&
+            ["certificates", "teachers", "templates"].every(
+              (key) => plan.limits[key] >= current.snapshot.limits[key],
+            ) &&
+            ["bulkCertificateIssue", "secureSharing"].every(
+              (key) =>
+                !current.snapshot.features?.[key] || plan.features?.[key],
+            ),
+        )
+      : plans;
   const percent = current?.allocated
     ? Math.floor((current.consumed / current.allocated) * 100)
     : 0;
@@ -344,17 +360,36 @@ export function InstituteSubscription() {
       )}
       <div className="saas-section-title">
         <span>YOUR NEXT STEP</span>
-        <h2>Choose your annual package</h2>
+        <h2>
+          {current?.effectiveStatus === "active"
+            ? "Upgrade your package"
+            : "Choose your annual package"}
+        </h2>
       </div>
       <PaymentSteps />
       {blocked && data && (
         <p>
           {pending
             ? "Continue your existing payment above. You can change the package before submitting a receipt."
-            : "Your paid package is already active or suspended. Renew after expiry, or contact support for assistance."}
+            : "Your package is stopped. Contact the super admin for assistance."}
         </p>
       )}
-      <PlanCards plans={plans} blocked={blocked} />
+      {current?.effectiveStatus === "active" && (
+        <p>
+          Your current package stays usable while your upgrade payment is
+          reviewed. Pay the full displayed price by bank transfer. Once
+          approved, your upgrade starts a fresh 12-month term with new
+          allowances. Unused credits and remaining time are not carried over or
+          refunded. Your paid invoice will be emailed after approval.
+        </p>
+      )}
+      <PlanCards plans={availablePlans} blocked={blocked} />
+      {current?.effectiveStatus === "active" && availablePlans.length === 0 && (
+        <p>
+          You already have the highest available package for your current
+          allowances.
+        </p>
+      )}
       {data && plans.length === 0 && (
         <p>No annual packages are available yet.</p>
       )}
@@ -541,6 +576,18 @@ export function PackagePayment() {
             <p>
               Your 12-month term starts after approval. Selecting a package or
               uploading a receipt does not activate it.
+            </p>
+            {subscription.replacesSubscriptionId && (
+              <p>
+                This upgrade costs the full displayed annual price. Your current
+                package remains usable until its expiry or upgrade approval.
+                Approval replaces it with fresh allowances; unused credits and
+                remaining time are not carried over or refunded.
+              </p>
+            )}
+            <p>
+              A PDF invoice marked PAID will be emailed after super admin
+              approval and will remain available in your payment history.
             </p>
             {pending && !review && (
               <button

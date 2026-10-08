@@ -17,6 +17,7 @@ const subscriptionSchema = new Schema({
   snapshot: { type: snapshot, required: true, immutable: true },
   status: { type: String, enum: ['trial', 'trial_suspended', 'pending', 'active', 'expired', 'suspended', 'cancelled'], default: 'pending' },
   lastStatusChange: { at: Date, actorId: Schema.Types.ObjectId, reason: String },
+  replacesSubscriptionId: Schema.Types.ObjectId,
   paymentProof: {
     transactionNumber: { type: String, maxlength: 100 },
     payerName: { type: String, maxlength: 160 }, paidAt: Date,
@@ -36,7 +37,16 @@ subscriptionSchema.index({ instituteId: 1, requestKey: 1 }, { unique: true });
 subscriptionSchema.index({ status: 1, endsAt: 1 });
 subscriptionSchema.index({ instituteId: 1, activation: 1 }, { unique: true, partialFilterExpression: { activation: 'trial' } });
 subscriptionSchema.index({ 'paymentProof.transactionNumber': 1 }, { unique: true, partialFilterExpression: { 'paymentProof.transactionNumber': { $type: 'string' } } });
-subscriptionSchema.index({ instituteId: 1 }, { unique: true, partialFilterExpression: { status: { $in: ['pending', 'active', 'suspended'] } } });
+subscriptionSchema.index({ instituteId: 1 }, { name: 'one_current_paid_package', unique: true, partialFilterExpression: { status: { $in: ['active', 'suspended'] } } });
+subscriptionSchema.index({ instituteId: 1 }, { name: 'one_pending_package', unique: true, partialFilterExpression: { status: 'pending' } });
+subscriptionSchema.statics.cleanLegacyIndexes = async function () {
+  // Install both replacement constraints before removing the old combined constraint.
+  await this.createIndexes();
+  const indexes = await this.collection.indexes();
+  const legacy = indexes.find(index => index.name === 'instituteId_1' && index.unique &&
+    JSON.stringify(index.partialFilterExpression) === JSON.stringify({ status: { $in: ['pending', 'active', 'suspended'] } }));
+  if (legacy) await this.collection.dropIndex(legacy.name);
+};
 const usageSchema = new Schema({
   instituteId: id, subscriptionId: id, key: { type: String, required: true },
   event: { type: String, enum: ['credit_allocated', 'credit_reserved', 'credit_consumed', 'credit_released', 'credit_adjusted', 'credit_refunded'], required: true },
@@ -61,6 +71,13 @@ const paymentSchema = new Schema({
   status: { type: String, enum: ['paid'], default: 'paid' }, recordedBy: id, paidAt: { type: Date, default: Date.now }
 });
 module.exports = {
+  PaymentInvoiceEmail: mongoose.model('PaymentInvoiceEmail', new Schema({
+    paymentId: { ...id, unique: true }, instituteId: id, recipient: { type: String, required: true },
+    packageName: String,
+    status: { type: String, enum: ['pending', 'sending', 'sent', 'failed'], default: 'pending' },
+    attempts: { type: Number, default: 0 }, nextAttemptAt: { type: Date, default: Date.now },
+    leaseUntil: Date, claimToken: String, sentAt: Date, lastError: String
+  }, { timestamps: true }).index({ status: 1, nextAttemptAt: 1 }).index({ status: 1, leaseUntil: 1 })),
   SubscriptionExpiryEmail: mongoose.model('SubscriptionExpiryEmail', new Schema({
     subscriptionId: { ...id, unique: true }, instituteId: id, recipient: { type: String, required: true },
     packageName: String, expiredAt: Date,

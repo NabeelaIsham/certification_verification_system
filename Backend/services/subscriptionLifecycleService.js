@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { Subscription, SubscriptionEvent, SubscriptionExpiryEmail } = require('../models/Saas');
+const { Subscription, SubscriptionEvent, SubscriptionExpiryEmail, PaymentInvoiceEmail } = require('../models/Saas');
+const { paymentReceipt } = require('./paymentReceiptService');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const email = require('../utils/emailService');
@@ -28,27 +29,26 @@ async function expireSubscription(sub, session, actorId = sub.instituteId, now =
   return true;
 }
 
-async function processExpiryEmails({ limit = 25, now = new Date() } = {}) {
+async function processEmailJobs(Model, deliver, { limit = 25, now = new Date() } = {}) {
   let sent = 0, failed = 0;
   for (let i = 0; i < limit; i++) {
     const claimToken = crypto.randomUUID();
-    const job = await SubscriptionExpiryEmail.findOneAndUpdate({ $or: [
+    const job = await Model.findOneAndUpdate({ $or: [
       { status: { $in: ['pending', 'failed'] }, nextAttemptAt: { $lte: now } },
       { status: 'sending', leaseUntil: { $lte: now } }
     ] }, { $set: { status: 'sending', claimToken, leaseUntil: new Date(now.getTime() + 10 * 60000) },
       $inc: { attempts: 1 } }, { new: true, sort: { nextAttemptAt: 1 } });
     if (!job) break;
     try {
-      await email.sendSubscriptionExpiredEmail({ to: job.recipient, packageName: job.packageName,
-        expiredAt: job.expiredAt, subscriptionId: job.subscriptionId });
-      await SubscriptionExpiryEmail.updateOne({ _id: job._id, claimToken }, {
+      await deliver(job);
+      await Model.updateOne({ _id: job._id, claimToken }, {
         $set: { status: 'sent', sentAt: new Date() }, $unset: { leaseUntil: 1, claimToken: 1, lastError: 1 }
       });
       sent++;
     } catch {
       // Do not retain SMTP responses, which may contain addresses or credentials.
       const delay = Math.min(6 * 3600000, 60000 * 2 ** Math.min(job.attempts, 9));
-      await SubscriptionExpiryEmail.updateOne({ _id: job._id, claimToken }, {
+      await Model.updateOne({ _id: job._id, claimToken }, {
         $set: { status: 'failed', lastError: 'Email delivery failed; check SMTP and outbound delivery settings.',
           nextAttemptAt: new Date(now.getTime() + delay) }, $unset: { leaseUntil: 1, claimToken: 1 }
       });
@@ -57,6 +57,16 @@ async function processExpiryEmails({ limit = 25, now = new Date() } = {}) {
   }
   return { sent, failed };
 }
+
+const processExpiryEmails = options => processEmailJobs(SubscriptionExpiryEmail, job =>
+  email.sendSubscriptionExpiredEmail({ to: job.recipient, packageName: job.packageName,
+    expiredAt: job.expiredAt, subscriptionId: job.subscriptionId }), options);
+
+const processInvoiceEmails = options => processEmailJobs(PaymentInvoiceEmail, async job => {
+  const invoice = await paymentReceipt(job.paymentId, job.instituteId, 'institute');
+  await email.sendPaidInvoiceEmail({ to: job.recipient, packageName: job.packageName,
+    number: invoice.number, buffer: invoice.buffer });
+}, options);
 
 async function runExpiryCycle({ limit = 100, now = new Date() } = {}) {
   if (process.env.SAAS_ENABLED !== 'true') return { expired: 0, sent: 0, failed: 0 };
@@ -77,7 +87,7 @@ function startExpiryWorker() {
   if (process.env.SAAS_ENABLED !== 'true') return async () => {};
   let running = null;
   const tick = () => {
-    if (!running) running = runExpiryCycle().catch(error => console.error('Subscription expiry cycle failed:', error.name))
+    if (!running) running = Promise.all([runExpiryCycle(), processInvoiceEmails()]).catch(error => console.error('Subscription email cycle failed:', error.name))
       .finally(() => { running = null; });
   };
   const interval = setInterval(tick, 60000);
@@ -85,4 +95,4 @@ function startExpiryWorker() {
   return async () => { clearInterval(interval); if (running) await running; };
 }
 
-module.exports = { effectiveStatus, expireSubscription, processExpiryEmails, runExpiryCycle, startExpiryWorker };
+module.exports = { effectiveStatus, expireSubscription, processExpiryEmails, processInvoiceEmails, runExpiryCycle, startExpiryWorker };

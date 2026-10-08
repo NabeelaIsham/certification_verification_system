@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { expireSubscription } = require('./subscriptionLifecycleService');
-const { Plan, Subscription, UsageTransaction, SubscriptionEvent, Payment } = require('../models/Saas');
+const { Plan, Subscription, UsageTransaction, SubscriptionEvent, Payment, PaymentInvoiceEmail } = require('../models/Saas');
 const enabled = () => process.env.SAAS_ENABLED === 'true';
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const transaction = work => mongoose.connection.transaction(work);
@@ -57,12 +57,19 @@ async function requestSubscription(instituteId, planId, requestKey) {
     for (const expired of expiredSubscriptions) {
       await expireSubscription(expired, session, instituteId);
     }
-    const outstanding = await Subscription.findOne({ instituteId, status: { $in: ['pending', 'active', 'suspended'] } }).session(session);
+    const outstanding = await Subscription.findOne({ instituteId, status: 'pending' }).session(session);
     if (outstanding?.status === 'pending' && String(outstanding.planId) === String(planId)) return outstanding;
-    if (outstanding) throw fail(409, 'You already have a pending or active package. Open My packages to continue your payment or manage your package.');
+    if (outstanding) throw fail(409, 'You already have a pending package. Open My packages to continue or cancel that payment.');
     const plan = await Plan.findOne({ _id: planId, active: true }).session(session);
     if (!plan) throw fail(404, 'Plan is unavailable.');
-    const [subscription] = await Subscription.create([{ instituteId, planId, requestKey, snapshot: {
+    const current = await Subscription.findOne({ instituteId, status: { $in: ['active', 'suspended'] } }).session(session);
+    if (current?.status === 'suspended') throw fail(409, 'Your package is stopped. Contact the super admin before changing packages.');
+    if (current && (String(current.planId) === String(planId) || plan.priceMinor <= current.snapshot.priceMinor ||
+      ['certificates', 'teachers', 'templates'].some(key => plan.limits[key] < current.snapshot.limits[key]) ||
+      ['bulkCertificateIssue', 'secureSharing'].some(key => current.snapshot.features?.[key] && !plan.features?.[key]))) {
+      throw fail(409, 'Choose a higher-priced package that preserves your current limits and features.');
+    }
+    const [subscription] = await Subscription.create([{ instituteId, planId, requestKey, replacesSubscriptionId: current?._id, snapshot: {
       name: plan.name, priceMinor: plan.priceMinor, currency: plan.currency, limits: plan.limits.toObject(), features: plan.features.toObject()
     } }], { session });
     await audit({ instituteId, subscriptionId: subscription._id, actorId: instituteId, event: 'plan_selected' }, session);
@@ -93,6 +100,17 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor,
     }
     if (!await User.exists({ _id: sub.instituteId, userType: 'institute', isActive: true, isVerifiedByAdmin: true }).session(session)) throw fail(403, 'Institute is unavailable.');
     await recoverExpiredCredits(sub.instituteId, session);
+    const current = await Subscription.findOne({ instituteId: sub.instituteId, status: { $in: ['active', 'suspended'] } }).session(session);
+    if (current) {
+      if (String(sub.replacesSubscriptionId) !== String(current._id)) throw fail(409, 'Another paid package is active. Review this request before approval.');
+      if (current.status === 'suspended') throw fail(409, 'Resume or close the stopped package before approving its upgrade.');
+      if (current.reserved > 0) throw fail(409, 'Certificates are still processing. Retry upgrade approval once issuance finishes.');
+      current.status = 'expired';
+      current.endsAt = new Date(Math.min(current.endsAt.getTime(), Date.now()));
+      current.lastStatusChange = { at: new Date(), actorId, reason: 'Replaced by approved package upgrade' };
+      await current.save({ session });
+      await audit({ instituteId: sub.instituteId, subscriptionId: current._id, actorId, event: 'package_upgraded', details: { replacementSubscriptionId: sub._id } }, session);
+    }
     const trial = await Subscription.findOne({ instituteId: sub.instituteId, status: { $in: ['trial', 'trial_suspended'] } }).session(session);
     if (trial) {
       if (trial.reserved > 0) throw fail(409, 'Trial certificates are still processing. Retry approval once issuance finishes.');
@@ -107,12 +125,14 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor,
     await sub.save({ session });
     const institute = await User.findById(sub.instituteId).select('instituteName email').session(session);
     const approver = await User.findById(actorId).select('firstName lastName adminName superAdminName email').session(session);
-    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId,
+    const [approvedPayment] = await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId,
       receiptSnapshot: { instituteName: institute.instituteName, instituteEmail: institute.email, packageName: sub.snapshot.name,
         startsAt, endsAt: sub.endsAt, payerName: sub.paymentProof.payerName, transferredAt: sub.paymentProof.paidAt,
         approvedByName: approver?.superAdminName || approver?.adminName || [approver?.firstName, approver?.lastName].filter(Boolean).join(' ') || 'Super admin',
         approvedByEmail: approver?.email }
     }], { session });
+    await PaymentInvoiceEmail.create([{ paymentId: approvedPayment._id, instituteId: sub.instituteId,
+      recipient: institute.email, packageName: sub.snapshot.name }], { session });
     await UsageTransaction.create([{ instituteId: sub.instituteId, subscriptionId, key: 'initial-allocation', event: 'credit_allocated', units: sub.allocated }], { session });
     await audit({ instituteId: sub.instituteId, subscriptionId, actorId, event: 'manual_payment_activated', details: { amountMinor, reference } }, session);
     await Notification.create([{ recipient: sub.instituteId, type: 'system_alert', title: 'Payment approved',

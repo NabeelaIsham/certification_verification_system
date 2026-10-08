@@ -16,7 +16,8 @@ async function paymentReceipt(paymentId, userId, userType) {
   });
   doc.fillColor('#1464FF').fontSize(25).text('CERTIVERXIA');
   doc.fillColor('#64748B').fontSize(10).text("Mary's Road, Colombo | 078 789 6876 | info@certiverxia.com");
-  doc.moveDown(2).fillColor('#071A4D').fontSize(22).text('Payment receipt');
+  doc.moveDown(2).fillColor('#071A4D').fontSize(22).text('Paid invoice / Payment receipt');
+  doc.fillColor('#10B981').fontSize(14).text('PAID');
   doc.fontSize(10).text(number).moveDown();
   const row = (label, value) => { doc.fillColor('#64748B').fontSize(10).text(label); doc.fillColor('#071A4D').fontSize(12).text(String(value || 'Not recorded'), { width: 495 }); doc.moveDown(.6); };
   row('Issued to', snapshot.instituteName || institute?.instituteName || String(payment.instituteId));

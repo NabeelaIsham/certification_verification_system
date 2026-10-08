@@ -19,7 +19,15 @@ Open **Packages & Payments** in the super admin dashboard.
 3. Review the **Payment approvals** queue. Receipt submission also creates an in-app notification for active super admins. Download the private receipt and inspect its payer, date, transaction number, notes, and the bank account shown at submission.
 4. Enter the amount actually received, confirm bank verification, and activate. The amount must match the reserved package price. Only the currently submitted receipt version can be approved. Alternatively reject it with an explanation.
 
-Approval ends the remaining trial and starts a fresh 12-month paid term with the purchased allowance. Trial consumption is retained in its own ledger. If trial certificate issuance is still processing, approval asks the administrator to retry after it finishes. Approval and rejection create institute notifications and audit events. Notifications here are in-app records, not email delivery.
+Approval ends the remaining trial and starts a fresh 12-month paid term with the purchased allowance. Trial consumption is retained in its own ledger. If trial certificate issuance is still processing, approval asks the administrator to retry after it finishes. Approval and rejection create institute notifications and audit events. Approval also queues an email with a PDF invoice marked PAID; rejection notifications remain in-app.
+
+## Paid upgrades and invoice emails
+
+- An active paid subscriber can choose a higher-priced published package that preserves all current limits and enabled features. My Package shows eligible upgrades; stopped packages require super admin assistance first.
+- The upgrade uses the same bank transfer, proof upload, and approval flow. The displayed full annual price is charged; no proration, refunds, or carryover of credits or remaining time is applied. These terms appear on both the package selection and payment pages.
+- The current package remains usable until its own expiry or upgrade approval. Approval atomically closes it and activates the replacement with a fresh annual term and fresh allowances, retaining historical usage and payment records. Approval waits for in-progress issuance to finish. Rejected or cancelled upgrade requests do not stop the current package.
+- Each newly approved payment queues one durable `PaymentInvoiceEmail` job in the approval transaction. The background worker sends the approved PDF to the institute email, retries failures, and recovers abandoned jobs after restarts. Repeated approval calls do not create extra invoices or jobs. SMTP delivery has the same at-least-once caveat as expiry emails. Existing historic approvals are not retroactively emailed.
+- At startup, subscription index preparation installs separate unique constraints for one pending request and one current paid package, then removes the recognized legacy combined constraint. Run normal backend initialization before using upgrades, and avoid running older backend versions alongside this release.
 
 ## Expiry, subscriber analytics, and approved receipts
 
@@ -36,7 +44,7 @@ Approval ends the remaining trial and starts a fresh 12-month paid term with the
 - Keep `SAAS_ENABLED=true` on the backend and `VITE_SAAS_ENABLED=true` in the frontend build. MongoDB transactions require a replica set, as in the existing subscription system.
 - Bank instructions are stored in `BankPaymentDetails`. Environment-provided payment bank details remain a fallback until an admin saves settings.
 - Uploaded images are decoded, size-checked, re-encoded to JPEG, and stored privately with the subscription. Receipt download requires the owning institute or a super admin. Normal subscription responses omit receipt bytes.
-- The existing paid-subscription uniqueness index is preserved. A separate permanent index permits only one trial per institute. Existing paid packages, prices, and usage ledgers remain intact.
+- Separate paid-subscription indexes allow one current paid package and one pending upgrade per institute. A permanent index permits only one registration trial. Existing paid packages, prices, and usage ledgers remain intact.
 - Existing pending requests must submit a receipt before activation. No live data backfill or external deployment is performed by this change.
 
 ## Verification
