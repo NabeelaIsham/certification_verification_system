@@ -21,6 +21,16 @@ Open **Packages & Payments** in the super admin dashboard.
 
 Approval ends the remaining trial and starts a fresh 12-month paid term with the purchased allowance. Trial consumption is retained in its own ledger. If trial certificate issuance is still processing, approval asks the administrator to retry after it finishes. Approval and rejection create institute notifications and audit events. Notifications here are in-app records, not email delivery.
 
+## Expiry, subscriber analytics, and approved receipts
+
+- Package access ends at the stored expiry time, even before the background worker processes the subscription. Login, renewal, existing records, and payment receipts remain accessible.
+- With SaaS enabled, the backend runs an expiry worker at startup and every minute. It records expiry, creates an in-app notification, and queues an email for the institute. Failed email deliveries retry automatically with increasing delays. Configure the existing SMTP and email-delivery settings and keep the backend running for delivery. Tests mock SMTP; no live expiry email was sent during development.
+- Email jobs survive restarts and use leases to coordinate workers. Delivery is at least once: a crash after SMTP accepts a message but before its delivery record is saved can cause a duplicate. Replaced trials do not receive misleading expiry notices.
+- **Packages & Payments** now shows global subscriber and revenue totals, monthly revenue, package distribution, and searchable, paginated subscriber records. Records include start/expiry, submission/review and status-change dates and times, usage, and expiry-email delivery status. Displayed timestamps use Sri Lanka time; monthly revenue buckets use UTC.
+- Expand a subscriber's **Manage package and payment** section to stop or resume an unexpired trial or paid package with a reason. Stopping immediately disables package features for the institute and its teachers. Resuming does not extend the original expiry date. Changes are audited.
+- Approving a payment creates a downloadable CERTIVERXIA PDF receipt with its receipt number, amount, bank reference, package term, approval time, and approving administrator. The institute can select **Download approved receipt (PDF)** in payment history or its approved payment page. Super admins can also download it from subscriber records. **Download uploaded proof** remains a separate action for the original bank proof.
+- Approved receipt details are saved at approval and remain available after expiry. Only the owning institute and super admins can download them; legacy payments fall back to available historical subscription details.
+
 ## Storage and compatibility
 
 - Keep `SAAS_ENABLED=true` on the backend and `VITE_SAAS_ENABLED=true` in the frontend build. MongoDB transactions require a replica set, as in the existing subscription system.
@@ -32,3 +42,5 @@ Approval ends the remaining trial and starts a fresh 12-month paid term with the
 ## Verification
 
 Backend unit tests, the database-backed `priority2` integration suite, and frontend tests cover trial allocation and expiry, payment submission/privacy, administrative bank settings, rejection/resubmission, exact-price approval, idempotent activation, credit accounting, checkout routing, and pending-state UI. Browser layout checks use mock bank data only; no real payment is submitted.
+
+The `subscriptionLifecycle` integration suite additionally covers expiry enforcement, SMTP retry and lease recovery, concurrent workers, trial suspension, approved receipt ownership and snapshots, and complete paginated analytics. Frontend tests cover subscriber search, timestamps, stop-package actions, and PDF downloads.

@@ -23,7 +23,7 @@ export function ReceiptDownload({ subscriptionId }) {
   return (
     <div>
       <button type="button" className="saas-button" onClick={download}>
-        Download receipt
+        Download uploaded proof
       </button>
       {error && <p role="alert">{error}</p>}
     </div>

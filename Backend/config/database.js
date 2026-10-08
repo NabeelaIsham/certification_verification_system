@@ -36,7 +36,7 @@ const connectDatabase = async (options = {}) => {
 
 const ensureCollections = async () => {
   const modelNames = [
-    'Plan', 'Subscription', 'UsageTransaction', 'SubscriptionEvent', 'Payment',
+    'Plan', 'Subscription', 'UsageTransaction', 'SubscriptionEvent', 'Payment', 'BankPaymentDetails', 'SubscriptionExpiryEmail',
     'User',
     'Notification',
     'Course',

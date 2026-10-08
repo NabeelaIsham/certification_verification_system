@@ -4,6 +4,8 @@ const { authenticateToken, authorizeInstitute, authorizeSuperAdmin } = require('
 const { Plan, Subscription, UsageTransaction, Payment, SubscriptionEvent } = require('../models/Saas');
 const service = require('../services/subscriptionService');
 const manualPayment = require('../services/manualPaymentService');
+const { effectiveStatus } = require('../services/subscriptionLifecycleService');
+const analytics = require('../services/subscriberAnalyticsService');
 const multer = require('multer');
 const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 4, fieldSize: 2000 } }).single('receipt');
 const User = require('../models/User');
@@ -37,13 +39,22 @@ router.get('/:id/receipt', async (req, res) => {
 });
 router.get('/mine', authorizeInstitute, handler(async req => {
   const subscriptions = await Subscription.find({ instituteId: req.userId }).sort({ createdAt: -1 }).limit(50).lean();
-  return { subscriptions: subscriptions.map(sub => ({ ...sub, effectiveStatus: ['active', 'trial'].includes(sub.status) && sub.endsAt <= new Date() ? 'expired' : sub.status,
+  return { subscriptions: subscriptions.map(sub => ({ ...sub, effectiveStatus: effectiveStatus(sub),
     remaining: ['active', 'trial'].includes(sub.status) && sub.startsAt <= new Date() && sub.endsAt > new Date() ? Math.max(0, sub.allocated - sub.consumed - sub.reserved) : 0 })),
   teachers: await User.countDocuments({ instituteId: req.userId, userType: 'teacher' }),
   templates: await Template.countDocuments({ instituteId: req.userId }),
   payments: await Payment.find({ instituteId: req.userId }).sort({ paidAt: -1 }).limit(50),
   usage: await UsageTransaction.find({ instituteId: req.userId }).sort({ createdAt: -1 }).limit(100) };
 }));
+router.get('/payments/:id/receipt', async (req, res) => {
+  if (!['institute', 'superadmin'].includes(req.userType)) return res.sendStatus(403);
+  try {
+    const receipt = await require('../services/paymentReceiptService').paymentReceipt(req.params.id, req.userId, req.userType);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${receipt.number}.pdf"`,
+      'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.send(receipt.buffer);
+  } catch (error) { res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to generate the payment receipt.' }); }
+});
 router.post('/requests', authorizeInstitute, handler(req => service.requestSubscription(req.userId, req.body.planId, req.get('Idempotency-Key'))));
 router.post('/:id/cancel', authorizeInstitute, handler(async req => service.transaction(async session => {
   const sub = await Subscription.findOne({ _id: req.params.id, instituteId: req.userId, status: 'pending' }).session(session);
@@ -53,6 +64,8 @@ router.post('/:id/cancel', authorizeInstitute, handler(async req => service.tran
   return sub;
 })));
 router.use('/admin', authorizeSuperAdmin);
+router.get('/admin/analytics', handler(() => analytics.subscriberAnalytics()));
+router.get('/admin/subscribers', handler(req => analytics.listSubscribers(req.query)));
 router.get('/admin/bank-details', handler(() => manualPayment.bankDetails()));
 router.put('/admin/bank-details', handler(req => manualPayment.saveBankDetails(req.userId, req.body)));
 router.get('/admin/plans', handler(() => Plan.find({}).sort({ displayOrder: 1 })));

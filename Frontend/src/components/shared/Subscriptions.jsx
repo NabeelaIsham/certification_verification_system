@@ -1,3 +1,4 @@
+import SubscriberAnalytics from "./SubscriberAnalytics";
 import { ReceiptReview } from "./ManualPayment";
 import BankDetailsEditor from "./BankDetailsEditor";
 import { useEffect, useState } from "react";
@@ -10,7 +11,13 @@ const money = (value) =>
     value / 100,
   );
 const date = (value) =>
-  value ? new Date(value).toLocaleDateString() : "Not activated";
+  value
+    ? new Date(value).toLocaleString("en-GB", {
+        timeZone: "Asia/Colombo",
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "Not activated";
 const message = (error) =>
   error.response?.data?.message ||
   "Unable to complete the request. Please retry.";
@@ -29,16 +36,6 @@ function PageHeading({ eyebrow, title, description }) {
     </header>
   );
 }
-function Metric({ label, value, detail }) {
-  return (
-    <div className="saas-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-    </div>
-  );
-}
-
 function PlanEditor({ plan, save, busy }) {
   const [value, setValue] = useState(
     () =>
@@ -203,7 +200,9 @@ function SubscriptionActions({ sub, act, busy }) {
           </button>
         </form>
       )}
-      {["pending", "active", "suspended"].includes(sub.status) && (
+      {["pending", "active", "trial", "trial_suspended", "suspended"].includes(
+        sub.status,
+      ) && (
         <form
           className="flex gap-2"
           onSubmit={(event) => {
@@ -214,7 +213,7 @@ function SubscriptionActions({ sub, act, busy }) {
                   ? "cancelled"
                   : expired
                     ? "expired"
-                    : sub.status === "active"
+                    : ["active", "trial"].includes(sub.status)
                       ? "suspended"
                       : "active",
               reason,
@@ -236,9 +235,9 @@ function SubscriptionActions({ sub, act, busy }) {
               ? "Cancel request"
               : expired
                 ? "Close expired term"
-                : sub.status === "active"
-                  ? "Suspend"
-                  : "Resume"}
+                : ["active", "trial"].includes(sub.status)
+                  ? "Stop package"
+                  : "Resume package"}
           </button>
         </form>
       )}
@@ -247,27 +246,24 @@ function SubscriptionActions({ sub, act, busy }) {
 }
 export function AdminSubscriptions() {
   const [plans, setPlans] = useState([]),
-    [subscriptions, setSubscriptions] = useState([]),
     [events, setEvents] = useState([]),
     [editing, setEditing] = useState(null);
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [loaded, setLoaded] = useState(false),
-    [reviews, setReviews] = useState([]);
+    [reviews, setReviews] = useState([]),
+    [revision, setRevision] = useState(0);
   async function refresh() {
     const responses = await Promise.all(
-      [
-        "/admin/plans",
-        "/admin/subscriptions",
-        "/admin/events",
-        "/admin/reviews",
-      ].map((path) => api.get(`/subscriptions${path}`)),
+      ["/admin/plans", "/admin/events", "/admin/reviews"].map((path) =>
+        api.get(`/subscriptions${path}`),
+      ),
     );
     setPlans(responses[0].data.data);
-    setSubscriptions(responses[1].data.data);
-    setEvents(responses[2].data.data);
+    setEvents(responses[1].data.data);
     setLoaded(true);
-    setReviews(responses[3].data.data);
+    setRevision((value) => value + 1);
+    setReviews(responses[2].data.data);
   }
   useEffect(() => {
     refresh().catch((error) => setError(message(error)));
@@ -314,37 +310,12 @@ export function AdminSubscriptions() {
         </p>
       )}
       {!loaded && !error && <p>Loading subscriptions…</p>}
-      {loaded && (
-        <div className="saas-metrics">
-          <Metric
-            label="Published plans"
-            value={plans.filter((plan) => plan.active).length}
-            detail="Available in your catalogue"
-          />
-          <Metric
-            label="Pending review"
-            value={reviews.length}
-            detail="Awaiting payment verification"
-          />
-          <Metric
-            label="Active subscriptions"
-            value={
-              subscriptions.filter(
-                (sub) =>
-                  sub.status === "active" && new Date(sub.endsAt) > new Date(),
-              ).length
-            }
-            detail="Within the latest 200 records"
-          />
-          <Metric
-            label="Suspended"
-            value={
-              subscriptions.filter((sub) => sub.status === "suspended").length
-            }
-            detail="Accounts requiring your attention"
-          />
-        </div>
-      )}
+      <SubscriberAnalytics
+        revision={revision}
+        renderActions={(sub) => (
+          <SubscriptionActions sub={sub} act={act} busy={busy} />
+        )}
+      />
       <section className="space-y-4" aria-label="Payment approval queue">
         <div className="subscription-title">
           <h2 className="text-2xl font-semibold">
@@ -416,31 +387,6 @@ export function AdminSubscriptions() {
         Plan edits affect future requests. Purchased prices and limits remain
         unchanged.
       </p>
-      <h2 className="text-xl">Subscriptions (latest 200)</h2>
-      {subscriptions
-        .filter((sub) => !reviews.some((review) => review._id === sub._id))
-        .map((sub) => (
-          <article
-            key={`${sub._id}-${sub.paymentProof?.receiptVersion || "none"}`}
-            className="space-y-3 rounded border bg-white p-5"
-          >
-            <h3 className="font-semibold">
-              {sub.instituteId?.instituteName ||
-                sub.instituteId?._id ||
-                "Institute unavailable"}{" "}
-              · {sub.snapshot.name}
-            </h3>
-            <p>
-              {["active", "trial"].includes(sub.status) && new Date(sub.endsAt) <= new Date()
-                ? "expired"
-                : sub.status}{" "}
-              · {money(sub.snapshot.priceMinor)} · {sub.consumed}/
-              {sub.allocated} consumed · {sub.reserved} reserved · Expires{" "}
-              {date(sub.endsAt)}
-            </p>
-            <SubscriptionActions sub={sub} act={act} busy={busy} />
-          </article>
-        ))}
       <h2 className="text-xl">Recent audit events</h2>
       <ul>
         {events.map((event) => (

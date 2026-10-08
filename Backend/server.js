@@ -198,10 +198,12 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 let server;
 let shuttingDown = false;
+let stopExpiryWorker = async () => {};
 
 const startServer = async () => {
   try {
     await initializeDatabase();
+    stopExpiryWorker = require('./services/subscriptionLifecycleService').startExpiryWorker();
 
     server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
@@ -228,6 +230,7 @@ const shutdown = async (signal) => {
   if (server) {
     await new Promise((resolve) => server.close(resolve));
   }
+  await stopExpiryWorker();
   await mongoose.connection.close(false);
   clearTimeout(forceExit);
   process.exit(0);

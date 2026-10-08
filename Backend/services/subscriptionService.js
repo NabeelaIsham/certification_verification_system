@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { expireSubscription } = require('./subscriptionLifecycleService');
 const { Plan, Subscription, UsageTransaction, SubscriptionEvent, Payment } = require('../models/Saas');
 const enabled = () => process.env.SAAS_ENABLED === 'true';
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -54,8 +55,7 @@ async function requestSubscription(instituteId, planId, requestKey) {
     await recoverExpiredCredits(instituteId, session);
     const expiredSubscriptions = await Subscription.find({ instituteId, status: 'active', endsAt: { $lte: new Date() }, reserved: 0 }).session(session);
     for (const expired of expiredSubscriptions) {
-      expired.status = 'expired'; await expired.save({ session });
-      await audit({ instituteId, subscriptionId: expired._id, actorId: instituteId, event: 'subscription_expired' }, session);
+      await expireSubscription(expired, session, instituteId);
     }
     const outstanding = await Subscription.findOne({ instituteId, status: { $in: ['pending', 'active', 'suspended'] } }).session(session);
     if (outstanding?.status === 'pending' && String(outstanding.planId) === String(planId)) return outstanding;
@@ -93,7 +93,7 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor,
     }
     if (!await User.exists({ _id: sub.instituteId, userType: 'institute', isActive: true, isVerifiedByAdmin: true }).session(session)) throw fail(403, 'Institute is unavailable.');
     await recoverExpiredCredits(sub.instituteId, session);
-    const trial = await Subscription.findOne({ instituteId: sub.instituteId, status: 'trial' }).session(session);
+    const trial = await Subscription.findOne({ instituteId: sub.instituteId, status: { $in: ['trial', 'trial_suspended'] } }).session(session);
     if (trial) {
       if (trial.reserved > 0) throw fail(409, 'Trial certificates are still processing. Retry approval once issuance finishes.');
       trial.status = 'expired';
@@ -105,7 +105,14 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor,
     sub.set({ status: 'active', activation: 'manual', startsAt, endsAt: annualExpiry(startsAt), allocated: sub.snapshot.limits.certificates });
     sub.paymentProof.status = 'approved'; sub.paymentProof.reviewedAt = startsAt; sub.paymentProof.reviewedBy = actorId;
     await sub.save({ session });
-    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId }], { session });
+    const institute = await User.findById(sub.instituteId).select('instituteName email').session(session);
+    const approver = await User.findById(actorId).select('firstName lastName adminName superAdminName email').session(session);
+    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId,
+      receiptSnapshot: { instituteName: institute.instituteName, instituteEmail: institute.email, packageName: sub.snapshot.name,
+        startsAt, endsAt: sub.endsAt, payerName: sub.paymentProof.payerName, transferredAt: sub.paymentProof.paidAt,
+        approvedByName: approver?.superAdminName || approver?.adminName || [approver?.firstName, approver?.lastName].filter(Boolean).join(' ') || 'Super admin',
+        approvedByEmail: approver?.email }
+    }], { session });
     await UsageTransaction.create([{ instituteId: sub.instituteId, subscriptionId, key: 'initial-allocation', event: 'credit_allocated', units: sub.allocated }], { session });
     await audit({ instituteId: sub.instituteId, subscriptionId, actorId, event: 'manual_payment_activated', details: { amountMinor, reference } }, session);
     await Notification.create([{ recipient: sub.instituteId, type: 'system_alert', title: 'Payment approved',
@@ -118,13 +125,18 @@ async function setStatus(subscriptionId, actorId, status, reason) {
   return transaction(async session => {
     const sub = await Subscription.findById(subscriptionId).session(session);
     if (!sub) throw fail(404, 'Subscription not found.');
-    const allowed = (status === 'suspended' && sub.status === 'active') ||
-      (status === 'active' && sub.status === 'suspended' && sub.endsAt > new Date()) ||
+    const allowed = (status === 'suspended' && ['active', 'trial'].includes(sub.status) && sub.endsAt > new Date()) ||
+      (status === 'active' && ['suspended', 'trial_suspended'].includes(sub.status) && sub.endsAt > new Date()) ||
       (status === 'cancelled' && sub.status === 'pending') ||
-      (status === 'expired' && ['active', 'suspended'].includes(sub.status) && sub.endsAt <= new Date() && sub.reserved === 0);
+      (status === 'expired' && ['active', 'trial', 'trial_suspended', 'suspended'].includes(sub.status) && sub.endsAt <= new Date() && sub.reserved === 0);
     if (!allowed) throw fail(409, 'This status transition is not allowed.');
-    sub.status = status; await sub.save({ session });
+    if (status === 'expired') { await expireSubscription(sub, session, actorId); return sub; }
+    sub.status = sub.activation === 'trial' && status === 'suspended' ? 'trial_suspended' : sub.activation === 'trial' && status === 'active' ? 'trial' : status;
+    sub.lastStatusChange = { at: new Date(), actorId, reason: reason.trim() };
+    await sub.save({ session });
     await audit({ instituteId: sub.instituteId, subscriptionId, actorId, event: `subscription_${status}`, details: { reason: reason.trim() } }, session);
+    await Notification.create([{ recipient: sub.instituteId, type: 'system_alert', title: status === 'suspended' ? 'Package stopped by administrator' : status === 'active' ? 'Package resumed' : 'Package request cancelled',
+      message: reason.trim(), data: { subscriptionId } }], { session });
     return sub;
   });
 }

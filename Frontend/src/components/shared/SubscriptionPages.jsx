@@ -7,6 +7,8 @@ import {
 } from "@heroicons/react/24/outline";
 import api from "../../services/api";
 import { ManualPayment } from "./ManualPayment";
+import { ReceiptDownload } from "./ManualPayment";
+import ApprovedPaymentReceipt from "./ApprovedPaymentReceipt";
 import "./Subscriptions.css";
 
 const money = (value) =>
@@ -17,7 +19,13 @@ const money = (value) =>
     maximumFractionDigits: 2,
   }).format(value / 100);
 const date = (value) =>
-  value ? new Date(value).toLocaleDateString() : "After approval";
+  value
+    ? new Date(value).toLocaleString("en-GB", {
+        timeZone: "Asia/Colombo",
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : "After approval";
 const message = (error) =>
   error.response?.data?.message ||
   "Unable to load your package. Please try again.";
@@ -190,8 +198,9 @@ export function InstituteSubscription() {
   }
   useEffect(() => {
     refresh();
+    const timer = setInterval(refresh, 60000);
     window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, []);
   const pending = data?.subscriptions.find(
     (sub) => sub.effectiveStatus === "pending",
@@ -285,11 +294,19 @@ export function InstituteSubscription() {
                 : `${percent >= 90 ? "90%" : "75%"} usage threshold reached.`}
             </p>
           )}
-          {current.activation === "trial" && (
+          {current.effectiveStatus === "trial" && (
             <p>
               Your trial includes Starter allowances. You can choose a paid
               package now and keep using your trial until it expires or your
               payment is approved.
+            </p>
+          )}
+          {current.effectiveStatus === "suspended" && (
+            <p role="status">
+              Your package has been stopped by the super admin. Package features
+              are unavailable. Contact support for assistance.
+              {current.lastStatusChange?.reason &&
+                ` Reason: ${current.lastStatusChange.reason}`}
             </p>
           )}
           {current.effectiveStatus === "expired" && (
@@ -345,10 +362,14 @@ export function InstituteSubscription() {
         <summary>Payment history ({data?.payments.length || 0})</summary>
         {data?.payments.length ? (
           data.payments.map((payment) => (
-            <p className="py-3 border-b" key={payment._id}>
-              {date(payment.paidAt)} · {money(payment.amountMinor)} ·{" "}
-              {payment.reference} · Approved
-            </p>
+            <div className="py-3 border-b space-y-3" key={payment._id}>
+              <p>
+                {date(payment.paidAt)} · {money(payment.amountMinor)} ·{" "}
+                {payment.reference} · Approved
+              </p>
+              <ApprovedPaymentReceipt paymentId={payment._id} />
+              <ReceiptDownload subscriptionId={payment.subscriptionId} />
+            </div>
           ))
         ) : (
           <p className="mt-4">No approved payments yet.</p>
@@ -428,6 +449,7 @@ export function PackagePayment() {
   const { subscriptionId } = useParams();
   const navigate = useNavigate();
   const [subscription, setSubscription] = useState(null),
+    [payment, setPayment] = useState(null),
     [error, setError] = useState(""),
     [loaded, setLoaded] = useState(false),
     [busy, setBusy] = useState(false);
@@ -439,6 +461,11 @@ export function PackagePayment() {
       ) || null,
     );
     setLoaded(true);
+    setPayment(
+      response.data.data.payments.find(
+        (row) => row.subscriptionId === subscriptionId,
+      ) || null,
+    );
   }
   useEffect(() => {
     const update = () => refresh().catch((error) => setError(message(error)));
@@ -543,6 +570,7 @@ export function PackagePayment() {
                 Package term: {date(subscription.startsAt)} –{" "}
                 {date(subscription.endsAt)}
               </p>
+              {payment && <ApprovedPaymentReceipt paymentId={payment._id} />}
               <Link className="saas-button" to="/institute/dashboard">
                 Go to dashboard <ArrowRightIcon />
               </Link>

@@ -6,8 +6,20 @@ const Settings = require('../../Backend/models/Settings');
 const nodemailer = require('nodemailer');
 const { updateSettings } = require('../../Backend/controllers/adminController');
 const { sendOtpEmail } = require('../../Backend/utils/emailService');
+const { sendSubscriptionExpiredEmail } = require('../../Backend/utils/emailService');
 
 beforeEach(() => jest.resetAllMocks());
+
+test('expiry email uses configured SMTP, escapes names and includes expiry time and renewal guidance', async () => {
+  Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com', fromName: 'CERTIVERXIA' } });
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'expiry-test' });
+  nodemailer.createTransport.mockReturnValue({ sendMail });
+  await sendSubscriptionExpiredEmail({ to: 'institute@example.com', packageName: '<Starter>', expiredAt: '2026-10-08T10:00:00Z' });
+  const sent = sendMail.mock.calls[0][0];
+  expect(sent.to).toBe('institute@example.com');
+  expect(sent.html).toContain('&lt;Starter&gt;'); expect(sent.html).not.toContain('<Starter>');
+  expect(sent.html).toContain('15:30'); expect(sent.html).toContain('renew');
+});
 test.each(['', '********'])('saving password %j preserves existing SMTP credentials', async (password) => {
   const settings = { email: { smtpPassword: 'existing-secret' }, save: jest.fn(), toObject() { return { email: { ...this.email } }; } };
   Settings.findOne.mockResolvedValue(settings);

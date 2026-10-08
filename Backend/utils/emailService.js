@@ -27,6 +27,9 @@ const createTransporter = async () => {
   const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '');
 
   return nodemailer.createTransport({
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
     host,
     port,
     secure: port === 465,
@@ -276,7 +279,24 @@ const sendCredentialShareEmail = async ({
   return info;
 };
 
+const sendSubscriptionExpiredEmail = async ({ to, packageName, expiredAt }) => {
+  const expiry = new Date(expiredAt).toLocaleString('en-GB', { timeZone: 'Asia/Colombo', timeZoneName: 'short' });
+  const baseUrl = process.env.FRONTEND_URL || process.env.FRONTEND_BASE_URL || '';
+  const renewalUrl = /^https?:\/\//i.test(baseUrl) ? `${baseUrl.replace(/\/$/, '')}/institute/subscription` : '';
+  return sendEmail({ to, subject: `CERTIVERXIA: your ${packageName} package has expired`, html: `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;color:#071A4D">
+      <h1>Your package has expired</h1>
+      <p>Your <strong>${escapeHtml(packageName)}</strong> package ended on ${escapeHtml(expiry)}.</p>
+      <p>New certificate issuance, teacher and template creation, bulk issuance, and new secure sharing are no longer available under this package.</p>
+      <p>You can still sign in to renew, view your payment receipts, and access existing records. Existing certificates remain verifiable.</p>
+      ${renewalUrl ? `<p><a href="${escapeHtml(renewalUrl)}">Choose your next package</a></p>` : '<p>Sign in to CERTIVERXIA and open My Package to renew.</p>'}
+      <p>If you have already activated a replacement package, its access is unaffected.</p>
+      <p>CERTIVERXIA<br>info@certiverxia.com</p>
+    </div>` });
+};
+
 module.exports = {
+  sendSubscriptionExpiredEmail,
   createTransporter,
   sendEmail,
   sendOtpEmail,

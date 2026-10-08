@@ -15,7 +15,8 @@ const snapshot = new Schema({ name: String, priceMinor: integer(), currency: { t
 const subscriptionSchema = new Schema({
   instituteId: { ...id, ref: 'User' }, planId: { type: Schema.Types.ObjectId, required: function () { return this.activation !== 'trial'; } }, requestKey: { type: String, required: true },
   snapshot: { type: snapshot, required: true, immutable: true },
-  status: { type: String, enum: ['trial', 'pending', 'active', 'expired', 'suspended', 'cancelled'], default: 'pending' },
+  status: { type: String, enum: ['trial', 'trial_suspended', 'pending', 'active', 'expired', 'suspended', 'cancelled'], default: 'pending' },
+  lastStatusChange: { at: Date, actorId: Schema.Types.ObjectId, reason: String },
   paymentProof: {
     transactionNumber: { type: String, maxlength: 100 },
     payerName: { type: String, maxlength: 160 }, paidAt: Date,
@@ -32,6 +33,7 @@ const subscriptionSchema = new Schema({
   entitlementVersion: { type: Number, default: 0 }, activation: { type: String, enum: ['manual', 'trial'] }
 }, { timestamps: true });
 subscriptionSchema.index({ instituteId: 1, requestKey: 1 }, { unique: true });
+subscriptionSchema.index({ status: 1, endsAt: 1 });
 subscriptionSchema.index({ instituteId: 1, activation: 1 }, { unique: true, partialFilterExpression: { activation: 'trial' } });
 subscriptionSchema.index({ 'paymentProof.transactionNumber': 1 }, { unique: true, partialFilterExpression: { 'paymentProof.transactionNumber': { $type: 'string' } } });
 subscriptionSchema.index({ instituteId: 1 }, { unique: true, partialFilterExpression: { status: { $in: ['pending', 'active', 'suspended'] } } });
@@ -51,11 +53,21 @@ const paymentSchema = new Schema({
   instituteId: id, subscriptionId: { ...id, unique: true },
   reference: { type: String, required: true, unique: true }, amountMinor: integer(),
   packageReference: String,
+  receiptSnapshot: { instituteName: String, instituteEmail: String, packageName: String,
+    startsAt: Date, endsAt: Date, payerName: String, transferredAt: Date,
+    approvedByName: String, approvedByEmail: String },
   currency: { type: String, enum: ['LKR'], default: 'LKR' },
   gateway: { type: String, enum: ['manual'], default: 'manual' },
   status: { type: String, enum: ['paid'], default: 'paid' }, recordedBy: id, paidAt: { type: Date, default: Date.now }
 });
 module.exports = {
+  SubscriptionExpiryEmail: mongoose.model('SubscriptionExpiryEmail', new Schema({
+    subscriptionId: { ...id, unique: true }, instituteId: id, recipient: { type: String, required: true },
+    packageName: String, expiredAt: Date,
+    status: { type: String, enum: ['pending', 'sending', 'sent', 'failed'], default: 'pending' },
+    attempts: { type: Number, default: 0 }, nextAttemptAt: { type: Date, default: Date.now },
+    leaseUntil: Date, claimToken: String, sentAt: Date, lastError: String
+  }, { timestamps: true }).index({ status: 1, nextAttemptAt: 1 }).index({ status: 1, leaseUntil: 1 })),
   BankPaymentDetails: mongoose.model('BankPaymentDetails', new Schema({
     _id: { type: String, default: 'manual-payment' },
     bankName: { type: String, required: true, maxlength: 120 },

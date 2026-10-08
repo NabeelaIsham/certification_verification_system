@@ -52,7 +52,7 @@ test('an active trial offers upgrade links without waiting for expiry', async ()
 
 test('approval sends the receipt version and verified amount', async () => {
   const sub = { _id: 'subscription', instituteId: { instituteName: 'Test Institute' }, snapshot: plan, status: 'pending', consumed: 0, allocated: 0, reserved: 0, paymentProof: { transactionNumber: 'BANK-123', status: 'submitted', receiptVersion: 'receipt-1' } };
-  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/plans') ? [plan] : url.endsWith('/events') ? [] : url.endsWith('/bank-details') ? null : [sub] } }));
+  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/analytics') ? { totals: {}, statuses: {}, months: [], plans: [] } : url.endsWith('/subscribers') ? { items: [], total: 0, page: 1, pageSize: 25 } : url.endsWith('/plans') ? [plan] : url.endsWith('/events') ? [] : url.endsWith('/bank-details') ? null : [sub] } }));
   api.post.mockResolvedValue({ data: {} });
   render(<AdminSubscriptions />);
   expect(await screen.findByLabelText('Bank transaction number')).toHaveValue('BANK-123');

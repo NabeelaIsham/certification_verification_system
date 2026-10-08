@@ -682,3 +682,104 @@
     gap: 16px;
   }
 }
+.analytics-breakdown {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+}
+.saas-metric .analytics-revenue {
+  font-size: 23px;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.revenue-chart {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+.revenue-row {
+  display: grid;
+  grid-template-columns: 58px 1fr 115px;
+  gap: 12px;
+  align-items: center;
+  font-size: 11px;
+}
+.revenue-row > span:last-child {
+  text-align: right;
+}
+.revenue-track {
+  height: 9px;
+  background: #edf1f8;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.revenue-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #1464ff, #8b2cf5);
+}
+.analytics-table {
+  width: 100%;
+  margin: 16px 0;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+.analytics-table td,
+.analytics-table th {
+  padding: 12px 8px;
+  border-bottom: 1px solid #e1e8f3;
+}
+.subscriber-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  align-items: end;
+  gap: 16px;
+}
+.subscriber-dates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  padding: 20px 0;
+}
+.subscriber-dates dt {
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.subscriber-dates dd {
+  color: #071a4d;
+  font-size: 13px;
+}
+.subscriber-record {
+  display: grid;
+  gap: 16px;
+}
+.subscriber-record > p {
+  margin: 0;
+}
+@media (max-width: 900px) {
+  .analytics-breakdown {
+    grid-template-columns: 1fr;
+  }
+  .subscriber-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .subscriber-dates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .subscriber-filters {
+    grid-template-columns: 1fr;
+  }
+  .subscriber-dates {
+    grid-template-columns: 1fr;
+  }
+  .revenue-row {
+    grid-template-columns: 50px 1fr 85px;
+    gap: 8px;
+    font-size: 10px;
+  }
+}
