@@ -1,6 +1,7 @@
 # Certiverxia production deployment
 
-For `https://certiverxia.com` on Hostinger VPS with Docker and Traefik, follow [the deployment guide](deploy/hostinger/README.md).
+For `https://certiverxia.com` on Hostinger with **Dokploy**, follow [the Dokploy guide](deploy/dokploy/README.md).
+The [standalone Traefik guide](deploy/hostinger/README.md) is only for servers without Dokploy.
 
 # Deployment Guide
 

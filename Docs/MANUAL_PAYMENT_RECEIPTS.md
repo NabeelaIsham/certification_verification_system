@@ -30,7 +30,14 @@ Concurrent approval is idempotent. An older receipt cannot approve a corrected s
 
 ## Bank configuration
 
-Set these backend environment variables using the real account details:
+Open **Super Admin → Subscriptions → Bank account for manual payments**. Enter
+the bank name, account holder, account number and branch, then select **Save bank details**.
+Only super admins can update these details. Changes persist in MongoDB and are audited.
+No server restart is needed. Institutes see the latest saved account when opening payment
+instructions or selecting **Refresh bank details**. Existing receipts and payments are preserved.
+
+For initial setup only, these environment variables provide a fallback until dashboard
+settings have been saved. Saved dashboard details take precedence:
 
 ```dotenv
 PAYMENT_BANK_NAME=
@@ -40,7 +47,8 @@ PAYMENT_BANK_BRANCH=
 ```
 
 All four are required. Missing details display a contact message and block receipt upload.
-No bank details have been invented or configured. Restart the backend after changing them.
+No bank details have been invented or configured. Environment-only changes require a restart;
+dashboard changes do not.
 Enable `SAAS_ENABLED=true` and build the frontend with `VITE_SAAS_ENABLED=true`.
 
 ## Storage and rollout
@@ -65,3 +73,7 @@ stale approval prevention, manual activation and credit allocation. Frontend/bac
 and the SaaS-enabled production build passed. A headless Edge mobile preview completed
 the upload form using mocked requests without horizontal overflow. No live payment was
 submitted; actual bank details and staging/deployment validation remain required.
+
+Bank-editor follow-up (2026-10-08): eight focused frontend tests and three isolated
+database integration tests passed, covering bank-detail authorization, repeated updates,
+audit records and receipt flow regression. Frontend/backend lint also passed.
