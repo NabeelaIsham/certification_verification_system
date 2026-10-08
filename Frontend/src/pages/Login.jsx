@@ -1,33 +1,46 @@
-import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { authService } from '../services/auth';
+import { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { authService } from "../services/auth";
+import {
+  ArrowRightIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  LockClosedIcon,
+} from "@heroicons/react/24/outline";
+import { AuthLayout, FormField } from "../components/shared/PublicExperience";
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    rememberMe: false
+    email: "",
+    password: "",
+    rememberMe: false,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
-  const [challengeToken, setChallengeToken] = useState('');
-  const [otp, setOtp] = useState('');
-  const [verification, setVerification] = useState({ otpExpiry: 5, maxOtpAttempts: 3, resendCooldown: 60, allowResendOtp: true });
+  const [challengeToken, setChallengeToken] = useState("");
+  const [otp, setOtp] = useState("");
+  const [verification, setVerification] = useState({
+    otpExpiry: 5,
+    maxOtpAttempts: 3,
+    resendCooldown: 60,
+    allowResendOtp: true,
+  });
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        [name]: ''
+        [name]: "",
       }));
     }
   };
@@ -36,13 +49,13 @@ const Login = () => {
     const newErrors = {};
 
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = "Email is invalid";
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     }
 
     setErrors(newErrors);
@@ -51,7 +64,7 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!challengeToken && !validateForm()) {
       return;
     }
@@ -60,250 +73,195 @@ const Login = () => {
     setErrors({});
 
     try {
-      const response = challengeToken ? await authService.verifyTwoFactor(challengeToken, otp) : await authService.login({
-        email: formData.email,
-        password: formData.password
-      });
+      const response = challengeToken
+        ? await authService.verifyTwoFactor(challengeToken, otp)
+        : await authService.login({
+            email: formData.email,
+            password: formData.password,
+          });
 
       if (response.success) {
         if (response.requiresTwoFactor) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
           setChallengeToken(response.challengeToken);
           if (response.verification) setVerification(response.verification);
-          setFormData(prev => ({ ...prev, password: '' }));
+          setFormData((prev) => ({ ...prev, password: "" }));
           return;
         }
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.user));
 
         switch (response.user.userType) {
-          case 'superadmin':
-            navigate('/admin/dashboard');
+          case "superadmin":
+            navigate("/admin/dashboard");
             break;
-          case 'institute':
-            navigate(/^\/institute\/subscription(?:\/|$)/.test(location.state?.from || '') ? location.state.from : '/institute/dashboard');
+          case "institute":
+            navigate(
+              /^\/institute\/subscription(?:\/|$)/.test(
+                location.state?.from || "",
+              )
+                ? location.state.from
+                : "/institute/dashboard",
+            );
             break;
-          case 'teacher':
-            navigate('/teacher/dashboard');
+          case "teacher":
+            navigate("/teacher/dashboard");
             break;
           default:
-            navigate('/dashboard');
+            navigate("/dashboard");
         }
       } else {
-        setErrors({ submit: response.message || 'Login failed' });
+        setErrors({ submit: response.message || "Login failed" });
       }
     } catch (error) {
-      console.error('Login error:', error);
-      const errorMessage = error.response?.data?.message ||
-                          error.message ||
-                          'Login failed. Please check your credentials.';
+      console.error("Login error:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Login failed. Please check your credentials.";
       setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (challengeToken) {
-    return (
-      <div className="min-h-screen bg-blue-50 flex items-center justify-center px-4">
-        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 space-y-6">
-          <h1 className="text-2xl font-bold text-gray-900">Verify your sign-in</h1>
-          <p className="text-sm text-gray-600">Enter the 6-digit code sent to your email. The code expires in {verification.otpExpiry} minutes and allows {verification.maxOtpAttempts} attempts.</p>
-          <div>
-            <label htmlFor="login-code" className="block text-sm font-medium text-gray-700">Login code</label>
-            <input id="login-code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus
-              className="mt-2 w-full border rounded-lg p-3 text-center text-2xl tracking-widest" />
-          </div>
-          {errors.submit && <p role="alert" className="text-sm text-red-600">{errors.submit}</p>}
-          <button type="submit" disabled={isLoading || otp.length !== 6} className="w-full bg-blue-600 text-white rounded-lg p-3 disabled:opacity-50">
-            {isLoading ? 'Verifying...' : 'Verify and sign in'}
-          </button>
-          <p className="text-xs text-gray-500">{verification.allowResendOtp ? `Need another code? Return to sign-in and enter your password again. Wait at least ${verification.resendCooldown} seconds between requests.` : 'Resending is disabled. Use the code already sent, or sign in again after it expires.'}</p>
-          <button type="button" disabled={isLoading} onClick={() => { setChallengeToken(''); setOtp(''); setErrors({}); }} className="text-sm text-blue-600">Back to sign-in</button>
-        </form>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Logo and Header */}
-        <div className="flex justify-center">
-          <img src="/favicon.svg" alt="CERTIVERXIA" className="w-16 h-16 object-contain" />
-        </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Welcome Back
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Sign in to your account to access your dashboard
+    <AuthLayout>
+      <header className="cvx-form-heading">
+        <img src="/favicon.svg" alt="" />
+        <span className="cvx-kicker">
+          {challengeToken ? "ONE MORE STEP" : "YOUR CERTIVERXIA ACCOUNT"}
+        </span>
+        <h1>{challengeToken ? "Verify your sign-in" : "Welcome back."}</h1>
+        <p>
+          {challengeToken
+            ? `Enter the 6-digit code sent to your email. It expires in ${verification.otpExpiry} minutes and allows ${verification.maxOtpAttempts} attempts.`
+            : "Good to see you again. Sign in to continue to your workspace."}
         </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1 relative">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-3 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
-                    errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter your email address"
-                />
-                {errors.email && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
+      </header>
+      <form className="cvx-form" onSubmit={handleSubmit}>
+        {challengeToken ? (
+          <>
+            <FormField label="Login code" id="login-code">
+              <input
+                id="login-code"
+                className="cvx-code-input"
+                value={otp}
+                onChange={(e) =>
+                  setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                required
+                autoFocus
+              />
+            </FormField>
+            {errors.submit && (
+              <div role="alert" className="cvx-alert">
+                {errors.submit}
               </div>
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-              )}
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <Link 
-                  to="/forgot-password" 
-                  className="text-sm font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="mt-1 relative">
+            )}
+            <button
+              type="submit"
+              disabled={isLoading || otp.length !== 6}
+              className="cvx-submit"
+            >
+              {isLoading ? "Verifying..." : "Verify and sign in"}
+              <ArrowRightIcon aria-hidden="true" />
+            </button>
+            <p className="cvx-field-hint">
+              {verification.allowResendOtp
+                ? `Need another code? Return to sign-in and enter your password again. Wait at least ${verification.resendCooldown} seconds between requests.`
+                : "Resending is disabled. Use the code already sent, or sign in again after it expires."}
+            </p>
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={() => {
+                setChallengeToken("");
+                setOtp("");
+                setErrors({});
+              }}
+              className="text-sm text-blue-600"
+            >
+              Back to sign-in
+            </button>
+          </>
+        ) : (
+          <>
+            <FormField label="Email address" id="email" error={errors.email}>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                placeholder="you@institute.com"
+              />
+            </FormField>
+            <FormField label="Password" id="password" error={errors.password}>
+              <div className="cvx-password">
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className={`appearance-none block w-full px-3 py-3 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors duration-200 ${
-                    errors.password ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
+                  aria-invalid={!!errors.password}
+                  aria-describedby={
+                    errors.password ? "password-error" : undefined
+                  }
                   placeholder="Enter your password"
                 />
-                {errors.password && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? (
+                    <EyeSlashIcon aria-hidden="true" />
+                  ) : (
+                    <EyeIcon aria-hidden="true" />
+                  )}
+                </button>
               </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-              )}
+            </FormField>
+            <div className="cvx-form-links">
+              <span>Institute &amp; team access</span>
+              <Link to="/forgot-password">Forgot password?</Link>
             </div>
-
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center">
-              <input
-                id="rememberMe"
-                name="rememberMe"
-                type="checkbox"
-                checked={formData.rememberMe}
-                onChange={handleChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors duration-200"
-              />
-              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
-                Remember me for 30 days
-              </label>
-            </div>
-
-            {/* Submit Button */}
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
-                  isLoading
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 transform hover:scale-[1.02]'
-                }`}
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </button>
-            </div>
-
-            {/* Error Message */}
             {errors.submit && (
-              <div className="rounded-md bg-red-50 p-4 border border-red-200">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{errors.submit}</p>
-                  </div>
-                </div>
+              <div role="alert" className="cvx-alert">
+                {errors.submit}
               </div>
             )}
-          </form>
-        </div>
-
-        {/* Features Highlight */}
-        <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-600">Secure</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-600">Fast</p>
-          </div>
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
-            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
-              <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <p className="text-xs text-gray-600">Multi-User</p>
-          </div>
-        </div>
-      </div>
-    </div>
+            <button type="submit" disabled={isLoading} className="cvx-submit">
+              {isLoading ? "Signing in..." : "Sign in"}
+              <ArrowRightIcon aria-hidden="true" />
+            </button>
+          </>
+        )}
+      </form>
+      {!challengeToken && (
+        <p className="cvx-form-switch">
+          New to CERTIVERXIA?{" "}
+          <Link to="/register">Create an institute account</Link>
+        </p>
+      )}
+      <p className="cvx-form-security">
+        <LockClosedIcon aria-hidden="true" /> Your workspace. Your credentials.
+      </p>
+    </AuthLayout>
   );
 };
 
