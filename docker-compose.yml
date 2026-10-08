@@ -16,13 +16,10 @@ services:
       API_URL: https://certiverxia.com
       FRONTEND_URL: https://certiverxia.com
       CORS_ALLOWED_ORIGINS: https://certiverxia.com
-<<<<<<< Updated upstream
       EMAIL_HOST: smtp.hostinger.com
       EMAIL_PORT: '465'
       EMAIL_USER: info@certiverxia.com
       EMAIL_FROM_NAME: Certiverxia
-=======
->>>>>>> Stashed changes
       TRUST_PROXY: '1'
       VERIFICATION_LOG_RETENTION_DAYS: '180'
       SHARE_RECORD_RETENTION_DAYS: '30'
