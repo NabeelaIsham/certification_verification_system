@@ -4,8 +4,32 @@ x-logging:
     max-size: 10m
     max-file: '3'
 services:
+  storage-init:
+    image: alpine:3.22
+    user: '0:0'
+    command:
+      - sh
+      - '-ec'
+      - chown -Rh 1000:1000 /data/uploads /data/backups
+    volumes:
+      - uploads:/data/uploads
+      - backups:/data/backups
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    restart: 'no'
   backend:
     build: ./Backend
+    user: '1000:1000'
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       DEPLOYMENT_ENV: production

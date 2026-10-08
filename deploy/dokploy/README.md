@@ -61,6 +61,26 @@ Packages use manual receipt upload and admin approval; no PayHere is enabled.
 
 ## Persistence and release checks
 
+### Recover a backend restarting with uploads EACCES
+
+If logs show Atlas connected followed by `EACCES` on `/usr/src/app/uploads`,
+publish the updated `Backend/Dockerfile` and `docker-compose.dokploy.yml` to the
+branch selected in Dokploy, then rebuild and redeploy the Compose application.
+A restart alone does not apply image or Compose changes.
+
+The backend runs as UID/GID 1000 (the Node image's `node` user). The
+`storage-init` service first repairs ownership of the existing uploads and backups
+volumes, preserving their contents. It has no network access or application secrets
+and exits after its task. An `Exited (0)` status for this service is expected;
+the backend waits for its successful completion before running preflight.
+The backend retains its read-only root filesystem and drops all capabilities.
+Do not delete volumes or disable production preflight to resolve this error.
+
+Check that backend logs now show `Uploads directory: writable` and
+`Production preflight: PASSED`, and that the backend stays healthy. Then check
+`https://certiverxia.com/health` and retry login. If another preflight error appears,
+resolve that specific error before treating the deployment as ready.
+
 Keep this Dokploy service/project identity stable: Compose volumes hold uploads and
 backup output across redeployments. Changing project identity can create empty volumes.
 Atlas holds the database, including receipt images. Volumes are not off-server backups.
