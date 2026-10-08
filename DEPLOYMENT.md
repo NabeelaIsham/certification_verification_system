@@ -1,3 +1,5 @@
+For Certiverxia on Hostinger **Dokploy**, use [the Dokploy guide](deploy/dokploy/README.md) and `docker-compose.dokploy.yml`. The default `docker-compose.yml` is the legacy standalone database setup.
+
 # Deployment Guide
 
 ## Required Services
