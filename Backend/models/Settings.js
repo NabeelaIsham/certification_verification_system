@@ -17,7 +17,7 @@ const settingsSchema = new mongoose.Schema({
     },
     timezone: {
       type: String,
-      default: 'UTC+5:30'
+      default: 'Asia/Colombo'
     },
     dateFormat: {
       type: String,

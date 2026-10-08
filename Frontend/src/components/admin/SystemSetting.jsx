@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import TimezoneSelect from './TimezoneSelect';
 
 const SystemSettings = ({ API_URL }) => {
   const [activeTab, setActiveTab] = useState('general');
@@ -113,7 +114,7 @@ const SystemSettings = ({ API_URL }) => {
           systemName: 'Certificate Verification System',
           supportEmail: 'support@certverify.com',
           companyName: 'Your Company Name',
-          timezone: 'UTC+5:30',
+          timezone: 'Asia/Colombo',
           dateFormat: 'DD/MM/YYYY'
         },
         security: {
@@ -279,21 +280,12 @@ const SystemSettings = ({ API_URL }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Timezone
-                  </label>
-                  <select
-                    value={settings.general?.timezone || 'UTC+5:30'}
-                    onChange={(e) => handleSettingChange('general', 'timezone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="UTC+5:30">UTC+5:30 (India)</option>
-                    <option value="UTC+0">UTC+0 (London)</option>
-                    <option value="UTC-5">UTC-5 (New York)</option>
-                    <option value="UTC+8">UTC+8 (Singapore)</option>
-                  </select>
+                  <TimezoneSelect
+                    value={settings.general?.timezone || 'Asia/Colombo'}
+                    onChange={value => handleSettingChange('general', 'timezone', value)}
+                  />
                 </div>
 
                 <div>
