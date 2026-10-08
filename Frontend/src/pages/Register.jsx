@@ -90,6 +90,7 @@ const Register = () => {
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Create Institute Account
         </h2>
+        {import.meta.env.VITE_SAAS_ENABLED === 'true' && <p className="mt-3 text-center text-sm text-blue-600">Includes a 14-day free trial with Starter package limits. No payment required. Trial starts at registration; account verification is required before use.</p>}
         <p className="mt-2 text-center text-sm text-gray-600">
           Already have an account?{' '}
           <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">

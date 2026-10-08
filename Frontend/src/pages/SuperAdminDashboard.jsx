@@ -86,7 +86,7 @@ const SuperAdminDashboard = () => {
   };
 
   const tabs = [
-    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscriptions', name: 'Subscriptions', icon: '' }] : []),
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscriptions', name: 'Packages & Payments', icon: '' }] : []),
     { id: 'institutes', name: 'Institutes', icon: '🏛️' },
     { id: 'users', name: 'Users', icon: '👥' },
     { id: 'analytics', name: 'Analytics', icon: '📊' },

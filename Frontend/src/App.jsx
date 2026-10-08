@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 //import 'react-toastify/dist/ReactToastify.css'
 
@@ -8,7 +8,7 @@ import { InstituteProvider } from './contexts/InstituteContext'
 
 // Components
 import Navbar from './components/shared/Navbar'
-import { Pricing, InstituteSubscription } from './components/shared/Subscriptions'
+import { Pricing, InstituteSubscription, PackageCheckout, PackagePayment } from './components/shared/Subscriptions'
 import Footer from './components/shared/Footer'
 
 // Pages
@@ -45,11 +45,12 @@ const getStoredUser = () => {
 };
 
 const ProtectedRoute = ({ children, allowedUserType }) => {
+  const location = useLocation();
   const token = localStorage.getItem('token');
   const user = getStoredUser();
 
   if (!token || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   }
 
   if (allowedUserType && user.userType !== allowedUserType) {
@@ -83,6 +84,8 @@ function App() {
               <Route path="/" element={<Home />} />
               {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/pricing" element={<Pricing />} />}
               {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription" element={<ProtectedRoute allowedUserType="institute"><InstituteSubscription /></ProtectedRoute>} />}
+              {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription/checkout/:planId" element={<ProtectedRoute allowedUserType="institute"><PackageCheckout /></ProtectedRoute>} />}
+              {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription/payment/:subscriptionId" element={<ProtectedRoute allowedUserType="institute"><PackagePayment /></ProtectedRoute>} />}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

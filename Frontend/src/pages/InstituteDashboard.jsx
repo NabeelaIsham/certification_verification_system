@@ -36,7 +36,7 @@ const InstituteDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const tabs = [
-    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscription', name: 'Subscription', icon: '' }] : []),
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscription', name: 'My Package', icon: '' }] : []),
     { id: 'dashboard', name: 'Dashboard', icon: '📊' },
     { id: 'courses', name: 'Courses', icon: '📚' },
     { id: 'students', name: 'Students', icon: '👨‍🎓' },

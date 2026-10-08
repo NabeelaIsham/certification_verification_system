@@ -1,11 +1,35 @@
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { Plan, Subscription, UsageTransaction, SubscriptionEvent, Payment } = require('../models/Saas');
 const enabled = () => process.env.SAAS_ENABLED === 'true';
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const transaction = work => mongoose.connection.transaction(work);
-const activeFilter = instituteId => ({ instituteId, status: 'active', startsAt: { $lte: new Date() }, endsAt: { $gt: new Date() } });
+const activeFilter = instituteId => ({ instituteId, status: { $in: ['active', 'trial'] }, startsAt: { $lte: new Date() }, endsAt: { $gt: new Date() } });
 const audit = (values, session) => SubscriptionEvent.create([values], { session });
+
+const TRIAL_DAYS = 14;
+const TRIAL_LIMITS = Object.freeze({ certificates: 100, teachers: 2, templates: 2 });
+async function trialTerms(session = null) {
+  const starter = await Plan.findOne({ name: 'Starter' }).session(session);
+  return { days: TRIAL_DAYS, limits: starter?.limits.toObject() || TRIAL_LIMITS,
+    features: starter?.features.toObject() || { bulkCertificateIssue: true, secureSharing: true } };
+}
+// Called in the registration transaction. A permanent unique trial record prevents renewal by retry.
+async function createRegistrationTrial(instituteId, session) {
+  const existing = await Subscription.findOne({ instituteId, activation: 'trial' }).session(session);
+  if (existing) return existing;
+  const terms = await trialTerms(session);
+  const startsAt = new Date();
+  const [trial] = await Subscription.create([{
+    instituteId, requestKey: 'registration-trial', activation: 'trial', status: 'trial',
+    startsAt, endsAt: new Date(startsAt.getTime() + TRIAL_DAYS * 86400000), allocated: terms.limits.certificates,
+    snapshot: { name: 'Free trial', priceMinor: 0, currency: 'LKR', limits: terms.limits, features: terms.features }
+  }], { session });
+  await UsageTransaction.create([{ instituteId, subscriptionId: trial._id, key: 'initial-allocation', event: 'credit_allocated', units: trial.allocated }], { session });
+  await audit({ instituteId, subscriptionId: trial._id, actorId: instituteId, event: 'registration_trial_started' }, session);
+  return trial;
+}
 
 async function requireActiveSubscription(instituteId, session = null) {
   const subscription = await Subscription.findOne(activeFilter(instituteId)).session(session);
@@ -33,7 +57,9 @@ async function requestSubscription(instituteId, planId, requestKey) {
       expired.status = 'expired'; await expired.save({ session });
       await audit({ instituteId, subscriptionId: expired._id, actorId: instituteId, event: 'subscription_expired' }, session);
     }
-    if (await Subscription.exists({ instituteId, status: { $in: ['pending', 'active', 'suspended'] } }).session(session)) throw fail(409, 'An existing subscription must finish or its pending request must be cancelled first.');
+    const outstanding = await Subscription.findOne({ instituteId, status: { $in: ['pending', 'active', 'suspended'] } }).session(session);
+    if (outstanding?.status === 'pending' && String(outstanding.planId) === String(planId)) return outstanding;
+    if (outstanding) throw fail(409, 'You already have a pending or active package. Open My packages to continue your payment or manage your package.');
     const plan = await Plan.findOne({ _id: planId, active: true }).session(session);
     if (!plan) throw fail(404, 'Plan is unavailable.');
     const [subscription] = await Subscription.create([{ instituteId, planId, requestKey, snapshot: {
@@ -49,7 +75,7 @@ function annualExpiry(start) {
   if (end.getUTCMonth() !== start.getUTCMonth()) end.setUTCDate(0);
   return end;
 }
-async function activateManual(subscriptionId, actorId, { reference, amountMinor }) {
+async function activateManual(subscriptionId, actorId, { reference, amountMinor, receiptVersion }) {
   if (typeof reference !== 'string' || !/^[a-zA-Z0-9_:/-]{3,100}$/.test(reference) || !Number.isSafeInteger(amountMinor)) throw fail(400, 'Bank reference and exact amount in minor currency units required.');
   reference = reference.toUpperCase();
   return transaction(async session => {
@@ -62,13 +88,28 @@ async function activateManual(subscriptionId, actorId, { reference, amountMinor 
       return sub;
     }
     if (sub.status !== 'pending') throw fail(409, 'Only pending subscriptions can be activated.');
+    if (sub.paymentProof?.status !== 'submitted' || !receiptVersion || sub.paymentProof.receiptVersion !== receiptVersion || sub.paymentProof.transactionNumber !== reference) {
+      throw fail(409, 'Review the current uploaded receipt and its transaction number before activation.');
+    }
     if (!await User.exists({ _id: sub.instituteId, userType: 'institute', isActive: true, isVerifiedByAdmin: true }).session(session)) throw fail(403, 'Institute is unavailable.');
+    await recoverExpiredCredits(sub.instituteId, session);
+    const trial = await Subscription.findOne({ instituteId: sub.instituteId, status: 'trial' }).session(session);
+    if (trial) {
+      if (trial.reserved > 0) throw fail(409, 'Trial certificates are still processing. Retry approval once issuance finishes.');
+      trial.status = 'expired';
+      if (trial.endsAt > new Date()) trial.endsAt = new Date();
+      await trial.save({ session });
+      await audit({ instituteId: sub.instituteId, subscriptionId: trial._id, actorId, event: 'trial_upgraded' }, session);
+    }
     const startsAt = new Date();
     sub.set({ status: 'active', activation: 'manual', startsAt, endsAt: annualExpiry(startsAt), allocated: sub.snapshot.limits.certificates });
+    sub.paymentProof.status = 'approved'; sub.paymentProof.reviewedAt = startsAt; sub.paymentProof.reviewedBy = actorId;
     await sub.save({ session });
-    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, amountMinor, recordedBy: actorId }], { session });
+    await Payment.create([{ instituteId: sub.instituteId, subscriptionId, reference, packageReference: sub.snapshot.name, amountMinor, recordedBy: actorId }], { session });
     await UsageTransaction.create([{ instituteId: sub.instituteId, subscriptionId, key: 'initial-allocation', event: 'credit_allocated', units: sub.allocated }], { session });
     await audit({ instituteId: sub.instituteId, subscriptionId, actorId, event: 'manual_payment_activated', details: { amountMinor, reference } }, session);
+    await Notification.create([{ recipient: sub.instituteId, type: 'system_alert', title: 'Payment approved',
+      message: `Your ${sub.snapshot.name} package is now active for 12 months.`, data: { subscriptionId } }], { session });
     return sub;
   });
 }
@@ -137,5 +178,5 @@ async function recoverExpiredCredits(instituteId, session) {
     await IssuanceEvent.create([{ instituteId, operationId: op._id, actorId: op.actorId, attempt: op.attempt, event: 'released' }], { session });
   }
 }
-module.exports = { enabled, requireActiveSubscription, requirePlanFeature, requestSubscription, activateManual, setStatus,
+module.exports = { enabled, TRIAL_DAYS, TRIAL_LIMITS, trialTerms, createRegistrationTrial, requireActiveSubscription, requirePlanFeature, requestSubscription, activateManual, setStatus,
   reserveCredit, settleCredit, saveLimitedResource, recoverExpiredCredits, annualExpiry, transaction, audit };

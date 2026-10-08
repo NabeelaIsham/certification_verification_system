@@ -10,6 +10,7 @@ const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/va
 const { hashOtp } = require('../utils/otpSecurity');
 const ActivityLog = require('../models/ActivityLog');
 const { accountInstructionsResponse } = require('../utils/authResponses');
+const subscriptions = require('../services/subscriptionService');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -68,7 +69,7 @@ const registerInstitute = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already registered.' });
     }
 
-    const user = new User({
+    let user = new User({
       instituteName: instituteName.trim(),
       email: email.toLowerCase().trim(),
       phone: phone?.trim() || '',
@@ -85,7 +86,18 @@ const registerInstitute = async (req, res) => {
       isVerifiedByAdmin: false
     });
 
-    await user.save();
+    if (subscriptions.enabled()) {
+      const original = user.toObject();
+      user = await subscriptions.transaction(async session => {
+        const candidate = new User(original);
+        await candidate.save({ session });
+        await subscriptions.createRegistrationTrial(candidate._id, session);
+        return candidate;
+      });
+      user.$session(null);
+    } else {
+      await user.save();
+    }
 
     const accountOtp = generateOTP();
     await OTP.deleteMany({ email: user.email, type: { $in: ['email', 'phone'] } });

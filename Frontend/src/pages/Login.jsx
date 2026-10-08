@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/auth';
 
 const Login = () => {
@@ -11,6 +11,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const location = useLocation();
   const [challengeToken, setChallengeToken] = useState('');
   const [otp, setOtp] = useState('');
   const [verification, setVerification] = useState({ otpExpiry: 5, maxOtpAttempts: 3, resendCooldown: 60, allowResendOtp: true });
@@ -81,7 +82,7 @@ const Login = () => {
             navigate('/admin/dashboard');
             break;
           case 'institute':
-            navigate('/institute/dashboard');
+            navigate(/^\/institute\/subscription(?:\/|$)/.test(location.state?.from || '') ? location.state.from : '/institute/dashboard');
             break;
           case 'teacher':
             navigate('/teacher/dashboard');

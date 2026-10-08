@@ -1,46 +1,72 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+﻿import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { vi } from 'vitest';
 import api from '../src/services/api';
-import { Pricing, InstituteSubscription, AdminSubscriptions } from '../src/components/shared/Subscriptions';
+import { Pricing, InstituteSubscription, AdminSubscriptions, PackageCheckout, PackagePayment } from '../src/components/shared/Subscriptions';
 vi.mock('../src/services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
-const plan = { _id: 'plan', name: 'Starter', priceMinor: 1490000, limits: { certificates: 100, teachers: 2, templates: 2 }, features: {}, active: true, displayOrder: 0, recommended: false };
+const plan = { _id: 'plan', name: 'Starter', priceMinor: 1490000, limits: { certificates: 100, teachers: 2, templates: 2 }, features: {}, active: true };
 const empty = { subscriptions: [], payments: [], usage: [], teachers: 0, templates: 0 };
-beforeEach(() => { vi.resetAllMocks(); });
-test('pricing displays server-provided annual allowances and no automatic renewal', async () => {
+const trial = { _id: 'trial', snapshot: { ...plan, name: 'Free trial' }, activation: 'trial', effectiveStatus: 'trial', consumed: 0, allocated: 100, remaining: 100, reserved: 0, endsAt: new Date(Date.now() + 14 * 86400000).toISOString() };
+beforeEach(() => { vi.resetAllMocks(); sessionStorage.clear(); });
+
+test('pricing keeps the selected plan in the checkout URL and offers a free trial', async () => {
   api.get.mockResolvedValue({ data: { data: [plan] } });
   render(<MemoryRouter><Pricing /></MemoryRouter>);
   expect(await screen.findByText('100 certificate credits')).toBeInTheDocument();
-  expect(screen.getByText(/No trial or automatic renewal/)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Choose package' })).toHaveAttribute('href', '/institute/subscription');
+  expect(screen.getByRole('link', { name: 'Start free trial' })).toHaveAttribute('href', '/register');
+  expect(screen.getByRole('link', { name: 'Choose Starter' })).toHaveAttribute('href', '/institute/subscription/checkout/plan');
 });
-test('failed subscription requests reuse the idempotency key on retry', async () => {
-  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/mine') ? empty : [plan] } }));
-  api.post.mockRejectedValueOnce({ response: { data: { message: 'Try again' } } }).mockResolvedValue({ data: {} });
-  render(<InstituteSubscription />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Request Starter' }));
+
+test('checkout reuses the request key after failure and redirects to the returned payment', async () => {
+  api.post.mockRejectedValueOnce({ response: { data: { message: 'Try again' } } }).mockResolvedValue({ data: { data: { _id: 'subscription' } } });
+  render(<MemoryRouter initialEntries={['/checkout/plan']}><Routes><Route path='/checkout/:planId' element={<PackageCheckout />} /><Route path='/institute/subscription/payment/:subscriptionId' element={<p>Payment destination</p>} /></Routes></MemoryRouter>);
   expect(await screen.findByRole('alert')).toHaveTextContent('Try again');
-  fireEvent.click(screen.getByRole('button', { name: 'Request Starter' }));
-  await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(await screen.findByText('Payment destination')).toBeInTheDocument();
   expect(api.post.mock.calls[0][1]).toEqual({ planId: 'plan' });
   expect(api.post.mock.calls[0][2].headers['Idempotency-Key']).toBe(api.post.mock.calls[1][2].headers['Idempotency-Key']);
 });
-test('institute dashboard shows quota warnings and blocks a second active request', async () => {
-  const data = { ...empty, subscriptions: [{ _id: 'subscription', snapshot: plan, effectiveStatus: 'active', consumed: 90, allocated: 100, reserved: 1, remaining: 9, endsAt: new Date(Date.now() + 2 * 86400000).toISOString() }] };
+
+test('an active paid package blocks another purchase and displays usage warnings', async () => {
+  const data = { ...empty, subscriptions: [{ ...trial, activation: 'manual', snapshot: plan, effectiveStatus: 'active', consumed: 90, remaining: 9, reserved: 1 }] };
   api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/mine') ? data : [plan] } }));
-  render(<InstituteSubscription />);
+  render(<MemoryRouter><InstituteSubscription /></MemoryRouter>);
   expect(await screen.findByText('90% usage threshold reached.')).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Request Starter' })).toBeDisabled();
-  expect(screen.getByText(/Renew soon/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Choose Starter' })).toBeDisabled();
 });
-test('manual activation submits entered bank reference and exact minor-unit amount', async () => {
-  const sub = { _id: 'subscription', instituteId: { instituteName: 'Test Institute' }, snapshot: plan, status: 'pending', consumed: 0, allocated: 0, reserved: 0 };
-  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/plans') ? [plan] : url.endsWith('/events') ? [] : [sub] } }));
+
+test('trial can upgrade; pending upgrade still displays usable trial credits', async () => {
+  const pending = { _id: 'pending', snapshot: plan, effectiveStatus: 'pending', paymentProof: { status: 'submitted' } };
+  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/mine') ? { ...empty, subscriptions: [pending, trial] } : [plan] } }));
+  render(<MemoryRouter><InstituteSubscription /></MemoryRouter>);
+  expect(await screen.findByText('Free trial')).toBeInTheDocument();
+  expect(screen.getByText('100')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'View payment' })).toHaveAttribute('href', '/institute/subscription/payment/pending');
+});
+
+test('an active trial offers upgrade links without waiting for expiry', async () => {
+  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/mine') ? { ...empty, subscriptions: [trial] } : [plan] } }));
+  render(<MemoryRouter><InstituteSubscription /></MemoryRouter>);
+  expect(await screen.findByRole('link', { name: 'Choose Starter' })).toHaveAttribute('href', '/institute/subscription/checkout/plan');
+});
+
+test('approval sends the receipt version and verified amount', async () => {
+  const sub = { _id: 'subscription', instituteId: { instituteName: 'Test Institute' }, snapshot: plan, status: 'pending', consumed: 0, allocated: 0, reserved: 0, paymentProof: { transactionNumber: 'BANK-123', status: 'submitted', receiptVersion: 'receipt-1' } };
+  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/plans') ? [plan] : url.endsWith('/events') ? [] : url.endsWith('/bank-details') ? null : [sub] } }));
   api.post.mockResolvedValue({ data: {} });
   render(<AdminSubscriptions />);
-  fireEvent.change(await screen.findByLabelText('Bank reference'), { target: { value: 'BANK-123' } });
+  expect(await screen.findByLabelText('Bank transaction number')).toHaveValue('BANK-123');
   fireEvent.change(screen.getByLabelText('Amount received (LKR)'), { target: { value: '14900' } });
   fireEvent.click(screen.getByLabelText('I verified this bank payment.'));
   fireEvent.click(screen.getByRole('button', { name: 'Record payment and activate' }));
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/subscriptions/admin/subscriptions/subscription/activate', { reference: 'BANK-123', amountMinor: 1490000 }));
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/subscriptions/admin/subscriptions/subscription/activate', { reference: 'BANK-123', amountMinor: 1490000, receiptVersion: 'receipt-1' }));
+});
+
+test('payment page shows approval status and does not allow changing a submitted payment', async () => {
+  const pending = { _id: 'pending', snapshot: plan, effectiveStatus: 'pending', paymentProof: { status: 'submitted', transactionNumber: 'BANK-123' } };
+  api.get.mockImplementation(url => Promise.resolve({ data: { data: url.endsWith('/mine') ? { ...empty, subscriptions: [pending] } : null } }));
+  render(<MemoryRouter initialEntries={['/payment/pending']}><Routes><Route path='/payment/:subscriptionId' element={<PackagePayment />} /></Routes></MemoryRouter>);
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Receipt received'));
+  expect(screen.queryByRole('button', { name: 'Change package' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Submit payment receipt' })).not.toBeInTheDocument();
 });

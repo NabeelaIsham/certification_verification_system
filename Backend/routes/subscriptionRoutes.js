@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const { authenticateToken, authorizeInstitute, authorizeSuperAdmin } = require('../middleware/authMiddleware');
 const { Plan, Subscription, UsageTransaction, Payment, SubscriptionEvent } = require('../models/Saas');
 const service = require('../services/subscriptionService');
+const manualPayment = require('../services/manualPaymentService');
+const multer = require('multer');
+const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 4, fieldSize: 2000 } }).single('receipt');
 const User = require('../models/User');
 const Template = require('../models/CertificateTemplate');
 const router = express.Router();
@@ -16,18 +19,42 @@ const handler = work => async (req, res) => {
 };
 router.param('id', (req, res, next, id) => mongoose.isObjectIdOrHexString(id) ? next() : res.status(400).json({ success: false, message: 'Invalid ID.' }));
 router.get('/plans', handler(() => Plan.find({ active: true }).sort({ displayOrder: 1, _id: 1 })));
+router.get('/trial', handler(() => service.trialTerms()));
 router.use(authenticateToken);
+router.get('/bank-details', authorizeInstitute, handler(() => manualPayment.bankDetails()));
+router.post('/:id/payment-proof', authorizeInstitute, (req, res, next) => receiptUpload(req, res, error => {
+  if (error) return res.status(400).json({ success: false, message: 'Upload one JPEG or PNG receipt up to 5 MB and a transaction number.' });
+  next();
+}), handler(req => manualPayment.submitProof(req.userId, req.params.id, req.body.transactionNumber, req.file, req.body)));
+router.get('/:id/receipt', async (req, res) => {
+  if (!['superadmin', 'institute'].includes(req.userType)) return res.sendStatus(403);
+  try {
+    const sub = await Subscription.findOne({ _id: req.params.id, ...(req.userType === 'institute' ? { instituteId: req.userId } : {}) }).select('+paymentProof.receipt');
+    if (!sub?.paymentProof?.receipt) return res.sendStatus(404);
+    res.set({ 'Content-Type': 'image/jpeg', 'Content-Disposition': 'attachment; filename="payment-receipt.jpg"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.send(sub.paymentProof.receipt);
+  } catch { res.sendStatus(500); }
+});
 router.get('/mine', authorizeInstitute, handler(async req => {
   const subscriptions = await Subscription.find({ instituteId: req.userId }).sort({ createdAt: -1 }).limit(50).lean();
-  return { subscriptions: subscriptions.map(sub => ({ ...sub, effectiveStatus: sub.status === 'active' && sub.endsAt <= new Date() ? 'expired' : sub.status,
-    remaining: sub.status === 'active' && sub.startsAt <= new Date() && sub.endsAt > new Date() ? Math.max(0, sub.allocated - sub.consumed - sub.reserved) : 0 })),
+  return { subscriptions: subscriptions.map(sub => ({ ...sub, effectiveStatus: ['active', 'trial'].includes(sub.status) && sub.endsAt <= new Date() ? 'expired' : sub.status,
+    remaining: ['active', 'trial'].includes(sub.status) && sub.startsAt <= new Date() && sub.endsAt > new Date() ? Math.max(0, sub.allocated - sub.consumed - sub.reserved) : 0 })),
   teachers: await User.countDocuments({ instituteId: req.userId, userType: 'teacher' }),
   templates: await Template.countDocuments({ instituteId: req.userId }),
   payments: await Payment.find({ instituteId: req.userId }).sort({ paidAt: -1 }).limit(50),
   usage: await UsageTransaction.find({ instituteId: req.userId }).sort({ createdAt: -1 }).limit(100) };
 }));
 router.post('/requests', authorizeInstitute, handler(req => service.requestSubscription(req.userId, req.body.planId, req.get('Idempotency-Key'))));
+router.post('/:id/cancel', authorizeInstitute, handler(async req => service.transaction(async session => {
+  const sub = await Subscription.findOne({ _id: req.params.id, instituteId: req.userId, status: 'pending' }).session(session);
+  if (!sub || sub.paymentProof?.status === 'submitted') throw Object.assign(new Error('Only unpaid or rejected requests can be cancelled. Contact support while a receipt is under review.'), { status: 409 });
+  sub.status = 'cancelled'; await sub.save({ session });
+  await service.audit({ actorId: req.userId, instituteId: req.userId, subscriptionId: sub._id, event: 'subscription_cancelled' }, session);
+  return sub;
+})));
 router.use('/admin', authorizeSuperAdmin);
+router.get('/admin/bank-details', handler(() => manualPayment.bankDetails()));
+router.put('/admin/bank-details', handler(req => manualPayment.saveBankDetails(req.userId, req.body)));
 router.get('/admin/plans', handler(() => Plan.find({}).sort({ displayOrder: 1 })));
 router.post('/admin/plans/bootstrap', handler(req => service.transaction(async session => {
   if (await Plan.exists({}).session(session)) throw Object.assign(new Error('The plan catalogue already exists.'), { status: 409 });
@@ -64,7 +91,9 @@ router.put('/admin/plans/:id', handler(req => service.transaction(async session 
   return plan;
 })));
 router.get('/admin/subscriptions', handler(() => Subscription.find({}).sort({ createdAt: -1 }).limit(200).populate('instituteId', 'instituteName email')));
+router.get('/admin/reviews', handler(() => Subscription.find({ status: 'pending', 'paymentProof.status': 'submitted' }).sort({ 'paymentProof.submittedAt': 1 }).populate('instituteId', 'instituteName email')));
 router.post('/admin/subscriptions/:id/activate', handler(req => service.activateManual(req.params.id, req.userId, req.body)));
+router.post('/admin/subscriptions/:id/reject-receipt', handler(req => manualPayment.rejectProof(req.params.id, req.userId, req.body.reason, req.body.receiptVersion)));
 router.post('/admin/subscriptions/:id/status', handler(req => service.setStatus(req.params.id, req.userId, req.body.status, req.body.reason)));
 router.get('/admin/events', handler(() => SubscriptionEvent.find({}).sort({ createdAt: -1 }).limit(200)));
 module.exports = router;
