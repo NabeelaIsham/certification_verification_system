@@ -131,9 +131,7 @@ const Login = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Logo and Header */}
         <div className="flex justify-center">
-          <div className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-2xl text-white">🔐</span>
-          </div>
+          <img src="/favicon.svg" alt="CERTIVERXIA" className="w-16 h-16 object-contain" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Welcome Back

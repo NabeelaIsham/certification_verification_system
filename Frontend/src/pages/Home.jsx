@@ -1,161 +1,66 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRightIcon, ShieldCheckIcon, QrCodeIcon, AcademicCapIcon, CheckIcon, DocumentCheckIcon, BuildingLibraryIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
-const Home = () => {
-  const features = [
-    {
-      name: 'Secure Digital Certificates',
-      description: 'Generate digitally signed certificates with embedded QR codes and unique verification links.',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Instant Verification',
-      description: 'Verify certificate authenticity in seconds using QR code scanning or manual code entry.',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Multi-Institute Support',
-      description: 'Manage multiple educational institutions under one unified platform with separate dashboards.',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-    },
-    {
-      name: 'Automated Email Notifications',
-      description: 'Automatically send digital certificates to students via email with download links.',
-      icon: (
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      ),
-    },
-  ];
+const features = [
+  { icon: ShieldCheckIcon, title: 'Credentials with integrity', text: 'Digitally signed certificates help you detect tampering and validate the original credential.' },
+  { icon: QrCodeIcon, title: 'A simpler way to verify', text: 'Scan a QR code or enter a certificate ID to check a credential and its current status.' },
+  { icon: BuildingLibraryIcon, title: 'Built for your institution', text: 'Bring courses, students, and certificate issuance together in one dedicated workspace.' },
+  { icon: EnvelopeIcon, title: 'Achievements, delivered', text: 'Send certificates directly to learners, ready to download and share with their next opportunity.' },
+];
 
-  const stats = [
-    { label: 'Institutes Supported', value: '50+' },
-    { label: 'Certificates Issued', value: '10,000+' },
-    { label: 'Successful Verifications', value: '25,000+' },
-    { label: 'System Uptime', value: '99.9%' },
-  ];
-
+export default function Home() {
+  const [code, setCode] = useState('');
+  const navigate = useNavigate();
+  const verify = (event) => {
+    event.preventDefault();
+    if (code.trim()) navigate(`/verify/${encodeURIComponent(code.trim())}`);
+  };
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Secure Digital Certificate
-              <span className="block text-blue-200">Verification System</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-blue-100 mb-8 max-w-3xl mx-auto">
-              Eliminate certificate forgery and streamline verification processes 
-              with our digitally signed multi-institute credential platform.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/verify"
-                className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-colors duration-200 shadow-lg"
-              >
-                Verify Certificate
-              </Link>
-              <Link
-                to="/login"
-                className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-white hover:text-blue-600 transition-colors duration-200"
-              >
-                Institute Login
-              </Link>
+    <div className="brand-home">
+      <section className="brand-hero">
+        <div className="brand-container hero-grid">
+          <div className="hero-copy">
+            <span className="brand-eyebrow"><span className="status-dot" /> A NEW STANDARD FOR DIGITAL CREDENTIALS</span>
+            <h1>Real achievements.<br /><span className="gradient-text">Verifiable trust.</span></h1>
+            <p className="hero-description">Every achievement deserves to be trusted. Issue, share, and verify digital certificates in one secure, connected platform.</p>
+            <div className="hero-actions">
+              <Link to="/verify" className="brand-button">Verify a certificate <ArrowRightIcon /></Link>
+              <Link to="/register" className="brand-button brand-button-secondary">For institutions <BuildingLibraryIcon /></Link>
             </div>
+            <div className="hero-assurances"><span><CheckIcon /> Digitally signed</span><span><CheckIcon /> QR verification</span><span><CheckIcon /> Easy to share</span></div>
+          </div>
+          <div className="credential-scene" aria-label="Illustration of a sample digital certificate">
+            <div className="scene-orbit orbit-one" /><div className="scene-orbit orbit-two" />
+            <div className="sample-certificate">
+              <div className="sample-top"><img src="/favicon.svg" alt="" /><span>THE VALUE OF EVERY ACHIEVEMENT</span><span className="sample-label">SAMPLE</span></div>
+              <div className="certificate-rule" />
+              <AcademicCapIcon className="sample-cap" />
+              <p className="sample-kicker">A MILESTONE WORTH SHARING</p>
+              <h2>Certificate of Achievement</h2>
+              <p className="sample-caption">Recognising dedication. Celebrating possibility.</p>
+              <div className="sample-name">Your next great achievement</div>
+              <div className="sample-lines"><span /><span /></div>
+              <div className="sample-bottom"><div><span className="sample-kicker">ISSUED WITH CONFIDENCE</span><p>Powered by CERTIVERXIA</p></div><ShieldCheckIcon /></div>
+            </div>
+            <div className="floating-proof"><span className="proof-icon"><ShieldCheckIcon /></span><div><strong>Trust, built in.</strong><span>Digital signatures. Clear verification.</span></div></div>
           </div>
         </div>
       </section>
-
-      {/* Stats Section */}
-      <section className="bg-gray-50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">
-                  {stat.value}
-                </div>
-                <div className="text-gray-600 font-medium">
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <section className="brand-container quick-verify" aria-labelledby="quick-verify-title">
+        <div className="quick-verify-heading"><span className="feature-icon"><DocumentCheckIcon /></span><div><h2 id="quick-verify-title">Have a certificate to check?</h2><p>A little certainty goes a long way.</p></div></div>
+        <form onSubmit={verify} className="quick-verify-form"><label htmlFor="home-certificate-code" className="sr-only">Certificate code</label><input id="home-certificate-code" value={code} onChange={event => setCode(event.target.value)} placeholder="Enter certificate code" required maxLength={200} /><button className="brand-button" type="submit">Verify now <ArrowRightIcon /></button></form>
       </section>
-
-      {/* Features Section */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Why Choose CertVerify?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Our platform offers comprehensive solutions for modern certificate 
-              management and verification challenges.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-300"
-              >
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 mb-4">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  {feature.name}
-                </h3>
-                <p className="text-gray-600">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <section className="brand-container brand-features" id="platform">
+        <div className="section-heading"><div><span className="brand-eyebrow">CONFIDENCE AT EVERY STEP</span><h2>One platform.<br />Every credential, connected.</h2></div><p>From the moment a certificate is issued to the moment it opens a new door. Make every step simpler.</p></div>
+        <div className="feature-grid">{features.map((feature, index) => <article className="feature-card" key={feature.title}><div className="feature-card-top"><span className="feature-icon"><feature.icon /></span><span className="feature-number">0{index + 1}</span></div><h3>{feature.title}</h3><p>{feature.text}</p></article>)}</div>
       </section>
-
-      {/* CTA Section */}
-      <section className="bg-gray-900 text-white py-20">
-        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Ready to Transform Your Certificate Management?
-          </h2>
-          <p className="text-xl text-gray-300 mb-8">
-            Join hundreds of educational institutions already using CertVerify 
-            to secure their credential issuance process.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/login"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold text-lg transition-colors duration-200"
-            >
-              Get Started Today
-            </Link>
-            <button className="border-2 border-gray-300 text-gray-300 hover:bg-white hover:text-gray-900 px-8 py-3 rounded-lg font-semibold text-lg transition-colors duration-200">
-              Schedule a Demo
-            </button>
-          </div>
-        </div>
-      </section>
+      <section className="brand-workflow" id="how-it-works"><div className="brand-container"><div className="section-heading"><div><span className="brand-eyebrow">LESS FRICTION. MORE POSSIBILITY.</span><h2>From achievement to assurance.</h2></div><Link to="/verify" className="text-link">Explore verification <ArrowRightIcon /></Link></div><div className="workflow-grid">{[
+        ['01', 'Issue with confidence', 'Institutions create digitally signed credentials for their learners.'],
+        ['02', 'Share your success', 'Learners receive their certificates and share them when it matters.'],
+        ['03', 'Verify with clarity', 'Employers and reviewers check certificate details using a code or QR.'],
+      ].map(([number, title, text]) => <article key={number}><span className="workflow-number">{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
+      <section className="brand-container"><div className="brand-cta"><div><span className="brand-eyebrow">YOUR ACHIEVEMENTS. OUR COMMITMENT.</span><h2>Give every credential<br />the confidence it deserves.</h2><p>A better experience for institutions, learners, and everyone who relies on their achievements.</p></div><Link to="/register" className="brand-button">Get started <ArrowRightIcon /></Link></div></section>
     </div>
   );
-};
-
-export default Home;
+}

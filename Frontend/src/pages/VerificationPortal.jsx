@@ -522,12 +522,13 @@ const VerificationPortal = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
+    <div className="verification-page min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
+          <p className="brand-eyebrow mb-5">CERTIVERXIA • CREDENTIAL VERIFICATION</p>
           <div className="flex justify-center mb-4">
-            <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -536,14 +537,14 @@ const VerificationPortal = () => {
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Verify Certificate
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-base text-gray-500 max-w-2xl mx-auto">
             Scan the QR code or enter the certificate code manually to verify authenticity
           </p>
         </div>
 
         {/* Main Content */}
         {!verificationResult ? (
-          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-4 sm:p-8 border border-gray-200">
             {loading && (
               <div className="mb-6 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-center">
                 Verifying scanned certificate...
@@ -551,7 +552,7 @@ const VerificationPortal = () => {
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* QR Code Verification */}
-              <div className="text-center p-6 border-r border-gray-200">
+              <div className="text-center p-4 sm:p-6 border-b lg:border-b-0 lg:border-r border-gray-200">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
