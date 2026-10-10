@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 
-const InstituteManagement = ({ onStatsUpdate }) => {
+const InstituteManagement = ({ onStatsUpdate, initialStatus = 'all' }) => {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState(['all', 'pending', 'approved', 'rejected', 'suspended'].includes(initialStatus) ? initialStatus : 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [pagination, setPagination] = useState({
     page: 1,

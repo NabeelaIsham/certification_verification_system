@@ -74,11 +74,12 @@ const ProtectedRoute = ({ children, allowedUserType }) => {
 };
 
 function App() {
+  const isAdminWorkspace = useLocation().pathname === '/admin/dashboard';
   return (
     <AuthProvider>
       <InstituteProvider>
         <div className="App min-h-screen flex flex-col bg-gray-50">
-          <Navbar />
+          {!isAdminWorkspace && <Navbar />}
           <main className="flex-grow">
             <Routes>
               {/* Public Routes */}
@@ -181,7 +182,7 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
-          <Footer />
+          {!isAdminWorkspace && <Footer />}
           <ToastContainer 
             position="bottom-right"
             autoClose={5000}
