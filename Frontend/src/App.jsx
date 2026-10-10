@@ -74,7 +74,7 @@ const ProtectedRoute = ({ children, allowedUserType }) => {
 };
 
 function App() {
-  const isAdminWorkspace = useLocation().pathname === '/admin/dashboard';
+  const isAdminWorkspace = ['/admin/dashboard', '/institute/dashboard', '/teacher/dashboard'].includes(useLocation().pathname);
   return (
     <AuthProvider>
       <InstituteProvider>

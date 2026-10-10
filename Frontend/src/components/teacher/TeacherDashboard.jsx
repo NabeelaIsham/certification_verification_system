@@ -1,346 +1,373 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import TeacherStudents from './TeacherStudents';
-import TeacherIssueCertificate from './TeacherIssueCertificate';
-import TeacherProfile from './TeacherProfile';
-import TeacherCreateCourse from './TeacherCreateCourse';
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Squares2X2Icon,
+  BookOpenIcon,
+  UsersIcon,
+  DocumentCheckIcon,
+  ClockIcon,
+  PlusCircleIcon,
+  UserCircleIcon,
+  ArrowRightIcon,
+  AcademicCapIcon,
+  BuildingOffice2Icon,
+} from "@heroicons/react/24/outline";
+import WorkspaceLayout, {
+  WorkspaceMetrics,
+  WorkspaceActions,
+} from "../shared/WorkspaceLayout";
+import axios from "axios";
+import TeacherStudents from "./TeacherStudents";
+import TeacherIssueCertificate from "./TeacherIssueCertificate";
+import TeacherProfile from "./TeacherProfile";
+import TeacherCreateCourse from "./TeacherCreateCourse";
 
-const TeacherDashboard = ({ API_URL, teacher }) => {
+const TeacherDashboard = ({
+  API_URL = import.meta.env.VITE_API_BASE_URL || "/api",
+  teacher,
+}) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalCourses: 0,
-    certificatesIssued: 0,
-    pendingCertificates: 0
-  });
+  const [params, setParams] = useSearchParams();
+  const [stats, setStats] = useState(null);
   const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [teacherData, setTeacherData] = useState(teacher);
-  const [error, setError] = useState('');
-
+  const [error, setError] = useState("");
+  const live = useRef(true);
   const tabs = [
-    { id: 'dashboard', name: 'Dashboard', icon: '📊' },
-    { id: 'students', name: 'My Students', icon: '👨‍🎓' },
-    { id: 'create-course', name: 'Create Course', permission: 'canCreateCourses', icon: '+' },
-    { id: 'issue', name: 'Issue Certificates', permission: 'canIssueCertificates', icon: '📜' },
-    { id: 'profile', name: 'Profile', icon: '👤' }
-  ].filter(tab => !tab.permission || teacherData?.permissions?.[tab.permission]);
-
+    {
+      id: "dashboard",
+      name: "Overview",
+      icon: Squares2X2Icon,
+      description:
+        "A clear view of your courses, learners, and their achievements.",
+    },
+    {
+      id: "courses",
+      name: "My Courses",
+      icon: BookOpenIcon,
+      description: "Follow certificate progress across your assigned courses.",
+    },
+    {
+      id: "students",
+      name: "My Students",
+      icon: UsersIcon,
+      description: "Review the learners in your assigned courses.",
+    },
+    {
+      id: "create-course",
+      name: "Create Course",
+      permission: "canCreateCourses",
+      icon: PlusCircleIcon,
+      description: "Build a new course for your institute.",
+    },
+    {
+      id: "issue",
+      name: "Issue Certificates",
+      permission: "canIssueCertificates",
+      icon: DocumentCheckIcon,
+      description:
+        "Recognise completed learning with a verifiable certificate.",
+    },
+    {
+      id: "profile",
+      name: "My Profile",
+      icon: UserCircleIcon,
+      description:
+        "Keep your personal details and account security up to date.",
+    },
+  ].filter(
+    (tab) => !tab.permission || teacherData?.permissions?.[tab.permission],
+  );
+  const activeTab = tabs.some((tab) => tab.id === params.get("tab"))
+    ? params.get("tab")
+    : "dashboard";
+  const setActiveTab = (tab) => setParams({ tab });
   useEffect(() => {
+    live.current = true;
     fetchDashboardData();
-  }, []);
-
+    return () => {
+      live.current = false;
+    };
+  }, [API_URL]);
   const fetchDashboardData = async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
-      const token = localStorage.getItem('token');
-      
-      // Fetch teacher profile with courses
-      const profileRes = await axios.get(`${API_URL}/teachers/profile/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (profileRes.data.success) {
-        setTeacherData(profileRes.data.data);
-        console.log('Teacher data loaded:', profileRes.data.data);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login", { replace: true });
+        return;
       }
-
-      // Fetch students
-      const studentsRes = await axios.get(`${API_URL}/teachers/students/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const options = { headers: { Authorization: `Bearer ${token}` } };
+      const profileRes = await axios.get(
+        `${API_URL}/teachers/profile/me`,
+        options,
+      );
+      if (!live.current) return;
+      if (!profileRes.data.success)
+        throw new Error("Unable to load your teacher profile.");
+      setTeacherData(profileRes.data.data);
+      const [studentsRes, coursesRes] = await Promise.all([
+        axios.get(`${API_URL}/teachers/students/my`, options),
+        axios.get(`${API_URL}/teachers/courses/my`, options),
+      ]);
+      if (!live.current) return;
+      if (!studentsRes.data.success || !coursesRes.data.success)
+        throw new Error("Unable to load your courses and students.");
+      const students = studentsRes.data.data || [];
+      const issuedCount = students.filter(
+        (student) => student.hasCertificate,
+      ).length;
+      const assigned = coursesRes.data.data || [];
+      setStats({
+        totalStudents: students.length,
+        totalCourses: assigned.length,
+        certificatesIssued: issuedCount,
+        pendingCertificates: students.length - issuedCount,
       });
-
-      // Fetch courses with stats
-      const coursesRes = await axios.get(`${API_URL}/teachers/courses/my`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (studentsRes.data.success) {
-        const students = studentsRes.data.data || [];
-        const issuedCount = students.filter(s => s.hasCertificate).length;
-        
-        setStats({
-          totalStudents: students.length,
-          totalCourses: coursesRes.data.data?.length || 0,
-          certificatesIssued: issuedCount,
-          pendingCertificates: students.length - issuedCount
-        });
-      }
-
-      if (coursesRes.data.success) {
-        setCourses(coursesRes.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data. Please refresh.');
+      setCourses(assigned);
+    } catch (failure) {
+      if (!live.current) return;
+      if (failure.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        navigate("/login", { replace: true });
+      } else
+        setError(
+          failure.response?.data?.message ||
+            failure.message ||
+            "Failed to load your overview. Please try again.",
+        );
     } finally {
-      setLoading(false);
+      if (live.current) setLoading(false);
     }
   };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  if (loading && !teacherData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold">👨‍🏫</span>
+  const name = [teacherData?.firstName, teacherData?.lastName]
+    .filter(Boolean)
+    .join(" ");
+  const institute = teacherData?.instituteId;
+  const canIssue = teacherData?.permissions?.canIssueCertificates;
+  const metrics = [
+    {
+      label: "My courses",
+      value: stats?.totalCourses,
+      icon: BookOpenIcon,
+      color: "blue",
+      detail: "Assigned to you",
+      onClick: () => setActiveTab("courses"),
+    },
+    {
+      label: "My students",
+      value: stats?.totalStudents,
+      icon: UsersIcon,
+      color: "green",
+      detail: "Learners in your courses",
+      onClick: () => setActiveTab("students"),
+    },
+    {
+      label: "Certificates issued",
+      value: stats?.certificatesIssued,
+      icon: DocumentCheckIcon,
+      color: "violet",
+      detail: "Students with a certificate",
+      onClick: () => setActiveTab("students"),
+    },
+    {
+      label: "Awaiting certificates",
+      value: stats?.pendingCertificates,
+      icon: ClockIcon,
+      color: "amber",
+      detail: "Students without a certificate",
+      onClick: () => setActiveTab(canIssue ? "issue" : "students"),
+    },
+  ];
+  const courseList = (
+    <div className="workspace-course-list">
+      {courses.length ? (
+        courses.map((course) => (
+          <article key={course._id} className="workspace-course">
+            <div className="workspace-course-heading">
+              <div>
+                <h3>{course.courseName}</h3>
+                <small>{course.courseCode}</small>
               </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Welcome, {teacherData?.firstName} {teacherData?.lastName}
-                </h1>
-                <p className="text-sm text-gray-500">
-                  {teacherData?.designation} • {teacherData?.department}
-                </p>
-                <p className="text-xs text-gray-400">
-                  Institute: {teacherData?.instituteId?.instituteName || 'Loading...'}
-                </p>
-              </div>
+              <span>{course.studentCount || 0} students</span>
             </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-red-600 hover:text-red-800"
-              >
-                Logout
-              </button>
+            <div className="workspace-course-progress" aria-hidden="true">
+              <span
+                style={{
+                  width: `${course.studentCount ? Math.min(100, ((course.certificateCount || 0) / course.studentCount) * 100) : 0}%`,
+                }}
+              />
             </div>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex space-x-1 -mb-px overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-green-600 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.name}
-              </button>
-            ))}
-          </div>
+            <div className="workspace-course-footer">
+              <span>{course.certificateCount || 0} certificates issued</span>
+              <span>
+                {course.studentCount
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        ((course.certificateCount || 0) / course.studentCount) *
+                          100,
+                      ),
+                    )
+                  : 0}
+                % of students
+              </span>
+            </div>
+          </article>
+        ))
+      ) : (
+        <div className="workspace-empty">
+          <p>
+            {loading
+              ? "Loading your courses..."
+              : stats
+                ? "No courses assigned yet"
+                : "Course information is unavailable"}
+          </p>
+          <small>
+            {stats
+              ? "Your institute administrator can assign courses to your account."
+              : "Refresh the overview to try again."}
+          </small>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {activeTab === 'dashboard' && (
-          <div>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📚</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">My Courses</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalCourses}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">👨‍🎓</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">My Students</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📜</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Certificates Issued</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.certificatesIssued}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">⏳</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Pending Certificates</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.pendingCertificates}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* My Courses with Stats */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-4">My Assigned Courses</h3>
-                {courses.length > 0 ? (
-                  <div className="space-y-3 max-h-80 overflow-y-auto">
-                    {courses.map(course => (
-                      <div key={course._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{course.courseName}</p>
-                          <p className="text-sm text-gray-500">{course.courseCode}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500">
-                            Students: {course.studentCount || 0}
-                          </p>
-                          <p className="text-xs text-green-600">
-                            Issued: {course.certificateCount || 0}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <p className="text-gray-500">No courses assigned yet</p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      Contact your institute admin to assign courses
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-                <div className="space-y-3">
-                  <button
-                    onClick={() => setActiveTab('students')}
-                    className="w-full p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-left"
-                  >
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">👨‍🎓</span>
-                      <div>
-                        <p className="font-medium">View My Students</p>
-                        <p className="text-sm text-gray-600">
-                          {stats.totalStudents} students in your courses
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    hidden={!teacherData?.permissions?.canIssueCertificates}
-                    onClick={() => setActiveTab('issue')}
-                    className="w-full p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-left"
-                  >
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">📜</span>
-                      <div>
-                        <p className="font-medium">Issue Certificate</p>
-                        <p className="text-sm text-gray-600">
-                          {stats.pendingCertificates} students need certificates
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('profile')}
-                    className="w-full p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-left"
-                  >
-                    <div className="flex items-center">
-                      <span className="text-2xl mr-3">👤</span>
-                      <div>
-                        <p className="font-medium">Update Profile</p>
-                        <p className="text-sm text-gray-600">
-                          Manage your personal information
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Institute Info Card */}
-            {teacherData?.instituteId && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold mb-2">Institute Information</h3>
-                <p className="text-gray-700">{teacherData.instituteId.instituteName}</p>
-                <p className="text-sm text-gray-500 mt-1">{teacherData.instituteId.email}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'students' && (
-          <TeacherStudents 
-            API_URL={API_URL} 
-            teacherId={teacherData?._id}
-            permissions={teacherData?.permissions}
-            assignedCourses={teacherData?.assignedCourses || []}
-            instituteId={teacherData?.instituteId?._id || teacherData?.instituteId}
-          />
-        )}
-        
-        {activeTab === 'create-course' && teacherData?.permissions?.canCreateCourses && <TeacherCreateCourse API_URL={API_URL} onCreated={fetchDashboardData} />}
-        {activeTab === 'issue' && teacherData?.permissions?.canIssueCertificates && (
-          <TeacherIssueCertificate 
-            API_URL={API_URL} 
-            teacher={teacherData}
-            assignedCourses={teacherData?.assignedCourses || []}
-            instituteId={teacherData?.instituteId?._id || teacherData?.instituteId}
-            onCertificateIssued={() => {
-              fetchDashboardData();
-            }}
-          />
-        )}
-        
-        {activeTab === 'profile' && (
-          <TeacherProfile 
-            API_URL={API_URL} 
-            teacher={teacherData}
-            onProfileUpdate={(updatedTeacher) => {
-              setTeacherData(updatedTeacher);
-              // Update localStorage
-              const userData = JSON.parse(localStorage.getItem('user'));
-              const newUserData = { ...userData, ...updatedTeacher };
-              localStorage.setItem('user', JSON.stringify(newUserData));
-            }}
-          />
-        )}
-      </div>
+      )}
     </div>
   );
+  return (
+    <WorkspaceLayout
+      role="Teacher"
+      name={name}
+      subtitle={institute?.instituteName || "YOUR TEACHING WORKSPACE"}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onRefresh={fetchDashboardData}
+      loading={loading}
+      error={error}
+    >
+      {activeTab === "dashboard" ? (
+        <>
+          <WorkspaceMetrics metrics={metrics} loading={loading} />
+          <div className="admin-overview-grid">
+            <section className="admin-focus">
+              <span className="admin-eyebrow">SUPPORT EVERY ACHIEVEMENT</span>
+              <h2>
+                {canIssue
+                  ? "Their hard work. Your recognition."
+                  : "A clearer view of your learners."}
+              </h2>
+              <p>
+                {canIssue
+                  ? "Review your learners and issue certificates when they have met your institute's requirements."
+                  : "Keep track of your assigned courses and learner records in one workspace."}
+              </p>
+              <button
+                className="admin-primary"
+                onClick={() => setActiveTab(canIssue ? "issue" : "students")}
+              >
+                {canIssue ? "Issue a certificate" : "View my students"}
+                <ArrowRightIcon aria-hidden="true" />
+              </button>
+              <AcademicCapIcon className="admin-focus-art" aria-hidden="true" />
+            </section>
+            <section className="admin-status-card">
+              <div className="admin-section-heading">
+                <h2>My assigned courses</h2>
+                <button onClick={() => setActiveTab("courses")}>
+                  View all <ArrowRightIcon aria-hidden="true" />
+                </button>
+              </div>
+              {courseList}
+            </section>
+          </div>
+          <WorkspaceActions
+            actions={tabs.filter((tab) =>
+              ["students", "create-course", "issue", "profile"].includes(
+                tab.id,
+              ),
+            )}
+            onSelect={setActiveTab}
+          />
+          {institute?.instituteName && (
+            <div className="workspace-affiliation">
+              <BuildingOffice2Icon aria-hidden="true" />
+              <div>
+                <p>{institute.instituteName}</p>
+                <small>{institute.email}</small>
+              </div>
+              <span>
+                {[teacherData?.designation, teacherData?.department]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+          )}
+          <p className="workspace-note" role="status">
+            {loading
+              ? "Loading your teaching overview..."
+              : "Certificate access follows your institute's package and the permissions assigned to you."}
+          </p>
+        </>
+      ) : (
+        <div className="admin-panel">
+          {activeTab === "courses" && (
+            <section className="workspace-course-panel">
+              <div className="admin-section-heading">
+                <h2>Course certificate progress</h2>
+              </div>
+              {courseList}
+            </section>
+          )}
+          {activeTab === "students" && teacherData && (
+            <TeacherStudents
+              API_URL={API_URL}
+              teacherId={teacherData._id}
+              permissions={teacherData.permissions}
+              assignedCourses={teacherData.assignedCourses || []}
+              instituteId={institute?._id || institute}
+            />
+          )}
+          {activeTab === "create-course" &&
+            teacherData?.permissions?.canCreateCourses && (
+              <TeacherCreateCourse
+                API_URL={API_URL}
+                onCreated={fetchDashboardData}
+              />
+            )}
+          {activeTab === "issue" && canIssue && (
+            <TeacherIssueCertificate
+              API_URL={API_URL}
+              teacher={teacherData}
+              assignedCourses={teacherData.assignedCourses || []}
+              instituteId={institute?._id || institute}
+              onCertificateIssued={fetchDashboardData}
+            />
+          )}
+          {activeTab === "profile" && teacherData && (
+            <TeacherProfile
+              API_URL={API_URL}
+              teacher={teacherData}
+              onProfileUpdate={(updated) => {
+                setTeacherData((current) => ({ ...current, ...updated }));
+                let stored;
+                try {
+                  stored = JSON.parse(localStorage.getItem("user"));
+                } catch {
+                  stored = {};
+                }
+                localStorage.setItem(
+                  "user",
+                  JSON.stringify({ ...stored, ...updated }),
+                );
+              }}
+            />
+          )}
+        </div>
+      )}
+    </WorkspaceLayout>
+  );
 };
-
 export default TeacherDashboard;

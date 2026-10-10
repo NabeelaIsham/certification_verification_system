@@ -1,0 +1,192 @@
+.member-workspace .admin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 3px;
+  border-radius: 9px;
+}
+.member-workspace .admin-eyebrow {
+  overflow-wrap: anywhere;
+}
+.member-workspace .admin-panel {
+  min-width: 0;
+}
+.member-workspace .admin-panel > .saas-page {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: none;
+}
+.member-workspace .admin-shortcut-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.workspace-guide {
+  display: grid;
+  gap: 17px;
+}
+.workspace-guide > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.workspace-guide > div > span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  background: #edf3ff;
+  color: #1464ff;
+  font-size: 10px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+.workspace-guide h3 {
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 5px;
+}
+.workspace-guide p {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.7;
+}
+.workspace-course-list {
+  display: grid;
+  gap: 13px;
+  max-height: 440px;
+  overflow: auto;
+}
+.workspace-course {
+  border: 1px solid #e3eaf4;
+  border-radius: 10px;
+  padding: 16px;
+}
+.workspace-course-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+}
+.workspace-course h3 {
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.workspace-course small {
+  font-size: 10px;
+  color: #64748b;
+}
+.workspace-course-heading > span {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #edf4ff;
+  color: #1464ff;
+  align-self: flex-start;
+  white-space: nowrap;
+}
+.workspace-course-progress {
+  height: 5px;
+  border-radius: 8px;
+  background: #edf1f7;
+  margin: 14px 0 9px;
+  overflow: hidden;
+}
+.workspace-course-progress span {
+  height: 100%;
+  display: block;
+  background: linear-gradient(90deg, #08d9e8, #1464ff, #3936e8);
+  border-radius: 8px;
+}
+.workspace-course-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #64748b;
+  gap: 12px;
+}
+.workspace-empty {
+  padding: 25px 15px;
+  text-align: center;
+  background: #f7f9fd;
+  border: 1px dashed #dce5f1;
+  border-radius: 10px;
+}
+.workspace-empty p {
+  font-size: 13px;
+  color: #536580;
+  margin: 8px 0;
+}
+.workspace-empty small {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.8;
+  display: block;
+}
+.workspace-affiliation {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  padding: 18px 22px;
+  background: white;
+  margin-top: 23px;
+}
+.workspace-affiliation > svg {
+  color: #1464ff;
+  width: 28px;
+  height: 28px;
+}
+.workspace-affiliation p {
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.workspace-affiliation small {
+  font-size: 11px;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+.workspace-affiliation > span {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 10px;
+}
+.workspace-course-panel {
+  background: white;
+  border: 1px solid #e1e8f2;
+  border-radius: 15px;
+  padding: 25px;
+}
+.workspace-course-panel > .workspace-course-list {
+  max-height: none;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.workspace-note {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #64748b;
+  margin-top: 20px;
+}
+@media (max-width: 760px) {
+  .member-workspace .admin-topbar-actions {
+    gap: 8px;
+  }
+  .member-workspace .admin-breadcrumb {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .workspace-affiliation {
+    flex-wrap: wrap;
+  }
+  .workspace-affiliation > span {
+    margin-left: 41px;
+  }
+  .workspace-course-panel {
+    padding: 18px;
+  }
+  .workspace-course-panel > .workspace-course-list {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,23 +1,40 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import CourseManagement from '../components/institute/CourseManagement';
-import StudentManagement from '../components/institute/StudentManagement';
-import TeacherManagement from '../components/institute/TeacherManagement';
-import CertificateManagement from '../components/institute/CertificateManagement'; // Changed this line
-import BulkUpload from '../components/institute/BulkUpload';
-import InstituteSettings from '../components/institute/InstituteSettings';
-import { InstituteSubscription } from '../components/shared/Subscriptions';
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Squares2X2Icon,
+  BookOpenIcon,
+  UsersIcon,
+  AcademicCapIcon,
+  DocumentCheckIcon,
+  ArrowUpTrayIcon,
+  Cog6ToothIcon,
+  CreditCardIcon,
+  RectangleStackIcon,
+  ArrowRightIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
+import WorkspaceLayout, {
+  WorkspaceMetrics,
+  WorkspaceActions,
+} from "../components/shared/WorkspaceLayout";
+import axios from "axios";
+import CourseManagement from "../components/institute/CourseManagement";
+import StudentManagement from "../components/institute/StudentManagement";
+import TeacherManagement from "../components/institute/TeacherManagement";
+import CertificateManagement from "../components/institute/CertificateManagement"; // Changed this line
+import BulkUpload from "../components/institute/BulkUpload";
+import InstituteSettings from "../components/institute/InstituteSettings";
+import { InstituteSubscription } from "../components/shared/Subscriptions";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 const getUploadUrl = (filePath) => {
-  if (!filePath) return '';
+  if (!filePath) return "";
   if (/^https?:\/\//i.test(filePath)) return filePath;
 
-  const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+  const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`;
   if (/^https?:\/\//i.test(API_URL)) {
-    return `${API_URL.replace(/\/api\/?$/, '')}${normalizedPath}`;
+    return `${API_URL.replace(/\/api\/?$/, "")}${normalizedPath}`;
   }
 
   return normalizedPath;
@@ -26,58 +43,119 @@ const getUploadUrl = (filePath) => {
 const InstituteDashboard = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalCourses: 0,
-    certificatesIssued: 0,
-    pendingVerifications: 0
-  });
+  const [params, setParams] = useSearchParams();
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [error, setError] = useState("");
+  const live = useRef(true);
   const tabs = [
-    ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ id: 'subscription', name: 'My Package', icon: '' }] : []),
-    { id: 'dashboard', name: 'Dashboard', icon: '📊' },
-    { id: 'courses', name: 'Courses', icon: '📚' },
-    { id: 'students', name: 'Students', icon: '👨‍🎓' },
-    { id: 'teachers', name: 'Teachers', icon: '👨‍🏫' },
-    { id: 'certificates', name: 'Certificates', icon: '📜' },
-    { id: 'bulk-upload', name: 'Bulk Upload', icon: '📁' },
-    { id: 'settings', name: 'Settings', icon: '⚙️' }
+    {
+      id: "dashboard",
+      name: "Overview",
+      icon: Squares2X2Icon,
+      description:
+        "Your learners, courses, and achievements, all in one place.",
+    },
+    {
+      id: "courses",
+      name: "Courses",
+      icon: BookOpenIcon,
+      description:
+        "Organise your programmes and the learning behind every achievement.",
+    },
+    {
+      id: "students",
+      name: "Students",
+      icon: UsersIcon,
+      description: "Manage learner records and course enrolments.",
+    },
+    {
+      id: "teachers",
+      name: "Teachers",
+      icon: AcademicCapIcon,
+      description:
+        "Manage your teaching team, assigned courses, and permissions.",
+    },
+    {
+      id: "certificates",
+      name: "Certificates",
+      icon: DocumentCheckIcon,
+      description: "Create, issue, and manage your institute's credentials.",
+    },
+    {
+      id: "bulk-upload",
+      name: "Bulk Upload",
+      icon: ArrowUpTrayIcon,
+      description:
+        "Bring learner records into your workspace with a bulk upload.",
+    },
+    ...(import.meta.env.VITE_SAAS_ENABLED === "true"
+      ? [
+          {
+            id: "subscription",
+            name: "My Package",
+            icon: CreditCardIcon,
+            description:
+              "Review your allowances, payments, and available upgrades.",
+          },
+        ]
+      : []),
+    {
+      id: "settings",
+      name: "Settings",
+      icon: Cog6ToothIcon,
+      description:
+        "Keep your institute profile and security settings up to date.",
+    },
   ];
+  const activeTab = tabs.some((tab) => tab.id === params.get("tab"))
+    ? params.get("tab")
+    : "dashboard";
+  const setActiveTab = (tab) => setParams({ tab });
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = JSON.parse(localStorage.getItem('user'));
+    const token = localStorage.getItem("token");
+    live.current = true;
+    let userData;
+    try {
+      userData = JSON.parse(localStorage.getItem("user"));
+    } catch {
+      userData = null;
+    }
 
-    if (!token || !userData || userData.userType !== 'institute') {
-      navigate('/login');
+    if (!token || !userData || userData.userType !== "institute") {
+      navigate("/login");
       return;
     }
 
     setUser(userData);
     fetchProfile();
     fetchStats();
+    return () => {
+      live.current = false;
+    };
   }, []);
 
   const fetchProfile = async () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     try {
       const response = await axios.get(`${API_URL}/institute/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!live.current) return;
       if (response.data.success) {
         const profile = response.data.data;
         const updatedUser = {
-          ...(JSON.parse(localStorage.getItem('user')) || {}),
+          ...(JSON.parse(localStorage.getItem("user")) || {}),
           ...profile,
-          id: profile._id || profile.id
+          id: profile._id || profile.id,
         };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+        localStorage.setItem("user", JSON.stringify(updatedUser));
         setUser(updatedUser);
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      if (!live.current) return;
+      console.error("Error fetching profile:", error);
       if (error.response?.status === 401) {
         handleLogout();
       }
@@ -85,196 +163,182 @@ const InstituteDashboard = () => {
   };
 
   const fetchStats = async () => {
-    const token = localStorage.getItem('token');
+    setLoading(true);
+    setError("");
+    const token = localStorage.getItem("token");
     try {
       const response = await axios.get(`${API_URL}/institute/stats`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!live.current) return;
       if (response.data.success) {
         setStats(response.data.data);
+      } else {
+        throw new Error("Unable to load institute totals.");
       }
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      if (!live.current) return;
+      setError("Unable to load institute totals. Please try again.");
       if (error.response?.status === 401) {
         handleLogout();
       }
     } finally {
-      setLoading(false);
+      if (live.current) setLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    live.current = false;
+    navigate("/login", { replace: true });
   };
 
   const handleUserUpdate = (updatedUser) => {
-    setUser(updatedUser);
+    const merged = { ...user, ...updatedUser };
+    setUser(merged);
+    localStorage.setItem("user", JSON.stringify(merged));
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
+  if (!user) return null;
+  const value = (key) => stats?.[key];
+  const metrics = [
+    {
+      label: "Total students",
+      value: value("totalStudents"),
+      icon: UsersIcon,
+      color: "blue",
+      detail: "Learners in your institute",
+      onClick: () => setActiveTab("students"),
+    },
+    {
+      label: "Courses",
+      value: value("totalCourses"),
+      icon: BookOpenIcon,
+      color: "green",
+      detail: stats
+        ? `${stats.activeCourses ?? 0} active courses`
+        : "Your course catalogue",
+      onClick: () => setActiveTab("courses"),
+    },
+    {
+      label: "Certificates",
+      value: value("certificatesIssued"),
+      icon: DocumentCheckIcon,
+      color: "violet",
+      detail: "Certificate records in your workspace",
+      onClick: () => setActiveTab("certificates"),
+    },
+    {
+      label: "Templates",
+      value: value("totalTemplates"),
+      icon: RectangleStackIcon,
+      color: "amber",
+      detail: "Your certificate designs",
+      onClick: () => setActiveTab("certificates"),
+    },
+  ];
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-blue-50 border border-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                {user?.logo ? (
-                  <img
-                    src={getUploadUrl(user.logo)}
-                    alt={`${user?.instituteName || 'Institute'} logo`}
-                    className="h-full w-full object-contain p-1.5"
-                  />
-                ) : (
-                  <span className="text-blue-700 font-bold">
-                    {(user?.instituteName || 'CV').slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div className="ml-3">
-                <h1 className="text-2xl font-bold text-gray-900">{user?.instituteName}</h1>
-                <p className="text-sm text-gray-500">Institute Dashboard</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
+    <WorkspaceLayout
+      role="Institute"
+      name={user.instituteName || "your institute"}
+      logo={getUploadUrl(user.logo)}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onRefresh={fetchStats}
+      loading={loading}
+      error={error}
+    >
+      {activeTab === "dashboard" ? (
+        <>
+          <WorkspaceMetrics metrics={metrics} loading={loading} />
+          <div className="admin-overview-grid">
+            <section className="admin-focus">
+              <span className="admin-eyebrow">
+                TURN LEARNING INTO RECOGNITION
+              </span>
+              <h2>Make their next achievement official.</h2>
+              <p>
+                Bring your learners, certificate designs, and issuing tools
+                together. Start with your certificate workspace.
+              </p>
               <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-red-600 hover:text-red-800"
+                className="admin-primary"
+                onClick={() => setActiveTab("certificates")}
               >
-                Logout
+                Manage certificates <ArrowRightIcon aria-hidden="true" />
               </button>
-            </div>
+              <ShieldCheckIcon className="admin-focus-art" aria-hidden="true" />
+            </section>
+            <section className="admin-status-card">
+              <div className="admin-section-heading">
+                <h2>A simple path to your next certificate.</h2>
+              </div>
+              <div className="workspace-guide">
+                <div>
+                  <span>01</span>
+                  <div>
+                    <h3>Organise your courses</h3>
+                    <p>Set up the programmes your learners will complete.</p>
+                  </div>
+                </div>
+                <div>
+                  <span>02</span>
+                  <div>
+                    <h3>Bring in your learners</h3>
+                    <p>Add students individually or use bulk upload.</p>
+                  </div>
+                </div>
+                <div>
+                  <span>03</span>
+                  <div>
+                    <h3>Issue and share</h3>
+                    <p>Choose a design and issue a verifiable credential.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex space-x-1 -mb-px">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-200 ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.name}
-              </button>
-            ))}
-          </div>
+          <WorkspaceActions
+            actions={tabs.filter((tab) =>
+              [
+                "courses",
+                "students",
+                "teachers",
+                ...(import.meta.env.VITE_SAAS_ENABLED === "true"
+                  ? ["subscription"]
+                  : ["bulk-upload"]),
+              ].includes(tab.id),
+            )}
+            onSelect={setActiveTab}
+          />
+          <p className="workspace-note" role="status">
+            {loading
+              ? "Loading your institute overview..."
+              : "Totals reflect your institute records. Refresh the overview after making changes."}
+          </p>
+        </>
+      ) : (
+        <div className="admin-panel">
+          {activeTab === "courses" && <CourseManagement API_URL={API_URL} />}
+          {activeTab === "subscription" && <InstituteSubscription />}
+          {activeTab === "students" && <StudentManagement API_URL={API_URL} />}
+          {activeTab === "teachers" && <TeacherManagement API_URL={API_URL} />}
+          {activeTab === "certificates" && (
+            <CertificateManagement API_URL={API_URL} />
+          )}
+          {activeTab === "bulk-upload" && <BulkUpload API_URL={API_URL} />}
+          {activeTab === "settings" && (
+            <InstituteSettings
+              API_URL={API_URL}
+              user={user}
+              onUserUpdate={handleUserUpdate}
+            />
+          )}
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && (
-          <div>
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">👨‍🎓</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Total Students</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📚</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Total Courses</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalCourses}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">📜</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Certificates</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.certificatesIssued}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <span className="text-2xl">⏳</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm text-gray-600">Pending</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.pendingVerifications}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <button
-                onClick={() => setActiveTab('courses')}
-                className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="text-4xl mb-2">📚</div>
-                <h3 className="font-medium">Manage Courses</h3>
-              </button>
-              <button
-                onClick={() => setActiveTab('students')}
-                className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="text-4xl mb-2">👨‍🎓</div>
-                <h3 className="font-medium">Manage Students</h3>
-              </button>
-              <button
-                onClick={() => setActiveTab('certificates')}
-                className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="text-4xl mb-2">📜</div>
-                <h3 className="font-medium">Certificates</h3>
-              </button>
-              <button
-                onClick={() => setActiveTab('bulk-upload')}
-                className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
-              >
-                <div className="text-4xl mb-2">📁</div>
-                <h3 className="font-medium">Bulk Upload</h3>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'courses' && <CourseManagement API_URL={API_URL} />}
-        {activeTab === 'subscription' && <InstituteSubscription />}
-        {activeTab === 'students' && <StudentManagement API_URL={API_URL} />}
-        {activeTab === 'teachers' && <TeacherManagement API_URL={API_URL} />}
-        {activeTab === 'certificates' && <CertificateManagement API_URL={API_URL} />}
-        {activeTab === 'bulk-upload' && <BulkUpload API_URL={API_URL} />}
-        {activeTab === 'settings' && <InstituteSettings API_URL={API_URL} user={user} onUserUpdate={handleUserUpdate} />}
-      </div>
-    </div>
+      )}
+    </WorkspaceLayout>
   );
 };
-
 export default InstituteDashboard;
