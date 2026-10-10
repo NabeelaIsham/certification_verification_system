@@ -333,12 +333,30 @@ test('private template backgrounds and assets enforce institute and teacher cour
   expect((await api('get', `/api/private-files/templates/${templateA._id}/background`)).status).toBe(403);
 });
 
-test('public verification discloses status but no file URLs, paths, lifecycle details or compact payload', async () => {
+test('public verification displays the certificate without exposing storage paths or private payloads', async () => {
   const certificate = await fixtureFile();
   const result = await request(app).get(`/api/certificates/verify/${certificate.certificateCode}`);
   expect(result.status).toBe(200);
   expect(result.body.data.status).toBe('issued');
-  expect(JSON.stringify(result.body)).not.toMatch(/uploads|private-files|compactToken|lifecycleEvents|certificateImage|qrCodeImage/);
+  expect(JSON.stringify(result.body)).not.toMatch(/uploads|private-files|compactToken|lifecycleEvents|qrCodeImage/);
+  const image = await request(app).get(result.body.data.certificateImage);
+  expect(image.status).toBe(200);
+  expect(image.headers['content-type']).toMatch(/image\/jpeg/);
+  expect(image.headers['cache-control']).toBe('private, no-store');
+  await Certificate.updateOne({ _id: certificate._id }, { $set: { status: 'revoked' } });
+  expect((await request(app).get(result.body.data.certificateImage)).status).toBe(410);
+  expect((await request(app).get(`/api/certificates/verify/${certificate.certificateCode}`)).body.data.certificateImage).toBeNull();
+});
+
+test('public certificate image rejects expired, invalid signature and foreign file paths', async () => {
+  const certificate = await fixtureFile();
+  const url = `/api/certificates/verify/${certificate.certificateCode}/image`;
+  await Certificate.updateOne({ _id: certificate._id }, { $set: { validUntil: new Date(0) } });
+  expect((await request(app).get(url)).status).toBe(410);
+  await Certificate.updateOne({ _id: certificate._id }, { $unset: { validUntil: 1 }, $set: { 'credential.signature': 'invalid' } });
+  expect((await request(app).get(url)).status).toBe(403);
+  await Certificate.updateOne({ _id: certificate._id }, { $unset: { credential: 1 }, $set: { generatedCertificateImage: `uploads/generated/${b._id}/foreign.jpg` } });
+  expect((await request(app).get(url)).status).toBe(403);
 });
 
 test('the last allowed share view grants bounded file access without spending a second view', async () => {

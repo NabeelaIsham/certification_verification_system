@@ -5,6 +5,24 @@ const {
   isCredentialKeyTrusted
 } = require('../utils/credentialService');
 const { recordVerification } = require('../utils/verificationRiskService');
+const { sendPrivateFile, privateHeaders } = require('../services/privateFiles');
+
+const viewVerifiedCertificate = async (req, res) => {
+  privateHeaders(res);
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9-]{2,99}$/.test(code)) return res.sendStatus(400);
+    const certificate = await Certificate.findOne({ certificateCode: code })
+      .populate('instituteId', 'credentialSigning.keyId credentialSigning.previousKeys');
+    if (!certificate || !certificate.generatedCertificateImage) return res.sendStatus(404);
+    if (effectiveStatus(certificate) !== 'issued') return res.sendStatus(410);
+    if (certificate.credential?.signature) {
+      const signature = verifyStoredCredential(certificate.credential);
+      if (!signature.valid || !isCredentialKeyTrusted(certificate.instituteId?.credentialSigning, signature.keyId)) return res.sendStatus(403);
+    }
+    return sendPrivateFile(res, certificate.generatedCertificateImage, certificate.instituteId._id, 'generated');
+  } catch (error) { return res.sendStatus(error.status || 500); }
+};
 
 const verifyCertificate = async (req, res) => {
   res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
@@ -59,6 +77,8 @@ const verifyCertificate = async (req, res) => {
 
     return res.json({ success: true, data: {
       certificateCode: certificate.certificateCode,
+      certificateImage: ['valid', 'unsigned'].includes(outcome) && certificate.generatedCertificateImage
+        ? `${req.baseUrl}/${encodeURIComponent(certificate.certificateCode)}/image` : null,
       studentName: certificate.studentName || certificate.studentId?.name,
       courseName: certificate.courseName || certificate.courseId?.courseName,
       awardDate: certificate.awardDate,
@@ -96,5 +116,6 @@ const verifyCertificate = async (req, res) => {
 };
 
 module.exports = {
-  verifyCertificate
+  verifyCertificate,
+  viewVerifiedCertificate
 };

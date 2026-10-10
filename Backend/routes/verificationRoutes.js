@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyCertificate } = require('../controllers/verificationController');
+const { verifyCertificate, viewVerifiedCertificate } = require('../controllers/verificationController');
 const { resolveShare } = require('../controllers/credentialSecurityController');
 const { createRateLimit } = require('../middleware/rateLimit');
 
@@ -18,6 +18,7 @@ const verificationRateLimit = createRateLimit({
 });
 
 router.get('/share/:token', shareRateLimit, resolveShare);
+router.get('/:code/image', verificationRateLimit, viewVerifiedCertificate);
 router.get('/:code', verificationRateLimit, verifyCertificate);
 
 module.exports = router;

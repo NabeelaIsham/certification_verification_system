@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import CertificateSharing from "../components/verification/CertificateSharing";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { useParams } from "react-router-dom";
 import {
@@ -301,7 +302,8 @@ const VerificationPortal = () => {
         source.instituteId?.instituteName ||
         "Not available",
       status: source.status || (data?.success ? "issued" : "unknown"),
-      certificateImage,
+      certificateImage: certificateImage && certificateImage.startsWith('/') && /^https?:/.test(API_URL)
+        ? new URL(certificateImage, API_URL).href : certificateImage,
       qrCodeImage: source.qrCodeImage || source.qrCodeUrl || null,
     };
   };
@@ -395,6 +397,7 @@ const VerificationPortal = () => {
     try {
       // Fetch the image as a blob
       const response = await fetch(verificationResult.certificateImage);
+      if (!response.ok) throw new Error('Certificate image is unavailable');
       const blob = await response.blob();
 
       // Create download link
@@ -434,10 +437,11 @@ const VerificationPortal = () => {
 
     const awardDate = formatDisplayDate(verificationResult.awardDate);
 
+    const escapePrint = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
     printWindow.document.write(`
       <html>
         <head>
-          <title>Certificate - ${verificationResult.certificateCode}</title>
+          <title>Certificate - ${escapePrint(verificationResult.certificateCode)}</title>
           <style>
             body { 
               font-family: Arial, sans-serif; 
@@ -507,21 +511,21 @@ const VerificationPortal = () => {
           <h1>Certificate Verification</h1>
           
           <div class="certificate-container">
-            <img src="${verificationResult.certificateImage}" class="certificate-image" />
+            <img src="${escapePrint(verificationResult.certificateImage)}" class="certificate-image" />
           </div>
           
           <div class="certificate-details">
             <div class="detail-row">
               <span class="label">Certificate Code:</span>
-              <span class="value">${verificationResult.certificateCode}</span>
+              <span class="value">${escapePrint(verificationResult.certificateCode)}</span>
             </div>
             <div class="detail-row">
               <span class="label">Student Name:</span>
-              <span class="value">${verificationResult.studentName}</span>
+              <span class="value">${escapePrint(verificationResult.studentName)}</span>
             </div>
             <div class="detail-row">
               <span class="label">Course Name:</span>
-              <span class="value">${verificationResult.courseName}</span>
+              <span class="value">${escapePrint(verificationResult.courseName)}</span>
             </div>
             <div class="detail-row">
               <span class="label">Award Date:</span>
@@ -529,7 +533,7 @@ const VerificationPortal = () => {
             </div>
             <div class="detail-row">
               <span class="label">Institute:</span>
-              <span class="value">${verificationResult.instituteName}</span>
+              <span class="value">${escapePrint(verificationResult.instituteName)}</span>
             </div>
             <div class="detail-row">
               <span class="label">Status:</span>
@@ -875,9 +879,8 @@ const VerificationPortal = () => {
             ) : (
               <div className="mb-8 p-6 bg-yellow-50 rounded-lg text-center">
                 <p className="text-yellow-700 mb-2">
-                  Public verification shows credential details and status. Ask
-                  the issuing institute for a controlled share link to view or
-                  download the certificate.
+                  The certificate image is unavailable for this record. Contact
+                  the issuing institute if you need a copy.
                 </p>
                 <p className="text-sm text-gray-600">
                   Certificate code: {verificationResult.certificateCode}
@@ -896,6 +899,11 @@ const VerificationPortal = () => {
                 />
               </div>
             )}
+
+            {verificationResult.status === 'issued' &&
+              (!verificationResult.credential?.signed ||
+                (verificationResult.credential?.signatureValid && verificationResult.credential?.issuerKeyTrusted)) &&
+              <CertificateSharing key={verificationResult.certificateCode} code={verificationResult.certificateCode} />}
 
             {/* Action Buttons */}
             <div className="flex flex-wrap justify-center gap-4">
@@ -1048,8 +1056,7 @@ const VerificationPortal = () => {
             <div>
               <h3>Share with confidence</h3>
               <p>
-                Need the original document? Ask the institute for a secure share
-                link.
+                View the certificate and share its verification link on social media.
               </p>
             </div>
           </div>
