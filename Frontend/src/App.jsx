@@ -15,6 +15,7 @@ import Footer from './components/shared/Footer'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import TeacherSetPassword from './pages/TeacherSetPassword'
 import LegalPages from './pages/LegalPages'
 import ForgotPassword from './pages/Forgotpassword'
 import VerificationPortal from './pages/VerificationPortal'
@@ -90,6 +91,7 @@ function App() {
               {import.meta.env.VITE_SAAS_ENABLED === 'true' && <Route path="/institute/subscription/payment/:subscriptionId" element={<ProtectedRoute allowedUserType="institute"><PackagePayment /></ProtectedRoute>} />}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/teacher/set-password" element={<TeacherSetPassword />} />
               <Route path="/terms" element={<LegalPages kind="terms" />} />
               <Route path="/privacy" element={<LegalPages kind="privacy" />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />

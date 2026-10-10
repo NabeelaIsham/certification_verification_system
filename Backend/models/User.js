@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   // Authentication
+  teacherPasswordSetup: { type: new mongoose.Schema({ tokenHash: String, expiresAt: Date, requestedAt: Date, sessionVersion: Number }, { _id: false }), select: false },
   email: {
     type: String,
     required: true,
@@ -243,6 +244,7 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.methods.toSafeObject = function() {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.teacherPasswordSetup;
   if (obj.credentialSigning) {
     delete obj.credentialSigning.encryptedPrivateKey;
   }

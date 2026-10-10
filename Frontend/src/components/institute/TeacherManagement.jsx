@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from "react";
+import axios from "axios";
+import TeacherPasswordReset from "./TeacherPasswordReset";
+import "../shared/PublicExperience.css";
 
 const TeacherManagement = ({ API_URL }) => {
   const [teachers, setTeachers] = useState([]);
+  const [resetTeacher, setResetTeacher] = useState(null);
   const [courses, setCourses] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    phone: '',
-    employeeId: '',
-    department: '',
-    designation: '',
-    qualification: '',
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    phone: "",
+    employeeId: "",
+    department: "",
+    designation: "",
+    qualification: "",
     assignedCourses: [],
     permissions: {
       canCreateStudents: true,
@@ -26,8 +29,8 @@ const TeacherManagement = ({ API_URL }) => {
       canIssueCertificates: true,
       canBulkUpload: false,
       canCreateCourses: false,
-      canEditCourses: false
-    }
+      canEditCourses: false,
+    },
   });
 
   useEffect(() => {
@@ -38,9 +41,9 @@ const TeacherManagement = ({ API_URL }) => {
   const fetchTeachers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await axios.get(`${API_URL}/teachers`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.data.success) {
         // Ensure we always have an array
@@ -49,7 +52,7 @@ const TeacherManagement = ({ API_URL }) => {
         setTeachers([]);
       }
     } catch (error) {
-      console.error('Error fetching teachers:', error);
+      console.error("Error fetching teachers:", error);
       setTeachers([]);
     } finally {
       setLoading(false);
@@ -58,15 +61,15 @@ const TeacherManagement = ({ API_URL }) => {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.data.success) {
         setCourses(response.data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching courses:', error);
+      console.error("Error fetching courses:", error);
       setCourses([]);
     }
   };
@@ -81,16 +84,16 @@ const TeacherManagement = ({ API_URL }) => {
       ...formData,
       permissions: {
         ...formData.permissions,
-        [permName]: !formData.permissions[permName]
-      }
+        [permName]: !formData.permissions[permName],
+      },
     });
   };
 
   const handleCourseSelection = (courseId) => {
     const updated = formData.assignedCourses.includes(courseId)
-      ? formData.assignedCourses.filter(id => id !== courseId)
+      ? formData.assignedCourses.filter((id) => id !== courseId)
       : [...formData.assignedCourses, courseId];
-    
+
     setFormData({ ...formData, assignedCourses: updated });
   };
 
@@ -99,44 +102,33 @@ const TeacherManagement = ({ API_URL }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      
-      // Remove empty password if editing and password field is empty
-      const submitData = { ...formData };
-      if (editingTeacher && !submitData.password) {
-        delete submitData.password;
-      }
+      const token = localStorage.getItem("token");
 
-      if (
-        !editingTeacher &&
-        (
-          submitData.password.length < 10 ||
-          submitData.password.length > 128 ||
-          !/[a-z]/.test(submitData.password) ||
-          !/[A-Z]/.test(submitData.password) ||
-          !/\d/.test(submitData.password)
-        )
-      ) {
-        alert('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
-        setLoading(false);
-        return;
-      }
-      
+      const submitData = { ...formData };
+      delete submitData.password;
+
       if (editingTeacher) {
         // Update teacher
-        const response = await axios.put(`${API_URL}/teachers/${editingTeacher._id}`, submitData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await axios.put(
+          `${API_URL}/teachers/${editingTeacher._id}`,
+          submitData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (response.data.success) {
-          alert('Teacher updated successfully');
+          alert("Teacher updated successfully");
         }
       } else {
         // Create teacher
         const response = await axios.post(`${API_URL}/teachers`, submitData, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (response.data.success) {
-          alert('Teacher created successfully');
+          alert(
+            response.data.message ||
+              "Teacher created. Check invitation email delivery.",
+          );
         }
       }
 
@@ -145,8 +137,8 @@ const TeacherManagement = ({ API_URL }) => {
       resetForm();
       fetchTeachers();
     } catch (error) {
-      console.error('Error saving teacher:', error);
-      alert(error.response?.data?.message || 'Error saving teacher');
+      console.error("Error saving teacher:", error);
+      alert(error.response?.data?.message || "Error saving teacher");
     } finally {
       setLoading(false);
     }
@@ -155,17 +147,17 @@ const TeacherManagement = ({ API_URL }) => {
   const handleEdit = (teacher) => {
     setEditingTeacher(teacher);
     setFormData({
-      firstName: teacher.firstName || '',
-      lastName: teacher.lastName || '',
-      email: teacher.email || '',
-      password: '', // Don't populate password for security
-      phone: teacher.phone || '',
-      employeeId: teacher.employeeId || '',
-      department: teacher.department || '',
-      designation: teacher.designation || '',
-      qualification: teacher.qualification || '',
-      assignedCourses: (teacher.assignedCourses || []).map(c => 
-        typeof c === 'object' ? c._id : c
+      firstName: teacher.firstName || "",
+      lastName: teacher.lastName || "",
+      email: teacher.email || "",
+      password: "", // Don't populate password for security
+      phone: teacher.phone || "",
+      employeeId: teacher.employeeId || "",
+      department: teacher.department || "",
+      designation: teacher.designation || "",
+      qualification: teacher.qualification || "",
+      assignedCourses: (teacher.assignedCourses || []).map((c) =>
+        typeof c === "object" ? c._id : c,
       ),
       permissions: teacher.permissions || {
         canCreateStudents: true,
@@ -174,42 +166,43 @@ const TeacherManagement = ({ API_URL }) => {
         canIssueCertificates: true,
         canBulkUpload: false,
         canCreateCourses: false,
-        canEditCourses: false
-      }
+        canEditCourses: false,
+      },
     });
     setShowModal(true);
   };
 
   const handleDelete = async (teacherId) => {
-    if (!window.confirm('Are you sure you want to delete this teacher?')) return;
+    if (!window.confirm("Are you sure you want to delete this teacher?"))
+      return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await axios.delete(`${API_URL}/teachers/${teacherId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.data.success) {
-        alert('Teacher deleted successfully');
+        alert("Teacher deleted successfully");
         fetchTeachers();
       }
     } catch (error) {
-      console.error('Error deleting teacher:', error);
-      alert(error.response?.data?.message || 'Error deleting teacher');
+      console.error("Error deleting teacher:", error);
+      alert(error.response?.data?.message || "Error deleting teacher");
     }
   };
 
   const resetForm = () => {
     setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      phone: '',
-      employeeId: '',
-      department: '',
-      designation: '',
-      qualification: '',
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      phone: "",
+      employeeId: "",
+      department: "",
+      designation: "",
+      qualification: "",
       assignedCourses: [],
       permissions: {
         canCreateStudents: true,
@@ -218,21 +211,21 @@ const TeacherManagement = ({ API_URL }) => {
         canIssueCertificates: true,
         canBulkUpload: false,
         canCreateCourses: false,
-        canEditCourses: false
-      }
+        canEditCourses: false,
+      },
     });
   };
 
   // Safe filtering with null checks
-  const filteredTeachers = (teachers || []).filter(teacher => {
+  const filteredTeachers = (teachers || []).filter((teacher) => {
     if (!teacher) return false;
-    
+
     const searchLower = searchTerm.toLowerCase();
     return (
-      (teacher.firstName || '').toLowerCase().includes(searchLower) ||
-      (teacher.lastName || '').toLowerCase().includes(searchLower) ||
-      (teacher.email || '').toLowerCase().includes(searchLower) ||
-      (teacher.employeeId || '').toLowerCase().includes(searchLower)
+      (teacher.firstName || "").toLowerCase().includes(searchLower) ||
+      (teacher.lastName || "").toLowerCase().includes(searchLower) ||
+      (teacher.email || "").toLowerCase().includes(searchLower) ||
+      (teacher.employeeId || "").toLowerCase().includes(searchLower)
     );
   });
 
@@ -276,13 +269,27 @@ const TeacherManagement = ({ API_URL }) => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Courses</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Employee ID
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Email
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Department
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Courses
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -290,7 +297,7 @@ const TeacherManagement = ({ API_URL }) => {
               filteredTeachers.map((teacher) => (
                 <tr key={teacher._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {teacher.employeeId || 'N/A'}
+                    {teacher.employeeId || "N/A"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {teacher.firstName} {teacher.lastName}
@@ -299,18 +306,20 @@ const TeacherManagement = ({ API_URL }) => {
                     {teacher.email}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {teacher.department || 'N/A'}
+                    {teacher.department || "N/A"}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {teacher.assignedCourses?.length || 0} courses
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      teacher.isActive 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {teacher.isActive ? 'Active' : 'Inactive'}
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        teacher.isActive
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {teacher.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -319,6 +328,12 @@ const TeacherManagement = ({ API_URL }) => {
                       className="text-blue-600 hover:text-blue-900 mr-3"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => setResetTeacher(teacher)}
+                      className="text-blue-600 hover:text-blue-900 mr-3"
+                    >
+                      Reset access
                     </button>
                     <button
                       onClick={() => handleDelete(teacher._id)}
@@ -332,7 +347,9 @@ const TeacherManagement = ({ API_URL }) => {
             ) : (
               <tr>
                 <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
-                  {searchTerm ? 'No teachers match your search' : 'No teachers found. Click "Add New Teacher" to create one.'}
+                  {searchTerm
+                    ? "No teachers match your search"
+                    : 'No teachers found. Click "Add New Teacher" to create one.'}
                 </td>
               </tr>
             )}
@@ -340,13 +357,21 @@ const TeacherManagement = ({ API_URL }) => {
         </table>
       </div>
 
+      {resetTeacher && (
+        <TeacherPasswordReset
+          teacher={resetTeacher}
+          API_URL={API_URL}
+          onClose={() => setResetTeacher(null)}
+        />
+      )}
+
       {/* Add/Edit Teacher Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-lg bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">
-                {editingTeacher ? 'Edit Teacher' : 'Add New Teacher'}
+                {editingTeacher ? "Edit Teacher" : "Add New Teacher"}
               </h3>
               <button
                 onClick={() => setShowModal(false)}
@@ -401,21 +426,10 @@ const TeacherManagement = ({ API_URL }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {editingTeacher ? 'Password changes are available from the teacher profile' : 'Password *'}
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required={!editingTeacher}
-                    disabled={Boolean(editingTeacher)}
-                    minLength="10"
-                    maxLength="128"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
+                  {editingTeacher
+                    ? "Use Reset access in the teacher list to send a password link or set a new password."
+                    : "The teacher will receive an account invitation by email and choose their own password using a secure link."}
                 </div>
               </div>
 
@@ -494,11 +508,16 @@ const TeacherManagement = ({ API_URL }) => {
                 </label>
                 <div className="border rounded-lg p-4 max-h-40 overflow-y-auto">
                   {courses.length > 0 ? (
-                    courses.map(course => (
-                      <label key={course._id} className="flex items-center space-x-2 mb-2">
+                    courses.map((course) => (
+                      <label
+                        key={course._id}
+                        className="flex items-center space-x-2 mb-2"
+                      >
                         <input
                           type="checkbox"
-                          checked={formData.assignedCourses.includes(course._id)}
+                          checked={formData.assignedCourses.includes(
+                            course._id,
+                          )}
                           onChange={() => handleCourseSelection(course._id)}
                           className="rounded focus:ring-blue-500"
                         />
@@ -508,7 +527,9 @@ const TeacherManagement = ({ API_URL }) => {
                       </label>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500">No courses available</p>
+                    <p className="text-sm text-gray-500">
+                      No courses available
+                    </p>
                   )}
                 </div>
               </div>
@@ -522,7 +543,9 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canCreateStudents}
-                      onChange={() => handlePermissionChange('canCreateStudents')}
+                      onChange={() =>
+                        handlePermissionChange("canCreateStudents")
+                      }
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Create Students</span>
@@ -531,7 +554,7 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canEditStudents}
-                      onChange={() => handlePermissionChange('canEditStudents')}
+                      onChange={() => handlePermissionChange("canEditStudents")}
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Edit Students</span>
@@ -540,7 +563,9 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canDeleteStudents}
-                      onChange={() => handlePermissionChange('canDeleteStudents')}
+                      onChange={() =>
+                        handlePermissionChange("canDeleteStudents")
+                      }
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Delete Students</span>
@@ -549,7 +574,9 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canIssueCertificates}
-                      onChange={() => handlePermissionChange('canIssueCertificates')}
+                      onChange={() =>
+                        handlePermissionChange("canIssueCertificates")
+                      }
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Issue Certificates</span>
@@ -558,7 +585,7 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canBulkUpload}
-                      onChange={() => handlePermissionChange('canBulkUpload')}
+                      onChange={() => handlePermissionChange("canBulkUpload")}
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Bulk Upload</span>
@@ -567,7 +594,9 @@ const TeacherManagement = ({ API_URL }) => {
                     <input
                       type="checkbox"
                       checked={formData.permissions.canCreateCourses}
-                      onChange={() => handlePermissionChange('canCreateCourses')}
+                      onChange={() =>
+                        handlePermissionChange("canCreateCourses")
+                      }
                       className="rounded focus:ring-blue-500"
                     />
                     <span className="text-sm">Create Courses</span>
@@ -588,7 +617,11 @@ const TeacherManagement = ({ API_URL }) => {
                   disabled={loading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {loading ? 'Saving...' : editingTeacher ? 'Update Teacher' : 'Create Teacher'}
+                  {loading
+                    ? "Saving..."
+                    : editingTeacher
+                      ? "Update Teacher"
+                      : "Create Teacher"}
                 </button>
               </div>
             </form>

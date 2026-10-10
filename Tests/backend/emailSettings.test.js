@@ -10,6 +10,21 @@ const { sendSubscriptionExpiredEmail } = require('../../Backend/utils/emailServi
 
 beforeEach(() => jest.resetAllMocks());
 
+test('teacher invitation sends the setup link and escapes names', async () => {
+  Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com' } });
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'teacher-test' });
+  nodemailer.createTransport.mockReturnValue({ sendMail });
+  const url = 'https://certiverxia.example/teacher/set-password#token=' + 'a'.repeat(64);
+  await require('../../Backend/utils/emailService').sendTeacherAccessEmail({ to: 'teacher@example.com', name: '<Jane>', instituteName: '<Institute>', url, invitation: true, hours: 24 });
+  const sent = sendMail.mock.calls[0][0];
+  expect(sent.to).toBe('teacher@example.com');
+  expect(sent.html).toContain(url);
+  expect(sent.html).toContain('&lt;Jane&gt;');
+  expect(sent.html).toContain('&lt;Institute&gt;');
+  expect(sent.html).toContain('24');
+  expect(sent.subject).toMatch(/active/i);
+});
+
 test('approved payment email includes the paid PDF invoice attachment', async () => {
   Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com' } });
   const sendMail = jest.fn().mockResolvedValue({ messageId: 'invoice-test' });

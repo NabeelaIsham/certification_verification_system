@@ -308,6 +308,16 @@ const sendPaidInvoiceEmail = ({ to, packageName, number, buffer }) => sendEmail(
 });
 
 module.exports = {
+  sendTeacherAccessEmail: ({ to, name, instituteName, url, invitation, hours }) => sendEmail({
+    to, subject: invitation ? 'CERTIVERXIA: your teacher account is active' : 'CERTIVERXIA: reset your teacher password',
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;color:#071A4D">
+      <h1>${invitation ? 'Welcome to your teacher workspace' : 'Set a new password'}</h1>
+      <p>Hello ${escapeHtml(name)},</p><p>${escapeHtml(instituteName)} ${invitation ? 'has activated your teacher account.' : 'has requested a password reset for your teacher account.'}</p>
+      <p>Choose your own password using the button below, then sign in to your teacher dashboard. Available features depend on your institute package and assigned permissions.</p>
+      <p><a style="display:inline-block;background:#1464FF;color:white;padding:14px 22px;border-radius:8px;text-decoration:none" href="${escapeHtml(url)}">${invitation ? 'Set password and get started' : 'Reset my password'}</a></p>
+      <p>This link expires in ${hours} hours and can be used once. A newer link replaces an older one.</p><p>If this was unexpected, contact your institute. Do not share this link or your password.</p>
+      <p>CERTIVERXIA<br>info@certiverxia.com</p></div>`
+  }),
   sendPaidInvoiceEmail,
   sendSubscriptionExpiredEmail,
   createTransporter,

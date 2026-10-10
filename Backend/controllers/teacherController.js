@@ -22,14 +22,14 @@ const createTeacher = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !password || !employeeId || !department) {
+    if (!firstName || !lastName || !email || !employeeId || !department) {
       return res.status(400).json({ 
         success: false, 
         message: 'Missing required fields' 
       });
     }
 
-    if (!meetsPasswordPolicy(password)) {
+    if (password !== undefined && !meetsPasswordPolicy(password)) {
       return res.status(400).json({
         success: false,
         message: 'Password must be 10-128 characters and include uppercase, lowercase, and a number.'
@@ -84,7 +84,7 @@ const createTeacher = async (req, res) => {
       firstName,
       lastName,
       email: normalizedEmail,
-      password,
+      password: password || require('crypto').randomBytes(48).toString('base64url'),
       phone: phone || '',
       department,
       designation: designation || '',
@@ -108,13 +108,22 @@ const createTeacher = async (req, res) => {
     });
 
     teacher = await require('../services/subscriptionService').saveLimitedResource(teacher, 'teachers');
+    let invitationEmailSent = false;
+    let invitationMessage;
+    try {
+      await require('../services/teacherAccessService').sendTeacherAccess(instituteId, teacher._id, true);
+      invitationEmailSent = true;
+    } catch {
+      invitationMessage = 'The account was created, but the invitation email was not sent. Use Send reset link to retry after checking email settings.';
+    }
     console.log('Teacher saved successfully with ID:', teacher._id);
     console.log('Linked to institute:', teacher.instituteId);
     console.log('Assigned courses:', teacher.assignedCourses);
 
     res.status(201).json({
       success: true,
-      message: 'Teacher created successfully',
+      message: invitationMessage || 'Teacher created. A password-setup invitation has been emailed to the teacher.',
+      invitationEmailSent,
       data: {
         id: teacher._id,
         name: `${teacher.firstName} ${teacher.lastName}`,
