@@ -903,7 +903,7 @@ const VerificationPortal = () => {
             {verificationResult.status === 'issued' &&
               (!verificationResult.credential?.signed ||
                 (verificationResult.credential?.signatureValid && verificationResult.credential?.issuerKeyTrusted)) &&
-              <CertificateSharing key={verificationResult.certificateCode} code={verificationResult.certificateCode} />}
+              <CertificateSharing key={verificationResult.certificateCode} code={verificationResult.certificateCode} imageUrl={verificationResult.certificateImage} />}
 
             {/* Action Buttons */}
             <div className="flex flex-wrap justify-center gap-4">
