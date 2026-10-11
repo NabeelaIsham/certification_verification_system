@@ -1,3 +1,4 @@
+const plans = require('../services/planService');
 const express = require('express');
 const mongoose = require('mongoose');
 const { authenticateToken, authorizeInstitute, authorizeSuperAdmin } = require('../middleware/authMiddleware');
@@ -69,40 +70,9 @@ router.get('/admin/subscribers', handler(req => analytics.listSubscribers(req.qu
 router.get('/admin/bank-details', handler(() => manualPayment.bankDetails()));
 router.put('/admin/bank-details', handler(req => manualPayment.saveBankDetails(req.userId, req.body)));
 router.get('/admin/plans', handler(() => Plan.find({}).sort({ displayOrder: 1 })));
-router.post('/admin/plans/bootstrap', handler(req => service.transaction(async session => {
-  if (await Plan.exists({}).session(session)) throw Object.assign(new Error('The plan catalogue already exists.'), { status: 409 });
-  const rows = [['Starter', 1490000, 100, 2, 2], ['Professional', 2990000, 500, 5, 5], ['Business', 4990000, 1500, 15, 10]];
-  const plans = await Plan.create(rows.map(([name, priceMinor, certificates, teachers, templates], displayOrder) => ({
-    name, priceMinor, limits: { certificates, teachers, templates }, active: true, displayOrder,
-    recommended: name === 'Professional', features: { bulkCertificateIssue: true, secureSharing: true }
-  })), { session, ordered: true });
-  await service.audit({ actorId: req.userId, event: 'draft_catalogue_initialized', details: plans.map(plan => plan.toObject()) }, session);
-  return plans;
-})));
-function planInput(body) {
-  const keys = ['name', 'priceMinor', 'limits', 'features', 'active', 'displayOrder', 'recommended'];
-  if (!body || Object.keys(body).some(key => !keys.includes(key)) || typeof body.name !== 'string' || !Number.isSafeInteger(body.priceMinor) || body.priceMinor < 0 ||
-      !body.limits || ['certificates', 'teachers', 'templates'].some(key => !Number.isSafeInteger(body.limits[key]) || body.limits[key] < (key === 'certificates' ? 1 : 0)) ||
-      Object.keys(body.limits).some(key => !['certificates', 'teachers', 'templates'].includes(key)) ||
-      ['active', 'recommended'].some(key => body[key] !== undefined && typeof body[key] !== 'boolean') ||
-      (body.displayOrder !== undefined && !Number.isSafeInteger(body.displayOrder)) ||
-      (body.features !== undefined && (!body.features || Object.entries(body.features).some(([key, value]) => !['bulkCertificateIssue', 'secureSharing'].includes(key) || typeof value !== 'boolean')))) {
-    throw Object.assign(new Error('Valid plan name, integer prices/limits and boolean features required.'), { status: 400 });
-  }
-  return Object.fromEntries(keys.filter(key => body[key] !== undefined).map(key => [key, body[key]]));
-}
-router.post('/admin/plans', handler(req => service.transaction(async session => {
-  const [plan] = await Plan.create([planInput(req.body)], { session });
-  await service.audit({ actorId: req.userId, planId: plan._id, event: 'plan_created', details: plan.toObject() }, session);
-  return plan;
-})));
-router.put('/admin/plans/:id', handler(req => service.transaction(async session => {
-  const before = await Plan.findById(req.params.id).session(session);
-  if (!before) throw Object.assign(new Error('Plan not found.'), { status: 404 });
-  const plan = await Plan.findByIdAndUpdate(req.params.id, { $set: planInput(req.body) }, { new: true, runValidators: true, session });
-  await service.audit({ actorId: req.userId, planId: plan._id, event: 'plan_edited', details: { before: before.toObject(), after: plan.toObject() } }, session);
-  return plan;
-})));
+router.post('/admin/plans/bootstrap', handler(req => plans.bootstrap(req.userId)));
+router.post('/admin/plans', handler(req => plans.create(req.userId, req.body)));
+router.put('/admin/plans/:id', handler(req => plans.update(req.params.id, req.userId, req.body)));
 router.get('/admin/subscriptions', handler(() => Subscription.find({}).sort({ createdAt: -1 }).limit(200).populate('instituteId', 'instituteName email')));
 router.get('/admin/reviews', handler(() => Subscription.find({ status: 'pending', 'paymentProof.status': 'submitted' }).sort({ 'paymentProof.submittedAt': 1 }).populate('instituteId', 'instituteName email')));
 router.post('/admin/subscriptions/:id/activate', handler(req => service.activateManual(req.params.id, req.userId, req.body)));

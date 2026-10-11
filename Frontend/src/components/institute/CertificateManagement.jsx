@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import PrivateImage from '../shared/PrivateImage';
 import PrivateFileLink from '../shared/PrivateFileLink';
 import React, { useState, useEffect } from 'react';
@@ -71,12 +72,12 @@ const CertificateManagement = ({ API_URL }) => {
       });
 
       if (response.data.success) {
-        alert('Template deleted successfully');
+        notify('Template deleted successfully');
         fetchTemplates();
       }
     } catch (error) {
       console.error('Error deleting template:', error);
-      alert(error.response?.data?.message || 'Failed to delete template');
+      notify(error.response?.data?.message || 'Failed to delete template');
     }
   };
 
@@ -117,10 +118,10 @@ const CertificateManagement = ({ API_URL }) => {
         { confirmation, compromised },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert(response.data.message);
+      notify(response.data.message);
       fetchSecurityAnalytics();
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to rotate signing key');
+      notify(error.response?.data?.message || 'Failed to rotate signing key');
     }
   };
 
@@ -138,10 +139,10 @@ const CertificateManagement = ({ API_URL }) => {
         { action, reason },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert(response.data.message);
+      notify(response.data.message);
       fetchCertificates();
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to update credential lifecycle');
+      notify(error.response?.data?.message || 'Failed to update credential lifecycle');
     }
   };
 
@@ -174,13 +175,13 @@ const CertificateManagement = ({ API_URL }) => {
       } catch (clipboardError) {
         console.warn('Share link clipboard copy failed:', clipboardError);
       }
-      alert(
+      notify(
         `Controlled share link created and emailed to ${response.data.data.emailRecipient}.` +
         `${copied ? '\nThe link was also copied to your clipboard.' : `\n\n${shareUrl}`}`
       );
     } catch (error) {
       console.error('Create share error:', error);
-      alert(error.response?.data?.message || 'Failed to create share link');
+      notify(error.response?.data?.message || 'Failed to create share link');
     }
   };
 
@@ -194,7 +195,7 @@ const CertificateManagement = ({ API_URL }) => {
       setShareManager({ certificateId, shares: response.data.data, loading: false });
     } catch (error) {
       setShareManager(null);
-      alert(error.response?.data?.message || 'Failed to load share links');
+      notify(error.response?.data?.message || 'Failed to load share links');
     }
   };
 
@@ -213,17 +214,17 @@ const CertificateManagement = ({ API_URL }) => {
         )
       }));
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to revoke share link');
+      notify(error.response?.data?.message || 'Failed to revoke share link');
     }
   };
 
   const copyTemplateId = async (templateId) => {
     try {
       await navigator.clipboard.writeText(templateId);
-      alert('Template ID copied');
+      notify('Template ID copied');
     } catch (error) {
       console.error('Error copying template ID:', error);
-      alert(`Template ID: ${templateId}`);
+      notify(`Template ID: ${templateId}`);
     }
   };
 
@@ -236,12 +237,12 @@ const CertificateManagement = ({ API_URL }) => {
       );
 
       if (response.data.success) {
-        alert(`Certificate ${status} successfully`);
+        notify(`Certificate ${status} successfully`);
         fetchCertificates();
       }
     } catch (error) {
       console.error('Error updating certificate:', error);
-      alert(error.response?.data?.message || 'Failed to update certificate');
+      notify(error.response?.data?.message || 'Failed to update certificate');
     }
   };
 
@@ -253,12 +254,12 @@ const CertificateManagement = ({ API_URL }) => {
       });
 
       if (response.data.success) {
-        alert('Email sent successfully');
+        notify('Email sent successfully');
         fetchCertificates();
       }
     } catch (error) {
       console.error('Error sending email:', error);
-      alert(error.response?.data?.message || 'Failed to send email');
+      notify(error.response?.data?.message || 'Failed to send email');
     }
   };
 
@@ -268,10 +269,10 @@ const CertificateManagement = ({ API_URL }) => {
       const response = await axios.post(`${API_URL}/certificates/${certificateId}/regenerate`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert(response.data.message);
+      notify(response.data.message);
       fetchCertificates();
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to sign and regenerate certificate');
+      notify(error.response?.data?.message || 'Failed to sign and regenerate certificate');
     }
   };
 

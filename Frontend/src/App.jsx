@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
+import { showRedirectNotification } from './services/notifications'
 import { ToastContainer } from 'react-toastify'
 //import 'react-toastify/dist/ReactToastify.css'
 
@@ -75,6 +77,7 @@ const ProtectedRoute = ({ children, allowedUserType }) => {
 };
 
 function App() {
+  useEffect(showRedirectNotification, []);
   const isAdminWorkspace = ['/admin/dashboard', '/institute/dashboard', '/teacher/dashboard'].includes(useLocation().pathname);
   return (
     <AuthProvider>

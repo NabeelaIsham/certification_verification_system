@@ -6,49 +6,37 @@ on:
   pull_request:
 
 jobs:
-  backend:
+  checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: backend-lint, directory: Backend, command: 'npm run lint' }
+          - { name: backend-test, directory: Backend, command: 'npm test' }
+          - { name: backend-integration, directory: Backend, command: 'npm run test:integration' }
+          - { name: backend-audit, directory: Backend, command: 'npm audit --audit-level=high' }
+          - { name: backend-production-audit, directory: Backend, command: 'npm audit --omit=dev --audit-level=high' }
+          - { name: frontend-lint, directory: Frontend, command: 'npm run lint' }
+          - { name: frontend-test, directory: Frontend, command: 'npm test -- --run' }
+          - { name: frontend-build, directory: Frontend, command: 'npm run build' }
+          - { name: frontend-audit, directory: Frontend, command: 'npm audit --audit-level=high' }
+          - { name: frontend-production-audit, directory: Frontend, command: 'npm audit --omit=dev --audit-level=high' }
     defaults:
       run:
-        working-directory: Backend
+        working-directory: ${{ matrix.directory }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Install backend dependencies
+      - name: Install dependencies
         run: npm ci
-      - name: Run backend lint
-        run: npm run lint
-      - name: Audit backend dependencies
-        run: npm audit --audit-level=high
-      - name: Run backend tests
-        run: npm test
-      - name: Test tenant isolation and transactional issuance
-        run: npm run test:integration
-
-  frontend:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Frontend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '22'
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Run frontend lint
-        run: npm run lint
-      - name: Run frontend tests
-        run: npm test -- --run
-      - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
-      - name: Build frontend production bundle
+      - name: Run check
         env:
           VITE_SAAS_ENABLED: 'true'
-        run: npm run build
+        run: ${{ matrix.command }}
 
   container-builds:
     runs-on: ubuntu-latest

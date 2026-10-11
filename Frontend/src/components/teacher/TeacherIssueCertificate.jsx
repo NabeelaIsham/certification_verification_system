@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -377,7 +378,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
               </div>
               <button
                 onClick={() => {
-                  alert('Email functionality will be implemented');
+                  notify('Email functionality will be implemented');
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >

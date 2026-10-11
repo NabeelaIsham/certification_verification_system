@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from "react";
 import axios from "axios";
 import TeacherPasswordReset from "./TeacherPasswordReset";
@@ -117,7 +118,7 @@ const TeacherManagement = ({ API_URL }) => {
           },
         );
         if (response.data.success) {
-          alert("Teacher updated successfully");
+          notify("Teacher updated successfully");
         }
       } else {
         // Create teacher
@@ -125,7 +126,7 @@ const TeacherManagement = ({ API_URL }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (response.data.success) {
-          alert(
+          notify(
             response.data.message ||
               "Teacher created. Check invitation email delivery.",
           );
@@ -138,7 +139,7 @@ const TeacherManagement = ({ API_URL }) => {
       fetchTeachers();
     } catch (error) {
       console.error("Error saving teacher:", error);
-      alert(error.response?.data?.message || "Error saving teacher");
+      notify(error.response?.data?.message || "Error saving teacher");
     } finally {
       setLoading(false);
     }
@@ -183,12 +184,12 @@ const TeacherManagement = ({ API_URL }) => {
       });
 
       if (response.data.success) {
-        alert("Teacher deleted successfully");
+        notify("Teacher deleted successfully");
         fetchTeachers();
       }
     } catch (error) {
       console.error("Error deleting teacher:", error);
-      alert(error.response?.data?.message || "Error deleting teacher");
+      notify(error.response?.data?.message || "Error deleting teacher");
     }
   };
 

@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -72,14 +73,14 @@ const CertificateTemplates = ({ API_URL }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Template updated successfully');
+          notify('Template updated successfully');
         }
       } else {
         const response = await axios.post(`${API_URL}/certificate-templates`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Template created successfully');
+          notify('Template created successfully');
         }
       }
       
@@ -102,7 +103,7 @@ const CertificateTemplates = ({ API_URL }) => {
       fetchTemplates();
     } catch (error) {
       console.error('Error saving template:', error);
-      alert(error.response?.data?.message || 'Error saving template');
+      notify(error.response?.data?.message || 'Error saving template');
     } finally {
       setLoading(false);
     }
@@ -137,12 +138,12 @@ const CertificateTemplates = ({ API_URL }) => {
       });
       
       if (response.data.success) {
-        alert('Template deleted successfully');
+        notify('Template deleted successfully');
         fetchTemplates();
       }
     } catch (error) {
       console.error('Error deleting template:', error);
-      alert(error.response?.data?.message || 'Error deleting template');
+      notify(error.response?.data?.message || 'Error deleting template');
     }
   };
 

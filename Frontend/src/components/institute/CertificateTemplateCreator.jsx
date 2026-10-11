@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
@@ -185,7 +186,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
 
   const addCustomTextField = () => {
     if (!imagePreview || !imageSize.naturalWidth || !imageSize.naturalHeight) {
-      alert('Upload a certificate template image before adding custom text.');
+      notify('Upload a certificate template image before adding custom text.');
       return;
     }
 
@@ -201,7 +202,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
     if (!file) return;
 
     if (!imagePreview || !imageSize.naturalWidth || !imageSize.naturalHeight) {
-      alert('Upload a certificate template image before adding logos or signatures.');
+      notify('Upload a certificate template image before adding logos or signatures.');
       return;
     }
 
@@ -301,7 +302,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
 
   const handleSubmit = async () => {
     if (!templateName || !selectedCourse || !templateImage) {
-      alert('Please fill all required fields');
+      notify('Please fill all required fields');
       return;
     }
 
@@ -336,7 +337,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
       });
 
       if (response.data.success) {
-        alert('Template created successfully');
+        notify('Template created successfully');
         onTemplateCreated?.(response.data.data);
         setTemplateName('');
         setSelectedCourse('');
@@ -349,7 +350,7 @@ const CertificateTemplateCreator = ({ API_URL, onTemplateCreated }) => {
       }
     } catch (error) {
       console.error('Error creating template:', error);
-      alert(error.response?.data?.message || 'Failed to create template');
+      notify(error.response?.data?.message || 'Failed to create template');
     } finally {
       setLoading(false);
     }

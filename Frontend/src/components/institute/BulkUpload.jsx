@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -65,11 +66,11 @@ const BulkUpload = ({ API_URL }) => {
     
     if (response.data.success) {
       setResults(response.data.data);
-      alert(response.data.message);
+      notify(response.data.message);
     }
   } catch (error) {
     console.error('Error in bulk upload:', error);
-    alert(error.response?.data?.message || 'Error in bulk upload');
+    notify(error.response?.data?.message || 'Error in bulk upload');
   } finally {
     setLoading(false);
   }
@@ -82,7 +83,7 @@ const BulkUpload = ({ API_URL }) => {
       }).filter(c => c.studentEmail && c.courseCode && c.templateId);
 
       if (certificates.length === 0) {
-        alert('Please enter valid certificate data');
+        notify('Please enter valid certificate data');
         return;
       }
 
@@ -94,11 +95,11 @@ const BulkUpload = ({ API_URL }) => {
 
       if (response.data.success) {
         setResults(response.data.data);
-        alert(response.data.message);
+        notify(response.data.message);
       }
     } catch (error) {
       console.error('Error in bulk certificate upload:', error);
-      alert(error.response?.data?.message || 'Error in bulk certificate upload');
+      notify(error.response?.data?.message || 'Error in bulk certificate upload');
     } finally {
       setLoading(false);
     }

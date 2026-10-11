@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -110,7 +111,7 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
       console.log('Certificate response:', response.data);
 
       if (response.data.success) {
-        alert('Certificate issued successfully!');
+        notify('Certificate issued successfully!');
         onCertificateIssued?.(response.data.data);
         // Reset form
         setSelectedStudent('');
@@ -123,15 +124,15 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
       if (error.response) {
         console.error('Error response:', error.response.data);
         setError(error.response.data.message || 'Failed to issue certificate');
-        alert(error.response.data.message || 'Failed to issue certificate');
+        notify(error.response.data.message || 'Failed to issue certificate');
       } else if (error.request) {
         console.error('No response received:', error.request);
         setError('No response from server. Please check your connection.');
-        alert('No response from server. Please check your connection.');
+        notify('No response from server. Please check your connection.');
       } else {
         console.error('Error setting up request:', error.message);
         setError('Error: ' + error.message);
-        alert('Error: ' + error.message);
+        notify('Error: ' + error.message);
       }
     } finally {
       setLoading(false);

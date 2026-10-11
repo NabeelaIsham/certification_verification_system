@@ -1,3 +1,4 @@
+import { notifyAfterRedirect } from '../../services/notifications.js';
 import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useState } from 'react';
 import axios from 'axios';
@@ -112,7 +113,7 @@ console.log('Teacher data:', teacher);
       });
 
       if (response.data.success) {
-        alert('Password changed successfully. Please sign in again.');
+        notifyAfterRedirect('Password changed successfully. Please sign in again.');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.assign('/login');

@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -71,7 +72,7 @@ const CourseManagement = ({ API_URL }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Course updated successfully');
+          notify('Course updated successfully');
         }
       } else {
         // Create course
@@ -79,7 +80,7 @@ const CourseManagement = ({ API_URL }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Course created successfully');
+          notify('Course created successfully');
         }
       }
       
@@ -95,7 +96,7 @@ const CourseManagement = ({ API_URL }) => {
       fetchCourses();
     } catch (error) {
       console.error('Error saving course:', error);
-      alert(error.response?.data?.message || 'Error saving course');
+      notify(error.response?.data?.message || 'Error saving course');
     } finally {
       setLoading(false);
     }
@@ -123,12 +124,12 @@ const CourseManagement = ({ API_URL }) => {
       });
       
       if (response.data.success) {
-        alert('Course deleted successfully');
+        notify('Course deleted successfully');
         fetchCourses();
       }
     } catch (error) {
       console.error('Error deleting course:', error);
-      alert(error.response?.data?.message || 'Error deleting course');
+      notify(error.response?.data?.message || 'Error deleting course');
     }
   };
 

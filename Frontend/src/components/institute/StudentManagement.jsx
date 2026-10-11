@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -85,14 +86,14 @@ const StudentManagement = ({ API_URL }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Student updated successfully');
+          notify('Student updated successfully');
         }
       } else {
         const response = await axios.post(`${API_URL}/students`, formData, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (response.data.success) {
-          alert('Student added successfully');
+          notify('Student added successfully');
         }
       }
       
@@ -108,7 +109,7 @@ const StudentManagement = ({ API_URL }) => {
       fetchStudents();
     } catch (error) {
       console.error('Error saving student:', error);
-      alert(error.response?.data?.message || 'Error saving student');
+      notify(error.response?.data?.message || 'Error saving student');
     } finally {
       setLoading(false);
     }
@@ -136,12 +137,12 @@ const StudentManagement = ({ API_URL }) => {
       });
       
       if (response.data.success) {
-        alert('Student deleted successfully');
+        notify('Student deleted successfully');
         fetchStudents();
       }
     } catch (error) {
       console.error('Error deleting student:', error);
-      alert(error.response?.data?.message || 'Error deleting student');
+      notify(error.response?.data?.message || 'Error deleting student');
     }
   };
 
@@ -153,7 +154,7 @@ const StudentManagement = ({ API_URL }) => {
       }).filter(s => s.name && s.email && s.courseCode);
 
       if (students.length === 0) {
-        alert('Please enter valid data');
+        notify('Please enter valid data');
         return;
       }
 
@@ -165,14 +166,14 @@ const StudentManagement = ({ API_URL }) => {
 
       if (response.data.success) {
         setBulkResults(response.data.data);
-        alert(response.data.message);
+        notify(response.data.message);
         setBulkData('');
         setShowBulkUploadModal(false);
         fetchStudents();
       }
     } catch (error) {
       console.error('Error in bulk upload:', error);
-      alert(error.response?.data?.message || 'Error in bulk upload');
+      notify(error.response?.data?.message || 'Error in bulk upload');
     } finally {
       setLoading(false);
     }

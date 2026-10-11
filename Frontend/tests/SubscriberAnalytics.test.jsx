@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import api from '../src/services/api';
 import SubscriberAnalytics from '../src/components/shared/SubscriberAnalytics';
@@ -39,8 +39,11 @@ test('approved receipt downloads a PDF from its authenticated payment endpoint',
     const blob = new Blob(['%PDF'], { type: 'application/pdf' });
     api.get.mockResolvedValue({ data: blob });
     render(<ApprovedPaymentReceipt paymentId="payment" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Download approved receipt (PDF)' }));
-    await vi.waitFor(() => expect(click).toHaveBeenCalled());
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Download approved receipt (PDF)' }));
+    });
+    expect(click).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Download approved receipt (PDF)' })).toBeEnabled();
     expect(api.get).toHaveBeenCalledWith('/subscriptions/payments/payment/receipt', { responseType: 'blob' });
     expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
     vi.advanceTimersByTime(1000); expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:approved');

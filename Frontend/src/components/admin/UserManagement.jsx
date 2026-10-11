@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -134,12 +135,12 @@ const UserManagement = ({ API_URL }) => {
       );
       
       if (response.data.success) {
-        alert(`User ${currentStatus ? 'deactivated' : 'activated'} successfully!`);
+        notify(`User ${currentStatus ? 'deactivated' : 'activated'} successfully!`);
         fetchUsers();
       }
     } catch (error) {
       console.error('Error toggling user status:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -156,11 +157,11 @@ const UserManagement = ({ API_URL }) => {
       );
       
       if (response.data.success) {
-        alert('Password reset email sent successfully!');
+        notify('Password reset email sent successfully!');
       }
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 

@@ -1,3 +1,4 @@
+import { notify } from '../services/notifications.js';
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import CertificateSharing from "../components/verification/CertificateSharing";
@@ -411,7 +412,7 @@ const VerificationPortal = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download error:", error);
-      alert("Failed to download certificate. Please try again.");
+      notify("Failed to download certificate. Please try again.");
     } finally {
       setDownloadLoading(false);
     }
@@ -431,7 +432,7 @@ const VerificationPortal = () => {
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("Please allow pop-ups to print");
+      notify("Please allow pop-ups to print");
       return;
     }
 
