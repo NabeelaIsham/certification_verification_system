@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { assertDeliveryAllowed } = require('./deliveryPolicy');
+const { smsFailure, assertSmsAccepted } = require('./smsResponse');
 
 const DEFAULT_TEXTLK_ENDPOINT = 'https://app.text.lk/api/v3/sms/send';
 const DEFAULT_AUTH_PREFIX = 'Bearer';
@@ -54,19 +55,10 @@ const sendTextLkSms = async ({ to, message }) => {
       maxRedirects: 0
     });
 
-    return response.data;
+    return assertSmsAccepted(response);
   } catch (error) {
-    const status = error.response?.status;
-    const messageParts = [`Text.lk SMS request failed${status ? ` with status ${status}` : ''}`];
-
-    if (status === 401) {
-      messageParts.push('Check TEXTLK_API_TOKEN, regenerate the API token if needed, and restart the backend.');
-    }
-
-    const smsError = new Error(messageParts.join('. '));
-    smsError.status = status;
-    smsError.code = status === 401 ? 'SMS_AUTH_FAILED' : 'SMS_DELIVERY_FAILED';
-    throw smsError;
+    if (error.code?.startsWith('SMS_')) throw error;
+    throw smsFailure(error.response?.data, error.response?.status);
   }
 };
 

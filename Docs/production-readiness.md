@@ -9,7 +9,7 @@ Updated 2026-10-13. Local code checks are not proof of a completed production ro
 | `https://certiverxia.com/health` | HTTP 200; database `connected`, health `healthy` |
 | `http://certiverxia.com/` | Redirects to HTTPS; final response 200 |
 | `https://www.certiverxia.com/` | TLS validation failed: self-signed certificate |
-| Backend unit tests | 21 suites / 139 tests passed |
+| Backend unit tests | 22 suites / 152 tests passed |
 | Backend replica-set integration tests | 4 suites / 113 tests passed, including tenant, subscription and cookie-session behavior |
 | Frontend tests | 21 files / 58 tests passed |
 | Git history | An isolated cleaned mirror was prepared; public history was not changed |
@@ -20,6 +20,8 @@ No production database records, server settings, credentials, or remote Git refs
 The local storage probe write/verify check passed; no container was recreated. Running the readiness command without production configuration correctly exited nonzero before connecting to a database. Both package lints, the SaaS-enabled frontend build, and full/production-only npm audits passed (zero reported vulnerabilities). The build retains its existing large-JavaScript-chunk warning.
 
 The public URL checks were repeated on October 13: apex HTTPS and database health still pass, while www still presents a self-signed certificate. A frontend worker initially timed out before executing tests; the complete suite subsequently passed outside the sandbox. Browser authentication is additionally covered through real application routes and a disposable replica-set database, including both login endpoints, 2FA, CSRF rejection and logout.
+
+Later on October 13, production registration logs confirmed that the live backend lacked `TEXTLK_API_TOKEN`. The Dokploy Compose definition now forwards required SMS credentials, and registration displays delivery failures correctly. Five focused registration/OTP frontend tests passed after this change. See [SMS OTP troubleshooting](SMS_OTP_TROUBLESHOOTING.md) for the required Dokploy configuration and redeployment steps; live handset delivery remains unverified.
 
 ## Coordinated application rollout
 

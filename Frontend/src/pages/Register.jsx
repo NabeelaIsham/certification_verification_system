@@ -71,7 +71,10 @@ const Register = () => {
     try {
       const response = await apiClient.post(`${API_URL}/auth/register`, formData);
       if (response.data.success)
-        navigate("/OTPVerification", { state: { email: formData.email } });
+        navigate("/OTPVerification", { state: {
+          email: response.data.email || formData.email,
+          delivery: { emailSent: response.data.emailSent, smsSent: response.data.smsSent }
+        } });
       else
         setError(
           response.data.message || "Registration failed. Please try again.",

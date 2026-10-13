@@ -18,7 +18,7 @@ const fields = {
 };
 function NextStep() {
   const { state } = useLocation();
-  return <p>Verify email: {state?.email}</p>;
+  return <><p>Verify email: {state?.email}</p><p>SMS accepted: {String(state?.delivery?.smsSent)}</p></>;
 }
 function fillForm() {
   for (const [label, value] of Object.entries(fields))
@@ -28,7 +28,7 @@ function fillForm() {
 beforeEach(() => vi.resetAllMocks());
 
 test("registration preserves account details and continues to email verification", async () => {
-  axios.post.mockResolvedValue({ data: { success: true } });
+  axios.post.mockResolvedValue({ data: { success: true, emailSent: true, smsSent: false } });
   render(
     <MemoryRouter initialEntries={["/register"]}>
       <Routes>
@@ -44,6 +44,7 @@ test("registration preserves account details and continues to email verification
   expect(
     await screen.findByText("Verify email: admin@example.com"),
   ).toBeInTheDocument();
+  expect(screen.getByText('SMS accepted: false')).toBeInTheDocument();
   expect(axios.post).toHaveBeenCalledWith(
     expect.stringContaining("/auth/register"),
     expect.objectContaining({

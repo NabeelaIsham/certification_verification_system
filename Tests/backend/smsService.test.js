@@ -33,3 +33,20 @@ test('refuses insecure provider endpoints before sending credentials', async () 
   await expect(sendTextLkSms({ to: '0771234567', message: 'Test' })).rejects.toThrow('HTTPS');
   expect(axios.post).not.toHaveBeenCalled();
 });
+
+test.each([true, 'success'])('accepts the documented provider success status %s', async status => {
+  axios.post.mockResolvedValue({ status: 200, data: { status, data: { status: 'Queued' } } });
+  await expect(sendTextLkSms({ to: '0771234567', message: 'Test' })).resolves.toMatchObject({ status });
+});
+
+test.each([
+  [{ status: false, message: 'Invalid sender_id' }, 'SMS_SENDER_REJECTED'],
+  [{ status: 'error', message: 'Insufficient balance' }, 'SMS_INSUFFICIENT_CREDIT'],
+  [{ status: 'error', message: 'Invalid recipient number' }, 'SMS_INVALID_RECIPIENT'],
+  [{ status: 'error', message: 'Unauthenticated' }, 'SMS_AUTH_FAILED'],
+  [{ status: 'success', data: { status: 'Failed' } }, 'SMS_PROVIDER_REJECTED'],
+  ['<html>sign in</html>', 'SMS_UNEXPECTED_RESPONSE']
+])('does not report HTTP 200 provider rejection as a sent SMS: %j', async (body, code) => {
+  axios.post.mockResolvedValue({ status: 200, data: body });
+  await expect(sendTextLkSms({ to: '0771234567', message: 'Test' })).rejects.toMatchObject({ code });
+});

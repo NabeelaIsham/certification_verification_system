@@ -132,13 +132,19 @@ const registerInstitute = async (req, res) => {
         await sendSMSOTP(user.phone, accountOtp);
         smsSent = true;
       } catch (smsError) {
-        appLogger.warn('Warning: failed to send SMS OTP:', smsError.message);
+        appLogger.warn('Registration SMS failed', smsError);
       }
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your account with the OTP sent to your email or phone.',
+      message: emailSent && smsSent
+        ? 'Registration successful. Check your email or phone for your verification code.'
+        : emailSent
+          ? 'Your account was created. SMS delivery failed; please use the verification code sent to your email.'
+          : smsSent
+            ? 'Your account was created. Check your phone for your verification code. Email delivery failed.'
+            : 'Your account was created, but we could not send a verification code. Try Resend OTP shortly or contact support.',
       userId: user._id,
       email: user.email,
       nextStep: 'verify-account',
@@ -234,7 +240,7 @@ const resendOtp = async (req, res) => {
       try {
         await sendSMSOTP(user.phone, otp);
       } catch (smsError) {
-        appLogger.warn('Warning: failed to resend SMS OTP:', smsError.message);
+        appLogger.warn('Verification SMS resend failed', smsError);
       }
     }
 

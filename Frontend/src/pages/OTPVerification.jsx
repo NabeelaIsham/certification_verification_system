@@ -15,7 +15,16 @@ const OTPVerification = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { email } = location.state || {};
+  const { email, delivery } = location.state || {};
+  const [initialDelivery, setInitialDelivery] = useState(delivery);
+  const deliveryFailed = initialDelivery?.smsSent === false || initialDelivery?.emailSent === false;
+  const deliveryMessage = initialDelivery?.smsSent === false
+    ? initialDelivery.emailSent === true
+      ? 'We could not send the SMS. Use the verification code sent to your email.'
+      : 'We could not send your verification code. Try Resend OTP shortly or contact support.'
+    : initialDelivery?.emailSent === false
+      ? 'Email delivery failed. Check your phone for the verification code.'
+      : 'Enter the verification code from your email or phone. SMS delivery may take a little time.';
 
   useEffect(() => {
     if (!email) {
@@ -71,8 +80,10 @@ const OTPVerification = () => {
   };
 
   const handleResendOTP = async () => {
+    if (isLoading || cooldown > 0) return;
     setError('');
     setMessage('');
+    setIsLoading(true);
 
     try {
       const response = await apiClient.post(`${API_URL}/auth/resend-otp`, {
@@ -82,8 +93,11 @@ const OTPVerification = () => {
       setTimer(policy.otpExpiry * 60);
       setCooldown(policy.resendCooldown);
       setMessage(response.data.message);
+      setInitialDelivery(undefined);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to resend OTP');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -100,8 +114,8 @@ const OTPVerification = () => {
           <h2 className="text-center text-3xl font-bold text-gray-900">
             Verify Account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Enter the OTP sent to your email or phone
+          <p role={deliveryFailed ? 'alert' : undefined} className={`mt-2 text-center text-sm ${deliveryFailed ? 'text-amber-700' : 'text-gray-600'}`}>
+            {deliveryMessage}
           </p>
         </div>
 

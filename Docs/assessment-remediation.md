@@ -21,7 +21,7 @@
 
 - Backend clean `npm ci`: successful, zero vulnerabilities.
 - Full and production-only npm audits in both packages: zero vulnerabilities.
-- Backend unit tests with coverage: 21 suites, 139 tests passed.
+- Backend unit tests with coverage: 22 suites, 152 tests passed.
 - Backend replica-set integration tests: 4 suites, 113 tests passed.
 - Frontend: 21 test files, 58 tests passed with `--maxWorkers=2`.
 - Both ESLint checks and the SaaS-enabled frontend production build passed.

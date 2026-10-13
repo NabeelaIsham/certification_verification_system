@@ -47,6 +47,11 @@ services:
       EMAIL_PORT: '465'
       EMAIL_USER: info@certiverxia.com
       EMAIL_FROM_NAME: Certiverxia
+      TEXTLK_API_TOKEN: ${TEXTLK_API_TOKEN:?Set TEXTLK_API_TOKEN in Dokploy Environment}
+      TEXTLK_SENDER_ID: ${TEXTLK_SENDER_ID:?Set your approved TEXTLK_SENDER_ID in Dokploy Environment}
+      TEXTLK_SMS_ENDPOINT: ${TEXTLK_SMS_ENDPOINT:-https://app.text.lk/api/v3/sms/send}
+      TEXTLK_AUTH_PREFIX: ${TEXTLK_AUTH_PREFIX:-Bearer}
+      TEXTLK_TIMEOUT_MS: ${TEXTLK_TIMEOUT_MS:-10000}
       SAAS_ENABLED: 'true'
       OUTBOUND_DELIVERY_MODE: ${OUTBOUND_DELIVERY_MODE:-disabled}
       BACKUP_DIRECTORY: /usr/src/app/backups

@@ -48,6 +48,16 @@ jobs:
           DEPLOYMENT_ENV: staging
           BACKEND_ENV_FILE: ./Backend/.env.example
         run: docker compose -f docker-compose.atlas.yml config --quiet
+      - name: Validate Dokploy SMS environment wiring
+        env:
+          MONGODB_URI: mongodb://database.invalid/certverify_ci
+          JWT_SECRET: ci-only-jwt-value-not-for-deployment
+          CREDENTIAL_KEY_ENCRYPTION_SECRET: ci-only-encryption-value-not-for-deployment
+          VERIFICATION_PRIVACY_SECRET: ci-only-privacy-value-not-for-deployment
+          EMAIL_PASS: ci-only-email-value-not-for-deployment
+          TEXTLK_API_TOKEN: ci-only-sms-value-not-for-deployment
+          TEXTLK_SENDER_ID: Certiverxia
+        run: docker compose -f docker-compose.dokploy.yml config --quiet
       - name: Build backend production image
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx
