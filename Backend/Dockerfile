@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 ENV NODE_ENV=production
 ENV PORT=5000
 
-RUN apk add --no-cache fontconfig ttf-dejavu ttf-liberation
+RUN apk add --no-cache fontconfig ttf-dejavu ttf-liberation mongodb-tools
 
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force

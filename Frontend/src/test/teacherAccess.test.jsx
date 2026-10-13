@@ -7,11 +7,11 @@ import {
   cleanup,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import axios from "axios";
+import axios from "../services/api.jsx";
 import TeacherSetPassword from "../pages/TeacherSetPassword";
 import TeacherPasswordReset from "../components/institute/TeacherPasswordReset";
 
-vi.mock("axios", () => ({ default: { post: vi.fn() } }));
+vi.mock("../services/api.jsx", () => ({ default: { post: vi.fn() } }));
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -94,7 +94,7 @@ test("institute recovery supports both email and direct password reset", async (
   expect(axios.post).toHaveBeenLastCalledWith(
     "/api/teachers/teacher-id/password-link",
     {},
-    { headers: { Authorization: "Bearer admin-session" } },
+    { headers: {  } },
   );
   fireEvent.click(screen.getByText("Set a new password directly"));
   fireEvent.change(screen.getByLabelText("New teacher password"), {
@@ -108,7 +108,7 @@ test("institute recovery supports both email and direct password reset", async (
     expect(axios.post).toHaveBeenLastCalledWith(
       "/api/teachers/teacher-id/reset-password",
       { newPassword: "TeacherPass123" },
-      { headers: { Authorization: "Bearer admin-session" } },
+      { headers: {  } },
     ),
   );
 });

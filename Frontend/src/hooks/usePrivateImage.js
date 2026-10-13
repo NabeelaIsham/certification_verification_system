@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../services/api.jsx';
 
 export default function usePrivateImage(src) {
   const [loaded, setLoaded] = useState(null);
@@ -15,8 +15,8 @@ export default function usePrivateImage(src) {
     if (!privateUrl || !src) return undefined;
     const controller = new AbortController();
     let objectUrl;
-    axios.get(requestUrl, { responseType: 'blob', signal: controller.signal,
-      headers: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` } })
+    apiClient.get(requestUrl, { responseType: 'blob', signal: controller.signal,
+      headers: { } })
       .then(response => {
         if (controller.signal.aborted) return;
         objectUrl = URL.createObjectURL(response.data);

@@ -1,12 +1,12 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
-import axios from "axios";
+import axios from "../src/services/api.jsx";
 import TeacherDashboard from "../src/components/teacher/TeacherDashboard";
 import InstituteDashboard from "../src/pages/InstituteDashboard";
 
-vi.mock("axios", () => ({ default: { get: vi.fn() } }));
-vi.mock("../src/services/api", () => ({ default: {} }));
+vi.mock("../src/services/api.jsx", () => ({ default: { get: vi.fn() } }));
+
 vi.mock("../src/components/teacher/TeacherStudents", () => ({
   default: () => <p>Teacher student workspace</p>,
 }));

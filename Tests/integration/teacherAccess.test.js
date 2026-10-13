@@ -1,8 +1,9 @@
-jest.mock('../../Backend/utils/emailService', () => ({ sendTeacherAccessEmail: jest.fn() }));
+jest.mock('../../Backend/utils/emailService', () => ({ sendTeacherAccessEmail: jest.fn(), sendOtpEmail: jest.fn() }));
 process.env.NODE_ENV = 'test';
 process.env.SAAS_ENABLED = 'false';
 process.env.JWT_SECRET = 'teacher-access-test-only-secret';
 process.env.FRONTEND_URL = 'https://certiverxia.example';
+process.env.CORS_ALLOWED_ORIGINS = 'https://certiverxia.example';
 const mongoose = require('mongoose');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const request = require('supertest');
@@ -13,6 +14,7 @@ const email = require('../../Backend/utils/emailService');
 const { signAccessToken } = require('../../Backend/config/jwt');
 const { resetRateLimitStores } = require('../../Backend/middleware/rateLimit');
 const app = express(); app.use(express.json()); app.use('/teachers', require('../../Backend/routes/teacherRoutes'));
+const browserApp = require('../../Backend/app');
 let db, institute, other, teacher;
 const auth = user => ({ Authorization: `Bearer ${signAccessToken(user)}` });
 const tokenFromEmail = () => new URLSearchParams(new URL(email.sendTeacherAccessEmail.mock.calls.at(-1)[0].url).hash.slice(1)).get('token');
@@ -84,4 +86,37 @@ test('SMTP failure keeps the teacher account and allows an explicit email retry'
   expect(response.status).toBe(201); expect(response.body.invitationEmailSent).toBe(false);
   expect((await User.findById(response.body.data.id).select('+teacherPasswordSetup')).teacherPasswordSetup).toBeUndefined();
   expect((await request(app).post(`/teachers/${response.body.data.id}/password-link`).set(auth(institute))).status).toBe(200);
+});
+
+const browserHeaders = { Origin: 'https://certiverxia.example', 'X-Client-Type': 'browser' };
+test.each(['/api/auth/login', '/api/teachers/login'])('real browser login, CSRF rejection and logout work through %s', async loginPath => {
+  const browser = request.agent(browserApp);
+  const login = await browser.post(loginPath).set(browserHeaders).send({ email: teacher.email, password: 'OriginalPass123' });
+  expect(login.status).toBe(200);
+  expect(login.body.token).toBeUndefined();
+  expect(login.headers['set-cookie'][0]).toContain('HttpOnly');
+  expect((await browser.get('/api/auth/me')).status).toBe(200);
+  expect((await browser.post('/api/auth/logout').set('Origin', browserHeaders.Origin)).status).toBe(403);
+  expect((await browser.get('/api/teachers/profile/me')).status).toBe(200);
+  expect((await browser.post('/api/auth/logout').set(browserHeaders)).status).toBe(200);
+  expect((await browser.get('/api/auth/me')).status).toBe(401);
+});
+
+test('two-factor browser login issues a cookie only after the emailed challenge is verified', async () => {
+  teacher.twoFactorEnabled = true;
+  await teacher.save();
+  email.sendOtpEmail.mockResolvedValue({ messageId: 'mock-only' });
+  const browser = request.agent(browserApp);
+  const challenge = await browser.post('/api/teachers/login').set(browserHeaders).send({ email: teacher.email, password: 'OriginalPass123' });
+  expect(challenge.status).toBe(200);
+  expect(challenge.body.requiresTwoFactor).toBe(true);
+  expect(challenge.headers['set-cookie']).toBeUndefined();
+  expect((await browser.get('/api/auth/me')).status).toBe(401);
+  const completed = await browser.post('/api/auth/2fa/verify').set(browserHeaders).send({
+    challengeToken: challenge.body.challengeToken, otp: email.sendOtpEmail.mock.calls[0][0].otp
+  });
+  expect(completed.status).toBe(200);
+  expect(completed.body.token).toBeUndefined();
+  expect(completed.headers['set-cookie'][0]).toContain('HttpOnly');
+  expect((await browser.get('/api/auth/me')).status).toBe(200);
 });

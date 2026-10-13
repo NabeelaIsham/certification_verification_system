@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const OTP = require('../models/OTP');
 const { getPolicy } = require('../utils/settingsPolicy');
 const { accountInstructionsResponse } = require('../utils/authResponses');
@@ -24,7 +25,7 @@ const enforceOtpPolicy = (mode) => async (req, res, next) => {
     next();
   } catch (error) {
     if (mode.startsWith('send')) {
-      console.error('OTP delivery policy failed:', error.message);
+      appLogger.error('OTP delivery policy failed:', error.message);
       return res.json(accountInstructionsResponse());
     }
     res.status(500).json({ success: false, message: 'Unable to check verification settings.' });

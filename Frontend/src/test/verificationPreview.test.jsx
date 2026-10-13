@@ -1,10 +1,10 @@
 import { expect, test, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../services/api.jsx';
 import VerificationPortal from '../pages/VerificationPortal';
 
-vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+vi.mock('../services/api.jsx', () => ({ default: { get: vi.fn() } }));
 vi.mock('html5-qrcode', () => ({ Html5Qrcode: vi.fn(), Html5QrcodeSupportedFormats: { QR_CODE: 0 } }));
 test('verification link displays the returned certificate image and social sharing', async () => {
   axios.get.mockResolvedValue({ data: { success: true, data: {

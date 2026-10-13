@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const { signAccessToken } = require('../config/jwt');
 const crypto = require('crypto');
 const User = require('../models/User');
@@ -123,7 +124,7 @@ const registerInstitute = async (req, res) => {
       await sendOtpEmail({ to: user.email, otp: accountOtp, purpose: 'verification' });
       emailSent = true;
     } catch (emailError) {
-      console.warn('Warning: failed to send email OTP:', emailError.message);
+      appLogger.warn('Warning: failed to send email OTP:', emailError.message);
     }
 
     if (user.phone) {
@@ -131,7 +132,7 @@ const registerInstitute = async (req, res) => {
         await sendSMSOTP(user.phone, accountOtp);
         smsSent = true;
       } catch (smsError) {
-        console.warn('Warning: failed to send SMS OTP:', smsError.message);
+        appLogger.warn('Warning: failed to send SMS OTP:', smsError.message);
       }
     }
 
@@ -146,7 +147,7 @@ const registerInstitute = async (req, res) => {
       otp: process.env.NODE_ENV === 'test' ? accountOtp : undefined
     });
   } catch (error) {
-    console.error('Register institute error:', error);
+    appLogger.error('Register institute error:', error);
     return res.status(500).json({ success: false, message: 'Registration failed', error: error.message });
   }
 };
@@ -195,7 +196,7 @@ const verifyOtp = async (req, res) => {
       verifiedBy: otpRecord.type
     });
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    appLogger.error('Verify OTP error:', error);
     return res.status(500).json({ success: false, message: 'OTP verification failed', error: error.message });
   }
 };
@@ -224,7 +225,7 @@ const resendOtp = async (req, res) => {
       try {
         await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
       } catch (emailError) {
-        console.warn('Warning: failed to resend email OTP:', emailError.message);
+        appLogger.warn('Warning: failed to resend email OTP:', emailError.message);
       }
     }
 
@@ -233,13 +234,13 @@ const resendOtp = async (req, res) => {
       try {
         await sendSMSOTP(user.phone, otp);
       } catch (smsError) {
-        console.warn('Warning: failed to resend SMS OTP:', smsError.message);
+        appLogger.warn('Warning: failed to resend SMS OTP:', smsError.message);
       }
     }
 
     return res.json(accountInstructionsResponse());
   } catch (error) {
-    console.error('Resend OTP error:', error);
+    appLogger.error('Resend OTP error:', error);
     return res.json(accountInstructionsResponse());
   }
 };
@@ -262,7 +263,7 @@ const forgotPassword = async (req, res) => {
 
     return res.json(genericResponse);
   } catch (error) {
-    console.error('Forgot password error:', error);
+    appLogger.error('Forgot password error:', error);
     return res.json(accountInstructionsResponse());
   }
 };
@@ -308,7 +309,7 @@ const resetPassword = async (req, res) => {
 
     return res.json({ success: true, message: 'Password reset successfully.' });
   } catch (error) {
-    console.error('Reset password error:', error);
+    appLogger.error('Reset password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to reset password', error: error.message });
   }
 };
@@ -324,7 +325,7 @@ const getCurrentUser = async (req, res) => {
 
     res.json({ success: true, data: safeUser });
   } catch (error) {
-    console.error('Get current user error:', error);
+    appLogger.error('Get current user error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch current user', error: error.message });
   }
 };
@@ -400,7 +401,7 @@ const login = async (req, res) => {
 
     return res.json({ success: true, token, user: userData });
   } catch (error) {
-    console.error('Login error:', error);
+    appLogger.error('Login error:', error);
     return res.status(500).json({ success: false, message: 'Login failed', error: error.message });
   }
 };
@@ -416,7 +417,7 @@ const verificationStatus = async (req, res) => {
     // Authenticated users can retrieve their own profile through /me.
     return res.json(accountInstructionsResponse());
   } catch (error) {
-    console.error('Verification status error:', error);
+    appLogger.error('Verification status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to check verification status', error: error.message });
   }
 };

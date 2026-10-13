@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../services/api.jsx';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -24,7 +24,7 @@ const OTPVerification = () => {
   }, [email, navigate]);
 
   useEffect(() => {
-    axios.get(`${API_URL}/auth/verification-policy`).then(({ data }) => {
+    apiClient.get(`${API_URL}/auth/verification-policy`).then(({ data }) => {
       setPolicy(data.data);
       setTimer(data.data.otpExpiry * 60);
       setCooldown(data.data.resendCooldown);
@@ -49,7 +49,7 @@ const OTPVerification = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post(`${API_URL}/auth/verify-otp`, {
+      const response = await apiClient.post(`${API_URL}/auth/verify-otp`, {
         email,
         otp
       });
@@ -75,7 +75,7 @@ const OTPVerification = () => {
     setMessage('');
 
     try {
-      const response = await axios.post(`${API_URL}/auth/resend-otp`, {
+      const response = await apiClient.post(`${API_URL}/auth/resend-otp`, {
         email,
         type: 'account'
       });

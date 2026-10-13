@@ -7,8 +7,9 @@ const path = require('path');
 const { loadModels } = require('./config/database');
 const { assertProductionConfig, getAllowedOrigins } = require('./config/production');
 const { createRateLimit } = require('./middleware/rateLimit');
+const { appLogger } = require('./utils/logger');
 
-dotenv.config();
+dotenv.config({ quiet: process.env.NODE_ENV === 'test' });
 assertProductionConfig();
 
 loadModels();
@@ -28,14 +29,14 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    console.warn(`Blocked CORS origin: ${origin}`);
+    appLogger.warn(`Blocked CORS origin: ${origin}`);
     const error = new Error(`Origin is not allowed by CORS: ${origin}`);
     error.status = 403;
     return callback(error);
   },
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
-  credentials: false,
+  allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key', 'X-Client-Type'],
+  credentials: true,
   maxAge: 600
 }));
 app.use(helmet({
@@ -47,6 +48,7 @@ app.use(helmet({
 }));
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT || '2mb' }));
+app.use('/api', require('./middleware/browserSession').browserSession);
 
 const generalApiRateLimit = createRateLimit({
   windowMs: Number(process.env.API_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),

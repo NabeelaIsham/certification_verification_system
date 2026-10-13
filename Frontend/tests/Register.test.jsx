@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { vi } from "vitest";
-import axios from "axios";
+import axios from "../src/services/api.jsx";
 import Register from "../src/pages/Register";
 
-vi.mock("axios", () => ({ default: { post: vi.fn() } }));
+vi.mock("../src/services/api.jsx", () => ({ default: { post: vi.fn() } }));
 const fields = {
   "Institute name": "Example Academy",
   "Institute type": "College",

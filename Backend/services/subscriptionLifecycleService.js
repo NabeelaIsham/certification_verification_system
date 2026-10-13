@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const { Subscription, SubscriptionEvent, SubscriptionExpiryEmail, PaymentInvoiceEmail } = require('../models/Saas');
@@ -87,7 +88,7 @@ function startExpiryWorker() {
   if (process.env.SAAS_ENABLED !== 'true') return async () => {};
   let running = null;
   const tick = () => {
-    if (!running) running = Promise.all([runExpiryCycle(), processInvoiceEmails()]).catch(error => console.error('Subscription email cycle failed:', error.name))
+    if (!running) running = Promise.all([runExpiryCycle(), processInvoiceEmails()]).catch(error => appLogger.error('Subscription email cycle failed:', error.name))
       .finally(() => { running = null; });
   };
   const interval = setInterval(tick, 60000);

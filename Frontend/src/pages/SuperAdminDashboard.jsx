@@ -100,8 +100,8 @@ export default function SuperAdminDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const active = tabs.find((tab) => tab.id === params.get("tab")) || tabs[0];
-  const handleLogout = useCallback(() => {
-    auth?.logout();
+  const handleLogout = useCallback(async () => {
+    if (await auth?.logout() === false) return;
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login", { replace: true });
@@ -132,7 +132,7 @@ export default function SuperAdminDashboard() {
     }
   }, []);
   useEffect(() => {
-    if (!localStorage.getItem("token") || user?.userType !== "superadmin") {
+    if (user?.userType !== "superadmin") {
       navigate("/login", { replace: true });
       return;
     }

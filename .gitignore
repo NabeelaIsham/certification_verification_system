@@ -15,3 +15,4 @@ Frontend/node_modules/
 Frontend/dist/
 Frontend/.env
 .local-secrets/
+.history-cleanup/

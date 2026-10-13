@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const Certificate = require('../models/Certificate');
 const {
@@ -110,7 +111,7 @@ const verifyCertificate = async (req, res) => {
       }
     }});
   } catch (error) {
-    console.error('Verify certificate error:', error);
+    appLogger.error('Verify certificate error:', error);
     return res.status(500).json({ success: false, message: 'Failed to verify certificate', error: error.message });
   }
 };

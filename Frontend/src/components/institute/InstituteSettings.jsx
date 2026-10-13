@@ -1,7 +1,7 @@
 import { notify, notifyAfterRedirect } from '../../services/notifications.js';
 import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const getUploadUrl = (API_URL, filePath) => {
   if (!filePath) return '';
@@ -55,13 +55,13 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/institute/settings`, {
+
+      const response = await apiClient.put(`${API_URL}/institute/settings`, {
         instituteName: formData.instituteName,
         phone: formData.phone,
         address: formData.address
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {
@@ -104,13 +104,13 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     setUploadingLogo(true);
 
     try {
-      const token = localStorage.getItem('token');
+
       const uploadData = new FormData();
       uploadData.append('logo', logoFile);
 
-      const response = await axios.post(`${API_URL}/institute/logo`, uploadData, {
+      const response = await apiClient.post(`${API_URL}/institute/logo`, uploadData, {
         headers: {
-          Authorization: `Bearer ${token}`,
+
           'Content-Type': 'multipart/form-data'
         }
       });
@@ -156,12 +156,12 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/institute/change-password`, {
+
+      const response = await apiClient.put(`${API_URL}/institute/change-password`, {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {

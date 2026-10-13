@@ -1,6 +1,6 @@
 import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from "react";
-import axios from "axios";
+import apiClient from '../../services/api.jsx';
 import TeacherPasswordReset from "./TeacherPasswordReset";
 import "../shared/PublicExperience.css";
 
@@ -42,9 +42,9 @@ const TeacherManagement = ({ API_URL }) => {
   const fetchTeachers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${API_URL}/teachers`, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const response = await apiClient.get(`${API_URL}/teachers`, {
+        headers: { },
       });
       if (response.data.success) {
         // Ensure we always have an array
@@ -62,9 +62,9 @@ const TeacherManagement = ({ API_URL }) => {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const response = await apiClient.get(`${API_URL}/courses`, {
+        headers: { },
       });
       if (response.data.success) {
         setCourses(response.data.data || []);
@@ -103,18 +103,17 @@ const TeacherManagement = ({ API_URL }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
 
       const submitData = { ...formData };
       delete submitData.password;
 
       if (editingTeacher) {
         // Update teacher
-        const response = await axios.put(
+        const response = await apiClient.put(
           `${API_URL}/teachers/${editingTeacher._id}`,
           submitData,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { },
           },
         );
         if (response.data.success) {
@@ -122,8 +121,8 @@ const TeacherManagement = ({ API_URL }) => {
         }
       } else {
         // Create teacher
-        const response = await axios.post(`${API_URL}/teachers`, submitData, {
-          headers: { Authorization: `Bearer ${token}` },
+        const response = await apiClient.post(`${API_URL}/teachers`, submitData, {
+          headers: { },
         });
         if (response.data.success) {
           notify(
@@ -178,9 +177,9 @@ const TeacherManagement = ({ API_URL }) => {
       return;
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await axios.delete(`${API_URL}/teachers/${teacherId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const response = await apiClient.delete(`${API_URL}/teachers/${teacherId}`, {
+        headers: { },
       });
 
       if (response.data.success) {

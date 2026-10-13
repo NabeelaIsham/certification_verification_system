@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
+import { AuthContext } from '../contexts/AuthContext';
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { authService } from "../services/auth";
 import {
@@ -10,6 +11,7 @@ import {
 import { AuthLayout, FormField } from "../components/shared/PublicExperience";
 
 const Login = () => {
+  const auth = useContext(AuthContext);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -89,8 +91,9 @@ const Login = () => {
           setFormData((prev) => ({ ...prev, password: "" }));
           return;
         }
-        localStorage.setItem("token", response.token);
+
         localStorage.setItem("user", JSON.stringify(response.user));
+        auth?.acceptUser?.(response.user);
 
         switch (response.user.userType) {
           case "superadmin":

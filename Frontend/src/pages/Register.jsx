@@ -1,6 +1,6 @@
 ﻿import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
+import apiClient from '../services/api.jsx';
 import {
   ArrowRightIcon,
   EyeIcon,
@@ -69,7 +69,7 @@ const Register = () => {
     setIsLoading(true);
     setError("");
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, formData);
+      const response = await apiClient.post(`${API_URL}/auth/register`, formData);
       if (response.data.success)
         navigate("/OTPVerification", { state: { email: formData.email } });
       else

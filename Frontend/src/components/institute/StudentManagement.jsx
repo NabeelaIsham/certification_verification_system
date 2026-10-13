@@ -1,6 +1,6 @@
 import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const StudentManagement = ({ API_URL }) => {
   const [students, setStudents] = useState([]);
@@ -30,19 +30,19 @@ const StudentManagement = ({ API_URL }) => {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+
       let url = `${API_URL}/students`;
       const params = new URLSearchParams();
-      
+
       if (searchTerm) params.append('search', searchTerm);
       if (selectedCourse) params.append('courseId', selectedCourse);
-      
+
       if (params.toString()) {
         url += `?${params.toString()}`;
       }
 
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await apiClient.get(url, {
+        headers: { }
       });
       if (response.data.success) {
         setStudents(response.data.data);
@@ -56,9 +56,9 @@ const StudentManagement = ({ API_URL }) => {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/courses`, {
+        headers: { }
       });
       if (response.data.success) {
         setCourses(response.data.data);
@@ -80,23 +80,23 @@ const StudentManagement = ({ API_URL }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+
       if (editingStudent) {
-        const response = await axios.put(`${API_URL}/students/${editingStudent._id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.put(`${API_URL}/students/${editingStudent._id}`, formData, {
+          headers: { }
         });
         if (response.data.success) {
           notify('Student updated successfully');
         }
       } else {
-        const response = await axios.post(`${API_URL}/students`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.post(`${API_URL}/students`, formData, {
+          headers: { }
         });
         if (response.data.success) {
           notify('Student added successfully');
         }
       }
-      
+
       setShowModal(false);
       setEditingStudent(null);
       setFormData({
@@ -131,11 +131,11 @@ const StudentManagement = ({ API_URL }) => {
     if (!window.confirm('Are you sure you want to delete this student?')) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.delete(`${API_URL}/students/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.delete(`${API_URL}/students/${studentId}`, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
         notify('Student deleted successfully');
         fetchStudents();
@@ -159,9 +159,9 @@ const StudentManagement = ({ API_URL }) => {
       }
 
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/students/bulk-upload`, { students }, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.post(`${API_URL}/students/bulk-upload`, { students }, {
+        headers: { }
       });
 
       if (response.data.success) {
@@ -290,8 +290,8 @@ const StudentManagement = ({ API_URL }) => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    student.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
+                    student.status === 'active'
+                      ? 'bg-green-100 text-green-800'
                       : student.status === 'completed'
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-gray-100 text-gray-800'
@@ -474,7 +474,7 @@ const StudentManagement = ({ API_URL }) => {
                 <h4 className="font-medium mb-2">Upload Results:</h4>
                 <p className="text-sm text-green-600">Successful: {bulkResults.successful.length}</p>
                 <p className="text-sm text-red-600">Failed: {bulkResults.failed.length}</p>
-                
+
                 {bulkResults.failed.length > 0 && (
                   <div className="mt-2">
                     <p className="text-sm font-medium">Failed Records:</p>

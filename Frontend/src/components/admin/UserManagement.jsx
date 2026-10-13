@@ -1,6 +1,6 @@
 import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const UserManagement = ({ API_URL }) => {
   const [users, setUsers] = useState([]);
@@ -25,7 +25,7 @@ const UserManagement = ({ API_URL }) => {
     if (searchTerm.trim() === '') {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(u => 
+      const filtered = users.filter(u =>
         u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.instituteName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.adminName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -36,13 +36,13 @@ const UserManagement = ({ API_URL }) => {
   }, [searchTerm, users]);
 
   const fetchUsers = async () => {
-    const token = localStorage.getItem('token');
+
     setLoading(true);
 
     try {
       // Create this endpoint in your backend
-      const response = await axios.get(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(`${API_URL}/admin/users`, {
+        headers: { },
         params: {
           userType: selectedRole !== 'all' ? selectedRole : undefined,
           status: selectedStatus !== 'all' ? selectedStatus : undefined,
@@ -50,7 +50,7 @@ const UserManagement = ({ API_URL }) => {
           limit: pagination.limit
         }
       });
-      
+
       if (response.data.success) {
         setUsers(response.data.data || []);
         setFilteredUsers(response.data.data || []);
@@ -125,15 +125,13 @@ const UserManagement = ({ API_URL }) => {
   const handleToggleUserStatus = async (userId, currentStatus) => {
     if (!window.confirm(`Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this user?`)) return;
 
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.put(
+      const response = await apiClient.put(
         `${API_URL}/admin/users/${userId}/toggle-status`,
         { active: !currentStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { } }
       );
-      
+
       if (response.data.success) {
         notify(`User ${currentStatus ? 'deactivated' : 'activated'} successfully!`);
         fetchUsers();
@@ -147,15 +145,13 @@ const UserManagement = ({ API_URL }) => {
   const handleResetPassword = async (userId) => {
     if (!window.confirm('Are you sure you want to reset this user\'s password? They will receive an email with reset instructions.')) return;
 
-    const token = localStorage.getItem('token');
-    
     try {
-      const response = await axios.post(
+      const response = await apiClient.post(
         `${API_URL}/admin/users/${userId}/reset-password`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { } }
       );
-      
+
       if (response.data.success) {
         notify('Password reset email sent successfully!');
       }
@@ -357,7 +353,7 @@ const UserManagement = ({ API_URL }) => {
                           <button
                             onClick={() => handleToggleUserStatus(u._id, u.isActive)}
                             className={`px-3 py-1 rounded-lg text-xs ${
-                              u.isActive 
+                              u.isActive
                                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
                             }`}

@@ -138,7 +138,7 @@ const privacy = [
     id: "browser",
     title: "Browser storage and camera access",
     paragraphs: [
-      "The portal uses local browser storage for sign-in tokens and account information, and session storage for some payment-flow state. Clearing browser storage can sign you out or remove saved browser state. Use a trusted device and sign out when using a shared computer.",
+      "The portal uses a secure HttpOnly cookie for your sign-in session and local browser storage for account display information, and session storage for some payment-flow state. Clearing browser storage can sign you out or remove saved browser state. Use a trusted device and sign out when using a shared computer.",
       "The QR camera feature requests browser permission when you choose to start scanning. The scanner reads the QR through your device camera; the extracted certificate code is used for verification. You can deny camera access and enter the code manually instead.",
     ],
   },

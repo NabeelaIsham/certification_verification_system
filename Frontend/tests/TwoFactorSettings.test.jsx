@@ -1,8 +1,8 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
-import axios from 'axios';
+import axios from '../src/services/api.jsx';
 import TwoFactorSettings from '../src/components/shared/TwoFactorSettings';
-vi.mock('axios', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }));
+vi.mock('../src/services/api.jsx', () => ({ default: { get: vi.fn(), put: vi.fn(), post: vi.fn() } }));
 beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); });
 it('requires an email code before enabling and installs the verified session', async () => {
   axios.get.mockResolvedValue({ data: { data: { email: 'teacher@example.com', twoFactorEnabled: false } } });
@@ -17,7 +17,7 @@ it('requires an email code before enabling and installs the verified session', a
   fireEvent.change(screen.getByLabelText('Email verification code'), { target: { value: '123456' } });
   fireEvent.click(screen.getByRole('button', { name: 'Verify and Enable 2FA' }));
   await screen.findByText('Status: Enabled');
-  expect(localStorage.getItem('token')).toBe('verified-session');
+  expect(localStorage.getItem('token')).toBeNull();
 });
 it('keeps 2FA enabled when disabling fails', async () => {
   axios.get.mockResolvedValue({ data: { data: { twoFactorEnabled: true } } });

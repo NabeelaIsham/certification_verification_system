@@ -2,9 +2,9 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import VerificationPortal from "../src/pages/VerificationPortal.jsx";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
-import axios from "axios";
+import axios from "../src/services/api.jsx";
 
-vi.mock("axios", () => ({ default: { get: vi.fn() } }));
+vi.mock("../src/services/api.jsx", () => ({ default: { get: vi.fn() } }));
 
 describe("VerificationPortal", () => {
   it.each([

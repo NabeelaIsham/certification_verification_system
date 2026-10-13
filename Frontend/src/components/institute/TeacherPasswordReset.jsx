@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import apiClient from '../../services/api.jsx';
 
 export default function TeacherPasswordReset({ teacher, API_URL, onClose }) {
   const [password, setPassword] = useState("");
@@ -17,11 +17,11 @@ export default function TeacherPasswordReset({ teacher, API_URL, onClose }) {
     setError("");
     setMessage("");
     try {
-      const response = await axios.post(
+      const response = await apiClient.post(
         `${API_URL}/teachers/${teacher._id}/${direct ? "reset-password" : "password-link"}`,
         direct ? { newPassword: password } : {},
         {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { },
         },
       );
       setMessage(response.data.message);

@@ -1,7 +1,7 @@
 import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const BulkUpload = ({ API_URL }) => {
   const issuanceKey = useIssuanceKey();
@@ -22,9 +22,9 @@ const BulkUpload = ({ API_URL }) => {
 
   const fetchTemplates = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.get(`${API_URL}/certificate-templates`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      await apiClient.get(`${API_URL}/certificate-templates`, {
+        headers: { }
       });
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -36,14 +36,14 @@ const BulkUpload = ({ API_URL }) => {
     // Parse the textarea content
     const lines = formData.studentData.trim().split('\n');
     const students = [];
-    
+
     lines.forEach((line) => {
       // Skip empty lines
       if (!line.trim()) return;
-      
+
       // Split by comma and trim each value
       const [name, email, phone, courseCode, enrollmentDate] = line.split(',').map(s => s.trim());
-      
+
       students.push({
         name,
         email,
@@ -56,14 +56,14 @@ const BulkUpload = ({ API_URL }) => {
     console.log('Parsed students:', students);
 
     setLoading(true);
-    const token = localStorage.getItem('token');
-    const response = await axios.post(`${API_URL}/students/bulk-upload`, 
-      { students }, 
-      { headers: { Authorization: `Bearer ${token}` } }
+
+    const response = await apiClient.post(`${API_URL}/students/bulk-upload`,
+      { students },
+      { headers: { } }
     );
 
     console.log('Upload response:', response.data);
-    
+
     if (response.data.success) {
       setResults(response.data.data);
       notify(response.data.message);
@@ -88,9 +88,9 @@ const BulkUpload = ({ API_URL }) => {
       }
 
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/certificates/bulk-issue`, { certificates }, {
-        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey({ certificates }) }
+
+      const response = await apiClient.post(`${API_URL}/certificates/bulk-issue`, { certificates }, {
+        headers: {  'Idempotency-Key': issuanceKey({ certificates }) }
       });
 
       if (response.data.success) {
@@ -197,7 +197,7 @@ const BulkUpload = ({ API_URL }) => {
               <h4 className="font-medium mb-2">Upload Results:</h4>
               <p className="text-sm text-green-600">Successful: {results.successful?.length || 0}</p>
               <p className="text-sm text-red-600">Failed: {results.failed?.length || 0}</p>
-              
+
               {results.failed?.length > 0 && (
                 <div className="mt-2 max-h-40 overflow-y-auto">
                   <p className="text-sm font-medium">Failed Records:</p>
@@ -254,7 +254,7 @@ const BulkUpload = ({ API_URL }) => {
               <h4 className="font-medium mb-2">Issuance Results:</h4>
               <p className="text-sm text-green-600">Successful: {results.successful?.length || 0}</p>
               <p className="text-sm text-red-600">Failed: {results.failed?.length || 0}</p>
-              
+
               {results.failed?.length > 0 && (
                 <div className="mt-2 max-h-40 overflow-y-auto">
                   <p className="text-sm font-medium">Failed Records:</p>

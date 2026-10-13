@@ -37,8 +37,8 @@ export default function WorkspaceLayout({
   ) : (
     (name || role).charAt(0).toUpperCase()
   );
-  const logout = () => {
-    auth?.logout();
+  const logout = async () => {
+    if (await auth?.logout() === false) return;
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login", { replace: true });

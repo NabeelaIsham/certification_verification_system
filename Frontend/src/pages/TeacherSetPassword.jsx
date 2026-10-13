@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import apiClient from '../services/api.jsx';
 import { AuthLayout, FormField } from "../components/shared/PublicExperience";
 const API_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -40,7 +40,7 @@ export default function TeacherSetPassword() {
     setBusy(true);
     setError("");
     try {
-      await axios.post(`${API_URL}/teachers/password-setup`, {
+      await apiClient.post(`${API_URL}/teachers/password-setup`, {
         token,
         newPassword: password,
       });

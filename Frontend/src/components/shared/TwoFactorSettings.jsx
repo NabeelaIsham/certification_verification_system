@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 export default function TwoFactorSettings({ API_URL }) {
   const [enabled, setEnabled] = useState(false);
@@ -10,10 +10,10 @@ export default function TwoFactorSettings({ API_URL }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
-  const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
+  const headers = () => ({ });
   useEffect(() => {
     let active = true;
-    axios.get(`${API_URL}/auth/me`, { headers: headers() }).then(({ data }) => {
+    apiClient.get(`${API_URL}/auth/me`, { headers: headers() }).then(({ data }) => {
       if (active) { setEnabled(Boolean(data.data.twoFactorEnabled)); setEmail(data.data.email); setLoaded(true); }
     }).catch(() => { if (active) setMessage('Could not load 2FA settings. Reload this page to try again.'); });
     return () => { active = false; };
@@ -23,12 +23,12 @@ export default function TwoFactorSettings({ API_URL }) {
     e.preventDefault(); setBusy(true); setMessage('');
     try {
       if (challenge) {
-        const { data } = await axios.post(`${API_URL}/auth/2fa/verify`, { challengeToken: challenge, otp });
-        localStorage.setItem('token', data.token);
+        const { data } = await apiClient.post(`${API_URL}/auth/2fa/verify`, { challengeToken: challenge, otp });
+
         localStorage.setItem('user', JSON.stringify(data.user));
         setEnabled(true); setChallenge(''); setOtp(''); setMessage('Two-factor authentication enabled. Future sign-ins require an email code.');
       } else {
-        const { data } = await axios.put(`${API_URL}/auth/2fa/settings`, { enabled: !enabled, password }, { headers: headers() });
+        const { data } = await apiClient.put(`${API_URL}/auth/2fa/settings`, { enabled: !enabled, password }, { headers: headers() });
         setPassword('');
         if (data.requiresTwoFactor) { setChallenge(data.challengeToken); setMessage(data.message); }
         else { setEnabled(false); setMessage(data.message); }

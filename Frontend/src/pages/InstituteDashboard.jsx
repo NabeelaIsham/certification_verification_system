@@ -17,7 +17,7 @@ import WorkspaceLayout, {
   WorkspaceMetrics,
   WorkspaceActions,
 } from "../components/shared/WorkspaceLayout";
-import axios from "axios";
+import apiClient from '../services/api.jsx';
 import CourseManagement from "../components/institute/CourseManagement";
 import StudentManagement from "../components/institute/StudentManagement";
 import TeacherManagement from "../components/institute/TeacherManagement";
@@ -114,7 +114,7 @@ const InstituteDashboard = () => {
   const setActiveTab = (tab) => setParams({ tab });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+
     live.current = true;
     let userData;
     try {
@@ -123,7 +123,7 @@ const InstituteDashboard = () => {
       userData = null;
     }
 
-    if (!token || !userData || userData.userType !== "institute") {
+    if (!userData || userData.userType !== "institute") {
       navigate("/login");
       return;
     }
@@ -137,10 +137,10 @@ const InstituteDashboard = () => {
   }, []);
 
   const fetchProfile = async () => {
-    const token = localStorage.getItem("token");
+
     try {
-      const response = await axios.get(`${API_URL}/institute/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(`${API_URL}/institute/profile`, {
+        headers: { },
       });
       if (!live.current) return;
       if (response.data.success) {
@@ -157,7 +157,7 @@ const InstituteDashboard = () => {
       if (!live.current) return;
       console.error("Error fetching profile:", error);
       if (error.response?.status === 401) {
-        handleLogout();
+        handleSessionExpired();
       }
     }
   };
@@ -165,10 +165,10 @@ const InstituteDashboard = () => {
   const fetchStats = async () => {
     setLoading(true);
     setError("");
-    const token = localStorage.getItem("token");
+
     try {
-      const response = await axios.get(`${API_URL}/institute/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(`${API_URL}/institute/stats`, {
+        headers: { },
       });
       if (!live.current) return;
       if (response.data.success) {
@@ -180,14 +180,14 @@ const InstituteDashboard = () => {
       if (!live.current) return;
       setError("Unable to load institute totals. Please try again.");
       if (error.response?.status === 401) {
-        handleLogout();
+        handleSessionExpired();
       }
     } finally {
       if (live.current) setLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleSessionExpired = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     live.current = false;

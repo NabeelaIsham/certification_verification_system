@@ -1,3 +1,4 @@
+const { appLogger } = require('./logger.js');
 const nodemailer = require('nodemailer');
 const Settings = require('../models/Settings');
 const { assertDeliveryAllowed } = require('./deliveryPolicy');
@@ -9,7 +10,7 @@ const getEmailSettings = async () => {
     const settings = await Settings.findOne();
     return settings?.email || {};
   } catch (error) {
-    console.error('Error loading email settings:', error);
+    appLogger.error('Error loading email settings:', error);
     return {};
   }
 };
@@ -140,7 +141,7 @@ const sendOtpEmail = async ({ to, otp, purpose = 'verification' }) => {
   });
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`OTP email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`OTP email sent to ${to}: ${info.messageId}`);
   return info;
 };
 
@@ -220,7 +221,7 @@ const sendCertificateEmail = async ({
   `;
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`Certificate email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`Certificate email sent to ${to}: ${info.messageId}`);
   return info;
 };
 
@@ -276,7 +277,7 @@ const sendCredentialShareEmail = async ({
   `;
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`Credential share email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`Credential share email sent to ${to}: ${info.messageId}`);
   return info;
 };
 

@@ -5,7 +5,7 @@ import { ToastContainer } from 'react-toastify'
 //import 'react-toastify/dist/ReactToastify.css'
 
 // Context Providers
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { InstituteProvider } from './contexts/InstituteContext'
 
 // Components
@@ -38,22 +38,13 @@ import CredentialShare from './pages/CredentialShare'
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Protected Route Component
-const getStoredUser = () => {
-  try {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
-  } catch (error) {
-    console.error('Failed to parse stored user data:', error);
-    return null;
-  }
-};
-
 const ProtectedRoute = ({ children, allowedUserType }) => {
   const location = useLocation();
-  const token = localStorage.getItem('token');
-  const user = getStoredUser();
 
-  if (!token || !user) {
+  const { user, loading } = useAuth();
+  if (loading) return <p role="status">Checking your session...</p>;
+
+  if (!user) {
     return <Navigate to="/login" state={{ from: location.pathname + location.search }} replace />;
   }
 
@@ -104,83 +95,83 @@ function App() {
               <Route path='/OTPVerification' element={<OTPVerification />} />
 
               {/* Super Admin Routes */}
-              <Route 
-                path="/admin/dashboard" 
+              <Route
+                path="/admin/dashboard"
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
                     <SuperAdminDashboard API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="/system-logs" 
+              <Route
+                path="/system-logs"
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
                     <SystemLogs API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="/InstituteManagement" 
+              <Route
+                path="/InstituteManagement"
                 element={
                   <ProtectedRoute allowedUserType="superadmin">
                     <InstituteManagement API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
 
               {/* Institute Routes */}
-              <Route 
-                path="/institute/dashboard" 
+              <Route
+                path="/institute/dashboard"
                 element={
                   <ProtectedRoute allowedUserType="institute">
                     <InstituteDashboard API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="/CertificateTemplates" 
+              <Route
+                path="/CertificateTemplates"
                 element={
                   <ProtectedRoute allowedUserType="institute">
                     <CertificateTemplates API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="/CourseManagement" 
+              <Route
+                path="/CourseManagement"
                 element={
                   <ProtectedRoute allowedUserType="institute">
                     <CourseManagement API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
-              <Route 
-                path="/teacher-management" 
+              <Route
+                path="/teacher-management"
                 element={
                   <ProtectedRoute allowedUserType="institute">
                     <TeacherManagement API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
 
               {/* Teacher Routes */}
-              <Route 
-                path="/teacher/dashboard" 
+              <Route
+                path="/teacher/dashboard"
                 element={
                   <ProtectedRoute allowedUserType="teacher">
                     <TeacherDashboard API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
 
               {/* Student Routes */}
-              <Route 
-                path="/student/dashboard" 
+              <Route
+                path="/student/dashboard"
                 element={
                   <ProtectedRoute allowedUserType="student">
                     <StudentDashboard API_URL={API_URL} />
                   </ProtectedRoute>
-                } 
+                }
               />
 
               {/* 404 Route */}
@@ -188,7 +179,7 @@ function App() {
             </Routes>
           </main>
           {!isAdminWorkspace && <Footer />}
-          <ToastContainer 
+          <ToastContainer
             position="bottom-right"
             autoClose={5000}
             hideProgressBar={false}

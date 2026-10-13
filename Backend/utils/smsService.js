@@ -31,6 +31,11 @@ const sendTextLkSms = async ({ to, message }) => {
     throw new Error('Recipient phone number is required for SMS OTP.');
   }
 
+  const providerUrl = new URL(endpoint);
+  if (providerUrl.protocol !== 'https:' || providerUrl.username || providerUrl.password) {
+    throw new Error('TEXTLK_SMS_ENDPOINT must use HTTPS without URL credentials.');
+  }
+
   const payload = {
     recipient,
     sender_id: senderId,
@@ -45,19 +50,14 @@ const sendTextLkSms = async ({ to, message }) => {
         Accept: 'application/json',
         'Content-Type': 'application/json'
       },
-      timeout: Number(process.env.TEXTLK_TIMEOUT_MS || 10000)
+      timeout: Number(process.env.TEXTLK_TIMEOUT_MS || 10000),
+      maxRedirects: 0
     });
 
     return response.data;
   } catch (error) {
     const status = error.response?.status;
-    const providerMessage = error.response?.data?.message || error.response?.data?.error || error.response?.data;
-    const details = typeof providerMessage === 'string' ? providerMessage : JSON.stringify(providerMessage);
     const messageParts = [`Text.lk SMS request failed${status ? ` with status ${status}` : ''}`];
-
-    if (details) {
-      messageParts.push(`Provider response: ${details}`);
-    }
 
     if (status === 401) {
       messageParts.push('Check TEXTLK_API_TOKEN, regenerate the API token if needed, and restart the backend.');
@@ -65,7 +65,7 @@ const sendTextLkSms = async ({ to, message }) => {
 
     const smsError = new Error(messageParts.join('. '));
     smsError.status = status;
-    smsError.providerResponse = providerMessage;
+    smsError.code = status === 401 ? 'SMS_AUTH_FAILED' : 'SMS_DELIVERY_FAILED';
     throw smsError;
   }
 };

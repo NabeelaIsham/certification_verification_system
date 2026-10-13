@@ -16,7 +16,7 @@ import WorkspaceLayout, {
   WorkspaceMetrics,
   WorkspaceActions,
 } from "../shared/WorkspaceLayout";
-import axios from "axios";
+import apiClient from '../../services/api.jsx';
 import TeacherStudents from "./TeacherStudents";
 import TeacherIssueCertificate from "./TeacherIssueCertificate";
 import TeacherProfile from "./TeacherProfile";
@@ -94,13 +94,9 @@ const TeacherDashboard = ({
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        navigate("/login", { replace: true });
-        return;
-      }
-      const options = { headers: { Authorization: `Bearer ${token}` } };
-      const profileRes = await axios.get(
+
+      const options = { headers: { } };
+      const profileRes = await apiClient.get(
         `${API_URL}/teachers/profile/me`,
         options,
       );
@@ -109,8 +105,8 @@ const TeacherDashboard = ({
         throw new Error("Unable to load your teacher profile.");
       setTeacherData(profileRes.data.data);
       const [studentsRes, coursesRes] = await Promise.all([
-        axios.get(`${API_URL}/teachers/students/my`, options),
-        axios.get(`${API_URL}/teachers/courses/my`, options),
+        apiClient.get(`${API_URL}/teachers/students/my`, options),
+        apiClient.get(`${API_URL}/teachers/courses/my`, options),
       ]);
       if (!live.current) return;
       if (!studentsRes.data.success || !coursesRes.data.success)
