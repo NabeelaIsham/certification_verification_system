@@ -168,7 +168,7 @@ export default function VerificationPortal() {
                 <img src={verificationResult.qrCodeImage} alt="QR Code" className="w-32 h-32 mx-auto border p-2 rounded-lg" />
               </div>}
 
-            {verificationResult.status === 'issued' && (!verificationResult.credential?.signed || verificationResult.credential?.signatureValid && verificationResult.credential?.issuerKeyTrusted) && <CertificateSharing key={verificationResult.certificateCode} code={verificationResult.certificateCode} imageUrl={verificationResult.certificateImage} />}
+            {verificationResult.status === 'issued' && (!verificationResult.credential?.signed || verificationResult.credential?.signatureValid && verificationResult.credential?.issuerKeyTrusted) && <CertificateSharing key={verificationResult.certificateCode} code={verificationResult.certificateCode} shareUrl={verificationResult.shareUrl} />}
 
             {/* Action Buttons */}
             <VerificationActions viewCertificate={viewCertificate} verificationResult={verificationResult} resetVerification={resetVerification} downloadCertificate={downloadCertificate} downloadLoading={downloadLoading} printCertificate={printCertificate} />

@@ -359,6 +359,105 @@ test('public certificate image rejects expired, invalid signature and foreign fi
   expect((await request(app).get(url)).status).toBe(403);
 });
 
+describe('Public certificate share pages', () => {
+  let previousFrontendUrl;
+  beforeEach(() => {
+    previousFrontendUrl = process.env.FRONTEND_URL;
+    process.env.FRONTEND_URL = 'https://certiverxia.com';
+  });
+  afterEach(() => {
+    if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontendUrl;
+  });
+
+  test('unauthenticated visitors and crawlers receive the certificate, canonical metadata and a working image', async () => {
+    const certificate = await fixtureFile();
+    const code = certificate.certificateCode;
+    const pageUrl = `https://certiverxia.com/certificate/${code}`;
+    const imageUrl = `https://certiverxia.com/api/certificates/verify/${code}/image`;
+    const verification = await request(app).get(`/api/certificates/verify/${code}`);
+    expect(verification.body.data.shareUrl).toBe(pageUrl);
+    const page = await request(app).get(`/certificate/${code.toLowerCase()}`)
+      .set('Host', 'untrusted.example').set('X-Forwarded-Host', 'untrusted.example')
+      .set('User-Agent', 'facebookexternalhit/1.1');
+    expect(page.status).toBe(200);
+    expect(page.headers['content-type']).toMatch(/text\/html/);
+    expect(page.headers['cache-control']).toBe('private, no-store');
+    expect(page.headers.etag).toBeUndefined();
+    expect(page.text).toContain(`<meta property="og:url" content="${pageUrl}">`);
+    expect(page.text).toContain(`<meta property="og:image" content="${imageUrl}">`);
+    expect(page.text).toContain(`<meta name="twitter:image" content="${imageUrl}">`);
+    expect(page.text).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(page.text).toContain(`<img class="certificate" src="${imageUrl}"`);
+    expect(page.text).toContain(studentA.name);
+    expect(page.text).toContain(courseA.courseName);
+    expect(page.text).toContain(a.instituteName);
+    expect(page.text).toContain('legacy certificate');
+    expect(page.text).not.toMatch(/untrusted\.example|uploads\/|private-files|compactToken|student@example\.com/);
+    const image = await request(app).get(localUrl(imageUrl));
+    expect(image.status).toBe(200);
+    expect(image.headers['content-type']).toMatch(/image\/jpeg/);
+    expect((await request(app).head(`/certificate/${code}`)).status).toBe(200);
+  });
+
+  test('certificate text is escaped in the page and preview metadata', async () => {
+    const certificate = await fixtureFile();
+    const value = '\"><script>alert(1)</script>&\'';
+    await Certificate.updateOne({ _id: certificate._id }, { $set: { studentName: value, courseName: value } });
+    await User.updateOne({ _id: a._id }, { $set: { instituteName: value } });
+    const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;&#39;');
+    expect(page.text).not.toContain('<script>');
+    expect(page.text).not.toContain(value);
+  });
+
+  test.each(['revoked', 'suspended', 'draft', 'expired', 'invalid-signature', 'foreign-image'])(
+    'does not publish an image or achievement metadata for %s certificates', async condition => {
+      const certificate = await fixtureFile();
+      const changes = condition === 'expired' ? { validUntil: new Date(0) }
+        : condition === 'invalid-signature' ? { 'credential.signature': 'invalid' }
+          : condition === 'foreign-image' ? { generatedCertificateImage: `uploads/generated/${b._id}/foreign.jpg` }
+            : { status: condition };
+      await Certificate.updateOne({ _id: certificate._id }, { $set: changes });
+      const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+      expect(page.status).toBe(['invalid-signature', 'foreign-image'].includes(condition) ? 403 : 410);
+      expect(page.text).toContain('Certificate unavailable');
+      expect(page.text).not.toMatch(/og:image|twitter:image|<img|Student A|A Course/);
+    }
+  );
+
+  test('signed certificates are verified and stop displaying immediately if their key loses trust', async () => {
+    const { certificate } = await issue();
+    const url = `/certificate/${certificate.certificateCode}`;
+    const page = await request(app).get(url);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Digitally verified certificate');
+    expect(page.text).toContain('property="og:image"');
+    await User.updateOne({ _id: a._id }, { $unset: { credentialSigning: 1 } });
+    const blocked = await request(app).get(url);
+    expect(blocked.status).toBe(403);
+    expect(blocked.text).not.toMatch(/og:image|<img/);
+  });
+
+  test('missing images show the record without advertising a broken social preview', async () => {
+    const certificate = await fixtureFile();
+    await Certificate.updateOne({ _id: certificate._id }, { $set: { generatedCertificateImage: `uploads/generated/${a._id}/missing.jpg` } });
+    const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('The certificate image is unavailable.');
+    expect(page.text).not.toMatch(/og:image|twitter:image|<img/);
+  });
+
+  test('invalid and unknown certificate codes return errors without image previews', async () => {
+    expect((await request(app).get('/certificate/%3Cscript%3E')).status).toBe(400);
+    const page = await request(app).get('/certificate/UNKNOWN-CERTIFICATE');
+    expect(page.status).toBe(404);
+    expect(page.text).toContain('This certificate could not be found.');
+    expect(page.text).not.toMatch(/og:image|<img/);
+  });
+});
+
 test('the last allowed share view grants bounded file access without spending a second view', async () => {
   const { share, url } = await fixtureShare();
   const result = await request(app).get(url);

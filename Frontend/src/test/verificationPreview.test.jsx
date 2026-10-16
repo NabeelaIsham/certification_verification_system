@@ -10,9 +10,10 @@ test('verification link displays the returned certificate image and social shari
   axios.get.mockResolvedValue({ data: { success: true, data: {
     certificateCode: 'ABC-123', status: 'issued', studentName: 'Jane', courseName: 'Design',
     certificateImage: '/api/certificates/verify/ABC-123/image',
+    shareUrl: 'https://certiverxia.com/certificate/ABC-123',
     credential: { signed: true, signatureValid: true, issuerKeyTrusted: true },
   } } });
   render(<MemoryRouter initialEntries={['/verify/ABC-123']}><Routes><Route path="/verify/:code" element={<VerificationPortal />} /></Routes></MemoryRouter>);
   expect(await screen.findByRole('img', { name: 'Certificate' })).toHaveAttribute('src', '/api/certificates/verify/ABC-123/image');
-  expect(screen.getByRole('button', { name: 'LinkedIn' })).toBeInTheDocument();
+  expect(new URL(screen.getByRole('link', { name: 'LinkedIn' }).href).searchParams.get('url')).toBe('https://certiverxia.com/certificate/ABC-123');
 });

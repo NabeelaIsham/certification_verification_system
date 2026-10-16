@@ -1,10 +1,6 @@
 const { appLogger } = require('../utils/logger.js');
-const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const Certificate = require('../models/Certificate');
-const {
-  verifyStoredCredential,
-  isCredentialKeyTrusted
-} = require('../utils/credentialService');
+const { inspectPublicCertificate, publicCertificateLinks } = require('../utils/publicCertificate');
 const { recordVerification } = require('../utils/verificationRiskService');
 const { sendPrivateFile, privateHeaders } = require('../services/privateFiles');
 
@@ -16,11 +12,9 @@ const viewVerifiedCertificate = async (req, res) => {
     const certificate = await Certificate.findOne({ certificateCode: code })
       .populate('instituteId', 'credentialSigning.keyId credentialSigning.previousKeys');
     if (!certificate || !certificate.generatedCertificateImage) return res.sendStatus(404);
-    if (effectiveStatus(certificate) !== 'issued') return res.sendStatus(410);
-    if (certificate.credential?.signature) {
-      const signature = verifyStoredCredential(certificate.credential);
-      if (!signature.valid || !isCredentialKeyTrusted(certificate.instituteId?.credentialSigning, signature.keyId)) return res.sendStatus(403);
-    }
+    const inspection = inspectPublicCertificate(certificate);
+    if (inspection.status !== 'issued') return res.sendStatus(410);
+    if (!inspection.imageAllowed) return res.sendStatus(403);
     return sendPrivateFile(res, certificate.generatedCertificateImage, certificate.instituteId._id, 'generated');
   } catch (error) { return res.sendStatus(error.status || 500); }
 };
@@ -55,18 +49,14 @@ const verifyCertificate = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Certificate not found.' });
     }
 
-    const signatureCheck = verifyStoredCredential(certificate.credential);
-    const issuerKeyTrusted = Boolean(
-      signatureCheck.valid &&
-      isCredentialKeyTrusted(certificate.instituteId?.credentialSigning, signatureCheck.keyId)
-    );
-    const outcome = effectiveStatus(certificate) === 'issued'
+    const { status, signature: signatureCheck, trusted: issuerKeyTrusted } = inspectPublicCertificate(certificate);
+    const outcome = status === 'issued'
       ? (!certificate.credential?.signature
         ? 'unsigned'
         : signatureCheck.valid && issuerKeyTrusted
           ? 'valid'
           : 'invalid')
-      : effectiveStatus(certificate);
+      : status;
     await recordVerification({
       req,
       certificate,
@@ -78,16 +68,17 @@ const verifyCertificate = async (req, res) => {
 
     return res.json({ success: true, data: {
       certificateCode: certificate.certificateCode,
+      shareUrl: publicCertificateLinks(certificate.certificateCode).page,
       certificateImage: ['valid', 'unsigned'].includes(outcome) && certificate.generatedCertificateImage
         ? `${req.baseUrl}/${encodeURIComponent(certificate.certificateCode)}/image` : null,
       studentName: certificate.studentName || certificate.studentId?.name,
       courseName: certificate.courseName || certificate.courseId?.courseName,
       awardDate: certificate.awardDate,
       instituteName: certificate.instituteId?.instituteName,
-      status: effectiveStatus(certificate),
-      statusMessage: effectiveStatus(certificate) === 'issued'
+      status,
+      statusMessage: status === 'issued'
         ? 'Credential is active'
-        : `Credential is ${effectiveStatus(certificate)}`,
+        : `Credential is ${status}`,
       issuedAt: certificate.createdAt,
       validUntil: certificate.validUntil,
       revokedAt: certificate.revokedAt,

@@ -94,6 +94,7 @@ app.use('/api/private-files', require('./routes/privateFileRoutes'));
 app.use('/api/subscriptions', require('./routes/subscriptionRoutes'));
 app.use('/api/certificates/verify', verificationRoutes);
 app.use('/api/certificates', certificateRoutes);
+app.use('/certificate', generalApiRateLimit, require('./routes/publicCertificateRoutes'));
 
 app.get('/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
