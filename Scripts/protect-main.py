@@ -17,6 +17,26 @@ CHECKS = [
 ]
 
 
+def protection_matches(actual, requested):
+    checks = actual.get('required_status_checks') or {}
+    reviews = actual.get('required_pull_request_reviews') or {}
+    expected_reviews = requested['required_pull_request_reviews']
+    return (
+        checks.get('strict') is True
+        and set(requested['required_status_checks']['contexts']).issubset(checks.get('contexts', []))
+        and (actual.get('enforce_admins') or {}).get('enabled') is True
+        and reviews.get('dismiss_stale_reviews') is True
+        and reviews.get('required_approving_review_count', 0) >= expected_reviews['required_approving_review_count']
+        and all(not expected_reviews[key] or reviews.get(key) is True
+                for key in ('require_code_owner_reviews', 'require_last_push_approval'))
+        and (actual.get('allow_force_pushes') or {}).get('enabled') is False
+        and (actual.get('allow_deletions') or {}).get('enabled') is False
+        and (actual.get('required_conversation_resolution') or {}).get('enabled') is True
+        and (not requested['required_linear_history']
+             or (actual.get('required_linear_history') or {}).get('enabled') is True)
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--apply', action='store_true')
@@ -75,7 +95,7 @@ def main():
     if args.apply:
         api(endpoint, payload)
         verified = api(endpoint)
-        if verified.get('allow_force_pushes', {}).get('enabled') or verified.get('allow_deletions', {}).get('enabled'):
+        if not protection_matches(verified, payload):
             raise SystemExit('Protection verification failed.')
         print('Main branch protection applied and read back successfully.')
 

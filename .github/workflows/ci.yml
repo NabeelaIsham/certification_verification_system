@@ -42,6 +42,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Reject credential and recovery artifacts
+        run: |
+          python3 Scripts/check-repository-artifacts.py
+          python3 -m unittest discover -s Tests/tools
       - name: Validate standalone Atlas deployment configuration
         env:
           DEPLOYMENT_NAME: certverify-staging-ci

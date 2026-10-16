@@ -11,7 +11,7 @@ export const extractCertificateCode = (input) => {
     const url = new URL(value);
     const pathSegments = url.pathname.split('/').filter(Boolean);
     const verifyIndex = pathSegments.findIndex(
-      (segment) => segment.toLowerCase() === 'verify'
+      (segment) => ['verify', 'certificate'].includes(segment.toLowerCase())
     );
     if (verifyIndex >= 0 && pathSegments[verifyIndex + 1]) {
       return decodeURIComponent(pathSegments[verifyIndex + 1])

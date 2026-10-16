@@ -1,6 +1,16 @@
 # Production verification and remaining account actions
 
-Updated 2026-10-13. Local code checks are not proof of a completed production rollout.
+Updated 2026-10-16. Local code checks are not proof of a completed production rollout.
+
+See the [October 16 readiness review](READINESS_REVIEW_2026-10-16.md) for current evidence.
+See [the subsequent local remediation](REMEDIATION_PROGRESS_2026-10-16.md) for changes
+prepared after that review and the account access still needed to apply them.
+Current main `f5dd55b6` passed all 11 hosted CI jobs, including standalone and Dokploy
+Nginx image builds. Apex health and public certificate viewing pass; www TLS/HTTP routing
+still fail. Main remains unprotected. The separately configured Atlas `certiverxia`
+database passed the read-only integrity checks for its one certificate; historical
+source/staging recovery findings remain unaccounted for. The table below preserves the
+October 13 local-run evidence rather than presenting those counts as a new test run.
 
 ## Evidence collected
 
@@ -15,7 +25,7 @@ Updated 2026-10-13. Local code checks are not proof of a completed production ro
 | Git history | An isolated cleaned mirror was prepared; public history was not changed |
 | Branch protection | Could not apply: no existing GitHub administrative credential was available |
 
-No production database records, server settings, credentials, or remote Git refs were changed during these checks. Docker is unavailable in this workspace; the modified production image still needs its hosted CI build.
+No production database records, server settings, credentials, or remote Git refs were changed during these checks. Docker is unavailable in this workspace; the previously pending hosted image builds subsequently passed in the October 16 CI run linked above.
 
 The local storage probe write/verify check passed; no container was recreated. Running the readiness command without production configuration correctly exited nonzero before connecting to a database. Both package lints, the SaaS-enabled frontend build, and full/production-only npm audits passed (zero reported vulnerabilities). The build retains its existing large-JavaScript-chunk warning.
 
@@ -36,11 +46,20 @@ Configure Dokploy's environment using `Backend/.env.example` and the production 
 ```sh
 npm run preflight:production
 npm run check:deployment
+npm run check:sms
 ```
 
-The second command checks production constraints, transaction-capable MongoDB topology, public HTTPS routing, writable uploads and disk headroom, recent logical backups, SMTP authentication and explicit live delivery mode. It logs no credential values and sends no emails. SMTP verification does not establish inbox delivery, and a recent archive does not establish that a schedule or restore works. Failures exit nonzero. Atlas-managed snapshot evidence must be checked separately.
+The second command checks production constraints, transaction-capable MongoDB topology, public HTTPS routing, writable uploads and disk headroom, recent logical backups, SMTP authentication, SMS configuration and explicit live delivery mode. Set `PUBLIC_DOMAIN_ALIASES=www.certiverxia.com` to include www (already set in the Dokploy Compose file). Routing must preserve paths and queries and reach the exact canonical HTTPS origin. The latest local archive must be a regular nonempty file under 36 hours old, with content matching its SHA-256 manifest. Missing, malformed and corrupt manifests fail the check. It logs no credential values and sends no emails. SMTP verification does not establish inbox delivery, and a recent archive does not establish that a schedule or restore works. Failures exit nonzero. Atlas-managed snapshot evidence must be checked separately.
 
-In Dokploy, fix `www.certiverxia.com`: verify DNS targets the VPS, configure its HTTPS domain/router, and issue a trusted certificate covering that hostname. Test TLS before redirecting it to the apex domain; an HTTPS redirect cannot fix an invalid certificate presented before the redirect.
+The third command reports SMS configuration errors without displaying token/sender values
+or contacting Text.lk. It cannot prove provider authentication, sender approval, balance
+or handset delivery; verify those separately using the configured account and recipient.
+
+The local Dokploy Compose changes now include explicit www HTTP/HTTPS routers and
+Let's Encrypt settings. Follow [the Dokploy guide](../deploy/dokploy/README.md), inspect
+Preview Compose for duplicate www routers, verify DNS targets the VPS, and deploy the
+reviewed commit. Test trusted TLS before redirecting www to the apex domain; an HTTPS
+redirect cannot fix an invalid certificate presented before the redirect.
 
 ## Storage, backups and restoration
 
@@ -85,6 +104,11 @@ python Scripts/protect-main.py --apply
 
 Ensure these CI contexts have run successfully on GitHub, then verify the resulting protection in repository settings. The script could not apply the policy in this session because administrative credentials were unavailable.
 
-An ignored mirror at `.history-cleanup/repository.git` was rewritten with `git-filter-repo` to remove `Backend/.env`, `Frontend/.env` and root `.env` from every reachable ref. Its reachable history check and `git fsck` passed; cleaned main was `9084818e34035db486c1cc03d493c07b872ab62f`. This is an intermediate artifact: it predates the current uncommitted fixes. After committing the fixes, regenerate the cleaned mirror before any coordinated publication so those fixes are retained.
+The local CI update also runs `Scripts/check-repository-artifacts.py` to reject tracked
+environment secrets, `.local-secrets`, credential XML exports, DPAPI files and recovery
+backups. Example/template environment files remain permitted. This guards the proposed
+source tree only; it does not remove artifacts from an existing remote PR or Git history.
+
+An ignored mirror at `.history-cleanup/repository.git` was rewritten with `git-filter-repo` to remove `Backend/.env`, `Frontend/.env` and root `.env` from every reachable ref. Its reachable history check and `git fsck` passed; cleaned main was `9084818e34035db486c1cc03d493c07b872ab62f`. This is an intermediate artifact: it predates current main. Regenerate the cleaned mirror from the latest reviewed commits before any coordinated publication so later fixes are retained.
 
 Public history, forks, pull-request caches and collaborators' clones have not been cleaned. Rotate credentials first, inventory affected refs, coordinate rewritten-history publication and fresh clones, and address cached copies with GitHub as needed. Do not blindly push this intermediate mirror or use `push --mirror`. Re-enable/verify the no-force-push protection after any explicitly coordinated history replacement. Removing a file from history does not revoke a credential or prove no other file contains a secret.

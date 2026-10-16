@@ -64,10 +64,11 @@ Coverage includes two-institute access attempts, lists/exports/analytics/history
 teacher permissions, foreign assets and references, concurrent issuance, signing-key
 initialization, retries, lease recovery, generation failure, commit rollback, bulk,
 email failure, and legacy drafts. Notifications have no institute-facing read/update
-API in this repository; subscription/payment APIs do not yet exist.
+API in the original foundation scope. Subscription/payment APIs and later notification
+work are now implemented; see [PACKAGE_PAYMENT_FLOW.md](PACKAGE_PAYMENT_FLOW.md).
 
 Public verification and token-based shares intentionally remain public. Raw generated
-image and QR static URLs still need the coordinated file-delivery changes in Priority 3.
+image and QR static URLs are now blocked by the coordinated file-delivery changes in Priority 3.
 A process crash can leave orphaned generated files; lease recovery protects database
 consistency, but periodic orphan cleanup is not implemented here. Database backups must
 include the issuance collections and ledger along with certificates.

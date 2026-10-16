@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { showRedirectNotification } from './services/notifications'
 import { ToastContainer } from 'react-toastify'
 //import 'react-toastify/dist/ReactToastify.css'
@@ -10,29 +10,32 @@ import { InstituteProvider } from './contexts/InstituteContext'
 
 // Components
 import Navbar from './components/shared/Navbar'
-import { Pricing, InstituteSubscription, PackageCheckout, PackagePayment } from './components/shared/Subscriptions'
 import Footer from './components/shared/Footer'
 
-// Pages
+// Load route-specific dashboards, editors and QR tools only when visited.
 import Home from './pages/Home'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import TeacherSetPassword from './pages/TeacherSetPassword'
-import LegalPages from './pages/LegalPages'
-import ForgotPassword from './pages/Forgotpassword'
-import VerificationPortal from './pages/VerificationPortal'
-import SuperAdminDashboard from './pages/SuperAdminDashboard'
-import InstituteDashboard from './pages/InstituteDashboard'
-import StudentDashboard from './pages/StudentPortal'
-import NotFound from './pages/NotFound'
-import CertificateTemplates from './components/institute/CertificateTemplates'
-import CourseManagement from './components/institute/CourseManagement'
-import SystemLogs from './components/admin/SystemLogs'
-import InstituteManagement from './components/admin/InstituteManagement'
-import OTPVerification from './pages/OTPVerification'
-import TeacherManagement from './components/institute/TeacherManagement'
-import TeacherDashboard from './components/teacher/TeacherDashboard'
-import CredentialShare from './pages/CredentialShare'
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const TeacherSetPassword = lazy(() => import('./pages/TeacherSetPassword'));
+const LegalPages = lazy(() => import('./pages/LegalPages'));
+const ForgotPassword = lazy(() => import('./pages/Forgotpassword'));
+const VerificationPortal = lazy(() => import('./pages/VerificationPortal'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const InstituteDashboard = lazy(() => import('./pages/InstituteDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentPortal'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const CertificateTemplates = lazy(() => import('./components/institute/CertificateTemplates'));
+const CourseManagement = lazy(() => import('./components/institute/CourseManagement'));
+const SystemLogs = lazy(() => import('./components/admin/SystemLogs'));
+const InstituteManagement = lazy(() => import('./components/admin/InstituteManagement'));
+const OTPVerification = lazy(() => import('./pages/OTPVerification'));
+const TeacherManagement = lazy(() => import('./components/institute/TeacherManagement'));
+const TeacherDashboard = lazy(() => import('./components/teacher/TeacherDashboard'));
+const CredentialShare = lazy(() => import('./pages/CredentialShare'));
+const Pricing = lazy(() => import('./components/shared/Subscriptions').then(module => ({ default: module.Pricing })));
+const InstituteSubscription = lazy(() => import('./components/shared/Subscriptions').then(module => ({ default: module.InstituteSubscription })));
+const PackageCheckout = lazy(() => import('./components/shared/Subscriptions').then(module => ({ default: module.PackageCheckout })));
+const PackagePayment = lazy(() => import('./components/shared/Subscriptions').then(module => ({ default: module.PackagePayment })));
 
 // Define API_URL here so it can be used throughout the app
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -76,6 +79,7 @@ function App() {
         <div className="App min-h-screen flex flex-col bg-gray-50">
           {!isAdminWorkspace && <Navbar />}
           <main className="flex-grow">
+            <Suspense fallback={<p role="status" className="p-8 text-center">Loading page...</p>}>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
@@ -165,18 +169,16 @@ function App() {
               />
 
               {/* Student Routes */}
+              <Route path="/student" element={<StudentDashboard />} />
               <Route
                 path="/student/dashboard"
-                element={
-                  <ProtectedRoute allowedUserType="student">
-                    <StudentDashboard API_URL={API_URL} />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/student" replace />}
               />
 
               {/* 404 Route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
           </main>
           {!isAdminWorkspace && <Footer />}
           <ToastContainer

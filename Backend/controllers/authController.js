@@ -12,6 +12,7 @@ const { hashOtp } = require('../utils/otpSecurity');
 const ActivityLog = require('../models/ActivityLog');
 const { accountInstructionsResponse } = require('../utils/authResponses');
 const subscriptions = require('../services/subscriptionService');
+const { hasInstituteAccess } = require('../utils/accountAccess');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -344,6 +345,10 @@ const login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
 
+    if (userType !== undefined && !['superadmin', 'institute', 'teacher'].includes(userType)) {
+      return res.status(400).json({ success: false, message: 'Invalid account type.' });
+    }
+
     const query = { email: email.toLowerCase().trim() };
     if (userType) query.userType = userType;
 
@@ -368,6 +373,10 @@ const login = async (req, res) => {
 
     if (!user.isActive) {
       return res.status(403).json({ success: false, message: 'Your account is not active. Please contact administrator.' });
+    }
+
+    if (!await hasInstituteAccess(user)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
     }
 
     if (user.twoFactorEnabled) return await beginTwoFactor(user, res);

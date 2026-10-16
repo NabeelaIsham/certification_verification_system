@@ -10,6 +10,7 @@ const Navbar = () => {
     ...(import.meta.env.VITE_SAAS_ENABLED === 'true' ? [{ name: 'Pricing', href: '/pricing', current: location.pathname === '/pricing' }] : []),
     { name: 'Home', href: '/', current: location.pathname === '/' },
     { name: 'Verify Certificate', href: '/verify', current: location.pathname === '/verify' },
+    { name: 'Students', href: '/student', current: location.pathname === '/student' },
     { name: 'Login', href: '/login', current: location.pathname === '/login' },
   ];
 

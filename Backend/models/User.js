@@ -240,15 +240,20 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Method to get safe user object (without password)
-userSchema.methods.toSafeObject = function() {
-  const obj = this.toObject();
+const safeUserObject = obj => {
   delete obj.password;
   delete obj.teacherPasswordSetup;
   if (obj.credentialSigning) {
     delete obj.credentialSigning.encryptedPrivateKey;
   }
   return obj;
+};
+
+// Apply the same protection to direct res.json(document) responses, including
+// administrative status changes that load passwords internally before saving.
+userSchema.set('toJSON', { transform: (_document, object) => safeUserObject(object) });
+userSchema.methods.toSafeObject = function() {
+  return safeUserObject(this.toObject());
 };
 
 module.exports = mongoose.model('User', userSchema);

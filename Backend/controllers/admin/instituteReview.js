@@ -72,9 +72,8 @@ const rejectInstitute = async (req, res) => {
         userType: 'institute'
       },
       {
-        status: 'rejected',
-        isActive: false,
-        adminNotes: reason || 'Rejected by administrator'
+        $set: { status: 'rejected', isActive: false, adminNotes: reason || 'Rejected by administrator' },
+        $inc: { sessionVersion: 1 }
       },
       {
         new: true
@@ -137,6 +136,7 @@ const toggleInstituteStatus = async (req, res) => {
       });
     }
     institute.isActive = !institute.isActive;
+    institute.sessionVersion = (institute.sessionVersion || 0) + 1;
     institute.status = institute.isActive ? 'approved' : 'suspended';
     await institute.save();
     const action = institute.isActive

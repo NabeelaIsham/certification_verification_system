@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const { validateProductionConfig } = require('../config/production');
 const { createTransporter } = require('../utils/emailService');
 const { loadModels } = require('../config/database');
+const { checkHttpsRouting, checkRecentBackup } = require('../utils/deploymentChecks');
+const { getTextLkConfiguration } = require('../utils/smsConfiguration');
 
 async function run() {
   const checks = [];
@@ -27,14 +29,7 @@ async function run() {
     if (!topology.setName && topology.msg !== 'isdbgrid') throw new Error('transactions');
     return 'Database connection and replica-set/sharded topology confirmed.';
   });
-  await check('https-routing', async () => {
-    const origin = new URL(process.env.FRONTEND_URL).origin;
-    const health = await fetch(`${origin}/health`, { redirect: 'error', signal: AbortSignal.timeout(15000) });
-    if (!health.ok || (await health.json()).database !== 'connected') throw new Error('health');
-    const redirect = await fetch(origin.replace('https:', 'http:'), { redirect: 'manual', signal: AbortSignal.timeout(15000) });
-    if (![301, 302, 307, 308].includes(redirect.status) || new URL(redirect.headers.get('location'), origin).protocol !== 'https:') throw new Error('redirect');
-    return 'Public HTTPS backend health and HTTP-to-HTTPS redirect passed.';
-  });
+  await check('https-routing', () => checkHttpsRouting(process.env.FRONTEND_URL, process.env.PUBLIC_DOMAIN_ALIASES));
   await check('uploads-disk', async () => {
     const uploads = path.resolve(__dirname, '../uploads');
     await fs.access(uploads, fs.constants.R_OK | fs.constants.W_OK);
@@ -43,14 +38,9 @@ async function run() {
     if (availablePercent < Number(process.env.MIN_FREE_DISK_PERCENT || 15)) throw new Error('low disk');
     return { availablePercent, note: 'Container-recreation persistence requires the separate storage probe.' };
   });
-  await check('recent-database-backup', async () => {
-    const directory = path.resolve(process.env.BACKUP_DIRECTORY || path.join(__dirname, '../backups'));
-    const names = (await fs.readdir(directory)).filter(name => /^certverify-.*\.archive\.gz$/.test(name));
-    const archives = await Promise.all(names.map(name => fs.stat(path.join(directory, name))));
-    const recent = archives.some(file => file.size > 0 && Date.now() - file.mtimeMs < 36 * 60 * 60 * 1000);
-    if (!recent) throw new Error('no recent logical backup');
-    return 'Nonempty logical backup newer than 36 hours exists. Atlas-managed snapshots require separate evidence.';
-  });
+  await check('recent-database-backup', () => checkRecentBackup(
+    path.resolve(process.env.BACKUP_DIRECTORY || path.join(__dirname, '../backups'))
+  ));
   await check('smtp-authentication', async () => {
     if (mongoose.connection.readyState !== 1) throw new Error('database');
     const transport = await createTransporter();
@@ -60,6 +50,10 @@ async function run() {
   await check('outbound-delivery-mode', async () => {
     if (process.env.OUTBOUND_DELIVERY_MODE !== 'live') throw new Error('delivery disabled');
     return 'Live outbound delivery is explicitly enabled.';
+  });
+  await check('sms-configuration', async () => {
+    getTextLkConfiguration();
+    return 'SMS configuration is present and structurally valid; provider acceptance and handset delivery are unverified. Run npm run check:sms for safe configuration diagnostics.';
   });
   const unverified = ['Atlas VPS-only network access', 'container recreation storage persistence', 'email inbox delivery', 'scheduled backup execution', 'backup restore drill', 'monitoring alert delivery', 'credential rotation', 'published Git history cleanup', 'deployed tenant isolation and subscription credits'];
   console.log(JSON.stringify({ checkedAt: new Date().toISOString(), checks, unverified }, null, 2));

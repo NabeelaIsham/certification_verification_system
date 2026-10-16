@@ -1,7 +1,7 @@
 const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
-jest.mock('../../Backend/models/User', () => ({ findById: jest.fn() }));
+jest.mock('../../Backend/models/User', () => ({ findById: jest.fn(), exists: jest.fn() }));
 jest.mock('../../Backend/models/Settings', () => ({ findOne: jest.fn() }));
 const User = require('../../Backend/models/User');
 const { browserSession, clearSession } = require('../../Backend/middleware/browserSession');
@@ -19,7 +19,8 @@ app.post('/api/logout', clearSession);
 beforeEach(() => {
   process.env.JWT_SECRET = 'test-browser-session-secret';
   process.env.CORS_ALLOWED_ORIGINS = origin;
-  User.findById.mockResolvedValue({ _id: 'teacher', userType: 'teacher', isActive: true, sessionVersion: 2 });
+  User.findById.mockResolvedValue({ _id: 'teacher', userType: 'teacher', instituteId: 'institute-id', isActive: true, sessionVersion: 2 });
+  User.exists.mockResolvedValue({ _id: 'institute-id' });
 });
 afterAll(() => { process.env = previous; });
 const login = () => request(app).post('/api/login').set('Origin', origin).set('X-Client-Type', 'browser');

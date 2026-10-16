@@ -15,14 +15,21 @@ The supplied backend log shows registration returned HTTP 201 and the email prov
 5. Save and **redeploy/recreate the backend container**. Restarting an existing container alone does not replace its environment. Deploy the frontend changes as well to display SMS delivery failures correctly.
 6. Use **Resend OTP** on the verification page after its cooldown. The account already exists; do not register it again. You can also use the email OTP if it is still valid. Confirm Text.lk's delivery report and receipt on the phone; API acceptance alone does not prove handset delivery.
 
-The backend container can safely confirm that the variables are present without displaying their values:
+After deploying the updated scripts, run this inside the backend container for safe
+diagnostics. It sends no SMS/provider request and never prints configured values:
 
 ```sh
-node -e 'console.log({smsTokenConfigured: Boolean(process.env.TEXTLK_API_TOKEN?.trim()), smsSenderConfigured: Boolean(process.env.TEXTLK_SENDER_ID?.trim()), deliveryMode: process.env.OUTBOUND_DELIVERY_MODE})'
+npm run check:sms
 ```
 
 ## Code safeguards included
 
+- SMS requests require an explicit token and sender ID; no unconfigured sender fallback
+  is used. Production rejects `TextLKDemo`. Invalid HTTPS endpoints, URL credentials and
+  invalid/unbounded request timeouts are detected before any provider request.
+- `check:sms` reports configuration problems with fixed diagnostic text only. The
+  deployment readiness command includes this validation; neither proves provider-side
+  authentication, sender approval, balance or delivery to the handset.
 - HTTP 200 responses with `status: false` or `status: "error"` no longer count as accepted SMS messages. Unknown response formats and explicitly failed delivery statuses also fail safely.
 - Provider failures are classified into safe diagnostic codes for authentication, sender rejection, insufficient credits, invalid recipients and rate limits. Raw response bodies, tokens, OTPs and phone numbers are not attached to the error.
 - Registration retains the created account and reports email/SMS acceptance separately. The verification page shows SMS failure and the email fallback instead of claiming both channels succeeded.
@@ -31,6 +38,10 @@ node -e 'console.log({smsTokenConfigured: Boolean(process.env.TEXTLK_API_TOKEN?.
 
 No test SMS was sent, and production settings were not changed from this workspace. A read-only request using the local token authenticated successfully, but that does not verify Dokploy's token, sender approval, credits or handset delivery.
 
-Validation: all 152 backend unit tests passed; five registration/OTP frontend tests passed; both lint checks, the production frontend build, YAML parsing and `git diff --check` passed. Docker Compose execution is delegated to the added CI check because Docker is unavailable in this workspace. The existing frontend bundle-size warning remains.
+Original October 13 validation: all 152 backend unit tests passed; five registration/OTP
+frontend tests passed; both lint checks, the production frontend build, YAML parsing and
+`git diff --check` passed. See [October 16 remediation](REMEDIATION_PROGRESS_2026-10-16.md)
+for newer checks and the resolved frontend chunk warning. Docker Compose execution remains
+delegated to CI because Docker is unavailable in this workspace.
 
 Provider references: [Text.lk send response formats](https://text.lk/docs/send-sms/), [boolean success/error responses](https://text.lk/docs/sms-api-endpoints/), [sender ID requirements](https://text.lk/faq/), [token regeneration](https://text.lk/docs/textlk-api-key/).

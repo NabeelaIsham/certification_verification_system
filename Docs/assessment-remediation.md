@@ -39,4 +39,8 @@
 
 See [production readiness](production-readiness.md) for live observations, rollout instructions, history-cleanup preparation, and the account-dependent work still pending. The apex domain passed health/HTTPS checks; **www currently fails certificate validation**.
 
-GitHub branch protection and a green hosted CI run must be verified in the repository after these local changes are published. Docker was unavailable locally, so container validation remains in CI. The frontend build still reports its existing large-bundle warning.
+On October 16, current main `f5dd55b6` passed all 11 hosted CI jobs, including both frontend
+Nginx container builds. GitHub still reports main as unprotected and no repository
+rulesets. See the [current readiness review](READINESS_REVIEW_2026-10-16.md) for the PR,
+live-site and database evidence. Docker remains unavailable locally. The frontend build
+still reports its existing large-bundle warning.

@@ -58,6 +58,7 @@ const toggleUserStatus = async (req, res) => {
       });
     }
     user.isActive = !user.isActive;
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
     if (user.userType === 'institute') {
       user.status = user.isActive ? 'approved' : 'suspended';
     }

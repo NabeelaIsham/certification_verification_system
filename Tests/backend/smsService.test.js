@@ -4,6 +4,8 @@ const { sendTextLkSms } = require('../../Backend/utils/smsService');
 const previous = { ...process.env };
 beforeEach(() => {
   process.env.TEXTLK_API_TOKEN = ' test-sms-token ';
+  process.env.TEXTLK_SENDER_ID = 'Certiverxia';
+  process.env.TEXTLK_TIMEOUT_MS = '10000';
   process.env.TEXTLK_SMS_ENDPOINT = 'https://app.text.lk/api/v3/sms/send';
   process.env.DEPLOYMENT_ENV = 'production';
   process.env.OUTBOUND_DELIVERY_MODE = 'live';
@@ -32,6 +34,28 @@ test('refuses insecure provider endpoints before sending credentials', async () 
   process.env.TEXTLK_SMS_ENDPOINT = 'http://app.text.lk/api/v3/sms/send';
   await expect(sendTextLkSms({ to: '0771234567', message: 'Test' })).rejects.toThrow('HTTPS');
   expect(axios.post).not.toHaveBeenCalled();
+});
+
+test.each([
+  ['TEXTLK_API_TOKEN', ''], ['TEXTLK_SENDER_ID', ''],
+  ['TEXTLK_SENDER_ID', 'TextLKDemo'], ['TEXTLK_TIMEOUT_MS', '0'],
+  ['TEXTLK_TIMEOUT_MS', 'NaN'], ['TEXTLK_TIMEOUT_MS', '120001'],
+  ['TEXTLK_SMS_ENDPOINT', 'not-a-url'],
+  ['TEXTLK_SMS_ENDPOINT', 'https://private:secret@app.text.lk/api/v3/sms/send']
+])('rejects invalid %s configuration without sending any request', async (name, value) => {
+  process.env[name] = value;
+  await expect(sendTextLkSms({ to: '0771234567', message: 'Test' })).rejects.toMatchObject({ code: 'SMS_CONFIGURATION_INVALID' });
+  expect(axios.post).not.toHaveBeenCalled();
+});
+
+test('configuration diagnostics never include a secret or a credentialed URL', () => {
+  const { validateTextLkConfiguration } = require('../../Backend/utils/smsConfiguration');
+  const report = validateTextLkConfiguration({
+    DEPLOYMENT_ENV: 'production', TEXTLK_API_TOKEN: 'private-token\nvalue',
+    TEXTLK_SENDER_ID: 'TextLKDemo', TEXTLK_SMS_ENDPOINT: 'https://private-user:private-password@app.text.lk'
+  });
+  expect(report.valid).toBe(false);
+  expect(JSON.stringify(report)).not.toMatch(/private-token|private-user|private-password/);
 });
 
 test.each([true, 'success'])('accepts the documented provider success status %s', async status => {

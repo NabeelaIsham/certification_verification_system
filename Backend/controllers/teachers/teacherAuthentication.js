@@ -1,13 +1,14 @@
 const { appLogger } = require('../../utils/logger.js');
 const User = require('../../models/User');
 const { signAccessToken } = require('../../config/jwt');
+const { hasInstituteAccess } = require('../../utils/accountAccess');
 const {
-  isValidPassword: meetsPasswordPolicy
+  isValidPassword: meetsPasswordPolicy, isValidEmail, isNonEmptyString
 } = require('../../utils/validators');
 const teacherLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    if (!isValidEmail(email) || !isNonEmptyString(password)) {
       return res.status(400).json({
         success: false,
         message: 'Email and password are required'
@@ -30,6 +31,9 @@ const teacherLogin = async (req, res) => {
         success: false,
         message: 'Invalid credentials'
       });
+    }
+    if (!await hasInstituteAccess(teacher)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
     }
     if (teacher.twoFactorEnabled)
       return await require('.././twoFactorController').beginTwoFactor(

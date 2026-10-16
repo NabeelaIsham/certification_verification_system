@@ -15,6 +15,7 @@
     "setup-superadmin": "node scripts/setupSuperAdmin.js",
     "setup-email": "node scripts/setupEmailSettings.js",
     "check:deployment": "node scripts/deploymentReadiness.js",
+    "check:sms": "node scripts/checkSmsConfiguration.js",
     "backup:restore-drill": "node scripts/restoreBackupDrill.js",
     "assets:optimize": "node scripts/optimizeBrandAssets.js"
   },

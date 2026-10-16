@@ -2,6 +2,7 @@ const { appLogger } = require('../utils/logger.js');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
+const { hasInstituteAccess } = require('../utils/accountAccess');
 
 const authenticateToken = async (req, res, next) => {
   try {
@@ -15,7 +16,7 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const user = await User.findById(decoded.userId || decoded.id);
 
     if (!user) {
@@ -39,6 +40,9 @@ const authenticateToken = async (req, res, next) => {
 
     if ((decoded.sessionVersion || 0) !== (user.sessionVersion || 0)) {
       return res.status(401).json({ success: false, message: 'Session revoked. Please sign in again.', code: 'SESSION_REVOKED' });
+    }
+    if (!await hasInstituteAccess(user)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
     }
     if (user.userType === 'superadmin') {
       const settings = await Settings.findOne();

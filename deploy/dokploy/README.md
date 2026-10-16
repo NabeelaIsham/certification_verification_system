@@ -1,15 +1,14 @@
 # Certiverxia on Hostinger with Dokploy
 
-Use this configuration for the selected Dokploy control panel. Do not also start
-`deploy/hostinger/compose.yml`: that standalone configuration owns ports 80/443,
-which are already used by Dokploy's Traefik.
+Use this configuration for the selected Dokploy control panel. Dokploy's Traefik
+owns ports 80/443; do not start a second public reverse proxy on those ports.
 
 ## Create the application
 
 1. In Dokploy, create a project and a **Docker Compose** service (not Docker Stack).
 2. Connect the Git repository and reviewed release branch containing this directory.
-   The current implementation is on `feat/manual-payment-receipts`; publish/merge
-   reviewed changes before attempting to deploy them from Git.
+   The deployed baseline is now in `main`; publish reviewed changes and require CI
+   on the exact release commit before deploying it from Git.
 3. Select repository root as the project directory and set Compose Path to
    `./docker-compose.dokploy.yml`. Preserve the repository folder layout.
 4. In Environment, enter the real values listed in `.env.example` beside this file.
@@ -26,12 +25,17 @@ In this Compose service's **Domains** tab, add:
 | Host | Service | Container port | Path | HTTPS |
 | --- | --- | --- | --- | --- |
 | certiverxia.com | frontend | 80 | / | Enabled, Let's Encrypt |
-| www.certiverxia.com | frontend | 80 | / | Enabled, Let's Encrypt |
 
-Enable HTTP-to-HTTPS redirection in Dokploy. The frontend redirects `www` to
-`https://certiverxia.com`, preserving the path and query. Leave path stripping disabled.
-Do not add a public backend domain or port mapping. Dokploy adds the domain labels;
-the frontend joins `dokploy-network`, while the backend uses the project network.
+Enable HTTP-to-HTTPS redirection in Dokploy and leave path stripping disabled.
+The Compose file supplies explicit `www.certiverxia.com` HTTP and HTTPS routers,
+using Dokploy's standard `web`/`websecure` entrypoints and `letsencrypt` resolver.
+The frontend redirects HTTPS `www` requests to `https://certiverxia.com`, preserving
+the path and query. Inspect Dokploy's **Preview Compose** before deploying: keep one
+owner for the www routers and remove any duplicate www Domain entry when adopting
+these explicit labels. If the installation uses custom Traefik names, update the
+labels to match them. The apex Domain entry remains managed by Dokploy.
+Do not add a public backend domain or port mapping. The frontend joins
+`dokploy-network`, while the backend uses the project network.
 See [Dokploy domain configuration](https://docs.dokploy.com/docs/core/docker-compose/domains)
 and [Compose environment configuration](https://docs.dokploy.com/docs/core/docker-compose).
 
@@ -93,6 +97,14 @@ review, and email delivery. Verify HTTPS redirects and volume persistence after 
 The real admin account must exist in the selected Atlas database; local admin changes
 are not automatically migrated. No administrator password is bundled in this config.
 
-Known status: staging Atlas migration/restore was recorded previously. Production Atlas
-provisioning, live Dokploy deployment, DNS/TLS and production acceptance are not confirmed.
-The configuration has local structural checks only; Docker is unavailable locally.
+Run `npm run check:deployment` inside the running backend. Its HTTPS check covers
+the apex and `PUBLIC_DOMAIN_ALIASES` (www in this Compose file), including path/query
+preservation. Its local backup check requires the latest archive to be under 36 hours
+old and match its SHA-256 manifest. These checks do not prove scheduled execution,
+off-server custody or a successful restore.
+
+Known status on October 16: live apex health and certificate sharing passed; www
+TLS/HTTP routing failed. The explicit www labels require a reviewed deployment and
+fresh live checks. Main's hosted container builds passed before these local changes;
+Docker remains unavailable on the maintenance workstation. See
+[the readiness review](../../Docs/READINESS_REVIEW_2026-10-16.md) for remaining gates.

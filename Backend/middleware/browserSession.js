@@ -23,7 +23,7 @@ const browserSession = (req, res, next) => {
     const json = res.json.bind(res);
     res.json = (body) => {
       if (body?.success && body.token) {
-        const claims = jwt.verify(body.token, process.env.JWT_SECRET);
+        const claims = jwt.verify(body.token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         res.cookie(cookieName(), body.token, { ...cookieOptions(), maxAge: Math.max(0, claims.exp * 1000 - Date.now()) });
         const publicBody = { ...body };
         delete publicBody.token;

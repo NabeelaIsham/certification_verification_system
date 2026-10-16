@@ -90,6 +90,9 @@ const getTeacherById = async (req, res) => {
 };
 const updateTeacher = async (req, res) => {
   try {
+    if (req.body.isActive !== undefined && typeof req.body.isActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'Account activity must be true or false.' });
+    }
     if (!isValidTeacherPermissions(req.body.permissions))
       return res
         .status(400)
@@ -147,7 +150,8 @@ const updateTeacher = async (req, res) => {
         userType: 'teacher'
       },
       {
-        $set: updates
+        $set: updates,
+        ...(updates.isActive !== undefined ? { $inc: { sessionVersion: 1 } } : {})
       },
       {
         new: true,

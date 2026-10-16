@@ -1,9 +1,7 @@
 const axios = require('axios');
 const { assertDeliveryAllowed } = require('./deliveryPolicy');
 const { smsFailure, assertSmsAccepted } = require('./smsResponse');
-
-const DEFAULT_TEXTLK_ENDPOINT = 'https://app.text.lk/api/v3/sms/send';
-const DEFAULT_AUTH_PREFIX = 'Bearer';
+const { getTextLkConfiguration } = require('./smsConfiguration');
 
 const normalizeSriLankanPhone = (phone) => {
   const digits = (phone || '').replace(/\D/g, '');
@@ -18,23 +16,11 @@ const normalizeSriLankanPhone = (phone) => {
 
 const sendTextLkSms = async ({ to, message }) => {
   assertDeliveryAllowed('sms', to);
-  const apiToken = (process.env.TEXTLK_API_TOKEN || '').trim();
-  const senderId = (process.env.TEXTLK_SENDER_ID || 'CVS').trim();
-  const endpoint = (process.env.TEXTLK_SMS_ENDPOINT || DEFAULT_TEXTLK_ENDPOINT).trim();
-  const authPrefix = (process.env.TEXTLK_AUTH_PREFIX || DEFAULT_AUTH_PREFIX).trim();
+  const { apiToken, senderId, endpoint, authPrefix, timeout } = getTextLkConfiguration();
   const recipient = normalizeSriLankanPhone(to);
-
-  if (!apiToken) {
-    throw new Error('Text.lk API token is not configured. Set TEXTLK_API_TOKEN.');
-  }
 
   if (!recipient) {
     throw new Error('Recipient phone number is required for SMS OTP.');
-  }
-
-  const providerUrl = new URL(endpoint);
-  if (providerUrl.protocol !== 'https:' || providerUrl.username || providerUrl.password) {
-    throw new Error('TEXTLK_SMS_ENDPOINT must use HTTPS without URL credentials.');
   }
 
   const payload = {
@@ -51,7 +37,7 @@ const sendTextLkSms = async ({ to, message }) => {
         Accept: 'application/json',
         'Content-Type': 'application/json'
       },
-      timeout: Number(process.env.TEXTLK_TIMEOUT_MS || 10000),
+      timeout,
       maxRedirects: 0
     });
 

@@ -1,29 +1,35 @@
 # VerifyAwards SaaS implementation contract
 
-Status (2026-10-01): the owner explicitly approved isolated SaaS development before foundation
-merges, while preserving the production deployment gate. The draft implementation is on
-`feat/saas-manual-subscriptions`, stacked on the operations branch. No live database,
-subscription, charge or deployment is changed by this branch. PayHere remains deferred.
+Status (2026-10-16): PR #2 and the original SaaS PR #5 are merged. Main includes manual
+subscriptions, transactional allowances, private receipt approval, registration trials,
+paid upgrades, subscriber analytics and expiry/invoice email workers. See
+[PACKAGE_PAYMENT_FLOW.md](PACKAGE_PAYMENT_FLOW.md) for current behavior and the
+[readiness review](READINESS_REVIEW_2026-10-16.md) for current CI, PR and deployment evidence.
+The original October 1 isolated-development approval did not waive production acceptance.
+PayHere remains deferred.
 
 ## Release sequence
 
 1. Resolve the data/key/file findings in OPERATIONS_READINESS.md. Complete Atlas staging
    application validation, deployment persistence and backup recovery evidence.
-2. Review and merge PR #2, then retarget/review/merge PR #3 and the operations changes.
+2. Reconcile remaining PR #3/#4/#7 changes against main. PR #2 is merged; core file and
+   operations safeguards are also already in main. Remove credential exports from PR #4
+   and require passing checks on any newly reviewed commits.
 3. Verify credential rotation and coordinated Git-history cleanup; pass lint, tests,
    dependency audits and builds on the merged foundation.
-4. Review the isolated Plan, Subscription, UsageTransaction, SubscriptionEvent and Payment
-   implementation and entitlement enforcement against the validated foundation before merging it.
-5. Implement audited super-admin management, institute subscription pages and manual payment
-   activation with pilot tests. Introduce Payment records for bank payments and receipts.
-6. Add locked scheduled jobs and notifications. Only after manual subscriptions pass
+4. Validate the implemented Plan, Subscription, UsageTransaction, SubscriptionEvent and
+   Payment flows and entitlement enforcement on designated deployed test institutes.
+5. Validate super-admin management, institute subscription pages, private proof review,
+   payment receipts and retry-safe activation with pilot tests.
+6. Validate scheduled jobs, notifications and actual delivery. Only after manual subscriptions pass
    acceptance should PayHere sandbox integration begin.
 7. Complete security/UAT, operational and legal review before a controlled institute pilot.
 
 ## Proposed annual packages
 
-The owner confirmed these packages for the draft, with no trial or automatic renewal.
-They become visible only when an administrator initializes the draft catalogue in a
+These package defaults were confirmed for the original draft. Later implementation adds
+a 14-day registration trial; automatic paid renewal remains absent. Packages become
+visible when an administrator initializes the catalogue in a
 SaaS-enabled environment. No packages or subscriptions are seeded into the existing database.
 
 | Plan | Price (LKR) | Certificates | Teachers | Templates |
@@ -35,14 +41,16 @@ SaaS-enabled environment. No packages or subscriptions are seeded into the exist
 Baseline rules from the supplied specification: twelve-month terms; unused and extra
 credits expire with their term; expired institutes cannot issue; existing verification
 and revocation remain available; upgrades are immediate and downgrades take effect at
-renewal. Purchased prices, limits and features are immutable snapshots. Plan edits affect
+renewal in the original proposed scope. Current paid upgrades charge the full new annual
+price, start a new term and allowance, retain the old ledger, and do not prorate/carry over.
+Downgrade scheduling is not implemented. Purchased prices, limits and features are immutable snapshots. Plan edits affect
 future purchases only. No stored card numbers or CVV.
 
-Owner decisions needed before billing implementation: trial duration/allowance, extra-credit
-prices, tax inclusion, refunds, grace period, upgrade pricing and credit arithmetic,
-renewal timing, multiple institute administrators, teachers belonging to multiple institutes,
-and feature availability per plan. Do not infer legally binding or financial terms from
-UI defaults. An immediate upgrade must not silently reset consumed credits.
+Business acceptance must confirm the implemented trial/upgrade/renewal terms and actual
+published prices/features. Extra-credit pricing, tax treatment, refunds, grace periods,
+multiple institute administrators and cross-institute teacher membership remain separate
+scope decisions. Do not infer legally binding or financial terms from UI defaults.
+Upgrades must retain historical consumed credits and ledger records.
 
 ## Invariants and acceptance tests
 

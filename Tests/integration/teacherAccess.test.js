@@ -120,3 +120,108 @@ test('two-factor browser login issues a cookie only after the emailed challenge 
   expect(completed.headers['set-cookie'][0]).toContain('HttpOnly');
   expect((await browser.get('/api/auth/me')).status).toBe(200);
 });
+
+test.each(['suspended', 'unapproved', 'missing'])('security regression: teacher access requires an available institute (%s)', async state => {
+  const headers = auth(teacher);
+  expect((await request(browserApp).get('/api/teachers/profile/me').set(headers)).status).toBe(200);
+  if (state === 'missing') await User.deleteOne({ _id: institute._id });
+  else await User.updateOne({ _id: institute._id }, { $set: state === 'suspended' ? { isActive: false } : { isVerifiedByAdmin: false } });
+  for (const route of ['/api/auth/me', '/api/teachers/profile/me', '/api/teachers/students/my']) {
+    expect((await request(browserApp).get(route).set(headers)).status).toBe(403);
+  }
+  for (const route of ['/api/auth/login', '/api/teachers/login']) {
+    const response = await request(browserApp).post(route).set(browserHeaders).send({ email: teacher.email, password: 'OriginalPass123' });
+    expect(response.status).toBe(403);
+    expect(response.body.token).toBeUndefined();
+    expect(response.headers['set-cookie']).toBeUndefined();
+  }
+});
+
+async function teacherChallenge() {
+  teacher.twoFactorEnabled = true;
+  await teacher.save();
+  email.sendOtpEmail.mockResolvedValue({ messageId: 'mock-only' });
+  const response = await request(browserApp).post('/api/teachers/login').set(browserHeaders).send({ email: teacher.email, password: 'OriginalPass123' });
+  expect(response.body.requiresTwoFactor).toBe(true);
+  return { challengeToken: response.body.challengeToken, otp: email.sendOtpEmail.mock.calls.at(-1)[0].otp };
+}
+
+test('security regression: a password change invalidates an outstanding two-factor challenge', async () => {
+  const challenge = await teacherChallenge();
+  const changed = await request(browserApp).post('/api/teachers/change-password')
+    .set({ Authorization: `Bearer ${signAccessToken(teacher, { twoFactorVerified: true })}` })
+    .send({ currentPassword: 'OriginalPass123', newPassword: 'UpdatedPass123' });
+  expect(changed.status).toBe(200);
+  const response = await request(browserApp).post('/api/auth/2fa/verify').set(browserHeaders).send(challenge);
+  expect(response.status).toBe(401);
+  expect(response.body.token).toBeUndefined();
+  expect(response.headers['set-cookie']).toBeUndefined();
+});
+
+test('security regression: suspension between password and second factor blocks login', async () => {
+  const challenge = await teacherChallenge();
+  await User.updateOne({ _id: institute._id }, { $set: { isActive: false } });
+  const response = await request(browserApp).post('/api/auth/2fa/verify').set(browserHeaders).send(challenge);
+  expect(response.status).toBe(403);
+  expect(response.headers['set-cookie']).toBeUndefined();
+});
+
+test('security regression: legacy challenges without a session version require a fresh login', async () => {
+  const challenge = await teacherChallenge();
+  await mongoose.model('LoginChallenge').collection.updateOne({ userId: teacher._id }, { $unset: { sessionVersion: 1 } });
+  const response = await request(browserApp).post('/api/auth/2fa/verify').set(browserHeaders).send(challenge);
+  expect(response.status).toBe(401);
+  expect(response.headers['set-cookie']).toBeUndefined();
+});
+
+test.each(['password-change', 'institute-suspension'])('security regression: invalidated enrollment cannot enable two-factor authentication (%s)', async change => {
+  const response = await request(browserApp).put('/api/auth/2fa/settings').set(auth(teacher)).send({ enabled: true, password: 'OriginalPass123' });
+  expect(response.body.requiresTwoFactor).toBe(true);
+  const body = { challengeToken: response.body.challengeToken, otp: email.sendOtpEmail.mock.calls.at(-1)[0].otp };
+  if (change === 'password-change') {
+    const changed = await request(browserApp).post('/api/teachers/change-password').set(auth(teacher))
+      .send({ currentPassword: 'OriginalPass123', newPassword: 'UpdatedPass123' });
+    expect(changed.status).toBe(200);
+  } else await User.updateOne({ _id: institute._id }, { $set: { isActive: false } });
+  const completed = await request(browserApp).post('/api/auth/2fa/verify').send(body);
+  expect(completed.status).toBe(change === 'password-change' ? 401 : 403);
+  expect(completed.body.token).toBeUndefined();
+  expect((await User.findById(teacher._id)).twoFactorEnabled).toBe(false);
+});
+
+test('security regression: administrator suspension revokes sessions and never returns password hashes', async () => {
+  const administrator = await User.create({ email: 'superadmin@example.com', password: 'Administrator123', userType: 'superadmin', superAdminName: 'Test Admin', isActive: true });
+  const oldHeaders = auth(teacher);
+  const route = `/api/admin/users/${teacher._id}/toggle-status`;
+  const suspended = await request(browserApp).put(route).set(auth(administrator));
+  expect(suspended.status).toBe(200);
+  expect(suspended.body.data.password).toBeUndefined();
+  expect(suspended.body.data.teacherPasswordSetup).toBeUndefined();
+  expect(JSON.stringify(suspended.body)).not.toContain(teacher.password);
+  expect((await request(browserApp).get('/api/teachers/profile/me').set(oldHeaders)).status).toBe(403);
+  const resumed = await request(browserApp).put(route).set(auth(administrator));
+  expect(resumed.status).toBe(200);
+  expect((await request(browserApp).get('/api/teachers/profile/me').set(oldHeaders)).status).toBe(401);
+  expect((await request(browserApp).post('/api/teachers/login').send({ email: teacher.email, password: 'OriginalPass123' })).status).toBe(200);
+});
+
+test('security regression: institute-controlled teacher deactivation also revokes old sessions', async () => {
+  const oldHeaders = auth(teacher);
+  for (const isActive of [false, true]) {
+    const response = await request(browserApp).put(`/api/teachers/${teacher._id}`).set(auth(institute)).send({ isActive });
+    expect(response.status).toBe(200);
+    expect(response.body.data.password).toBeUndefined();
+  }
+  expect((await request(browserApp).get('/api/teachers/profile/me').set(oldHeaders)).status).toBe(401);
+  expect((await request(browserApp).put(`/api/teachers/${teacher._id}`).set(auth(institute)).send({ isActive: 'false' })).status).toBe(400);
+});
+
+test.each([
+  ['/api/teachers/login', { email: { $ne: null }, password: 'OriginalPass123' }],
+  ['/api/teachers/login', { email: 'teacher@example.com', password: ['OriginalPass123'] }],
+  ['/api/auth/login', { email: 'teacher@example.com', password: 'OriginalPass123', userType: { $ne: 'superadmin' } }]
+])('security regression: %s rejects malformed login fields', async (route, input) => {
+  const response = await request(browserApp).post(route).send(input);
+  expect(response.status).toBe(400);
+  expect(response.body.token).toBeUndefined();
+});
