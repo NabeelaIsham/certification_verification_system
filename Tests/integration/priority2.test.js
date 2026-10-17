@@ -1,5 +1,6 @@
 jest.mock('../../Backend/utils/emailService', () => ({ sendCertificateEmail: jest.fn(), sendCredentialShareEmail: jest.fn() }));
 process.env.NODE_ENV = 'test';
+process.env.SAAS_ENABLED = 'false';
 process.env.JWT_SECRET = 'priority-two-test-only-secret';
 process.env.CREDENTIAL_KEY_ENCRYPTION_SECRET = 'priority-two-test-only-encryption-secret';
 process.env.CORS_ALLOWED_ORIGINS = 'http://localhost:3000';
@@ -332,12 +333,129 @@ test('private template backgrounds and assets enforce institute and teacher cour
   expect((await api('get', `/api/private-files/templates/${templateA._id}/background`)).status).toBe(403);
 });
 
-test('public verification discloses status but no file URLs, paths, lifecycle details or compact payload', async () => {
+test('public verification displays the certificate without exposing storage paths or private payloads', async () => {
   const certificate = await fixtureFile();
   const result = await request(app).get(`/api/certificates/verify/${certificate.certificateCode}`);
   expect(result.status).toBe(200);
   expect(result.body.data.status).toBe('issued');
-  expect(JSON.stringify(result.body)).not.toMatch(/uploads|private-files|compactToken|lifecycleEvents|certificateImage|qrCodeImage/);
+  expect(JSON.stringify(result.body)).not.toMatch(/uploads|private-files|compactToken|lifecycleEvents|qrCodeImage/);
+  const image = await request(app).get(result.body.data.certificateImage);
+  expect(image.status).toBe(200);
+  expect(image.headers['content-type']).toMatch(/image\/jpeg/);
+  expect(image.headers['cache-control']).toBe('private, no-store');
+  await Certificate.updateOne({ _id: certificate._id }, { $set: { status: 'revoked' } });
+  expect((await request(app).get(result.body.data.certificateImage)).status).toBe(410);
+  expect((await request(app).get(`/api/certificates/verify/${certificate.certificateCode}`)).body.data.certificateImage).toBeNull();
+});
+
+test('public certificate image rejects expired, invalid signature and foreign file paths', async () => {
+  const certificate = await fixtureFile();
+  const url = `/api/certificates/verify/${certificate.certificateCode}/image`;
+  await Certificate.updateOne({ _id: certificate._id }, { $set: { validUntil: new Date(0) } });
+  expect((await request(app).get(url)).status).toBe(410);
+  await Certificate.updateOne({ _id: certificate._id }, { $unset: { validUntil: 1 }, $set: { 'credential.signature': 'invalid' } });
+  expect((await request(app).get(url)).status).toBe(403);
+  await Certificate.updateOne({ _id: certificate._id }, { $unset: { credential: 1 }, $set: { generatedCertificateImage: `uploads/generated/${b._id}/foreign.jpg` } });
+  expect((await request(app).get(url)).status).toBe(403);
+});
+
+describe('Public certificate share pages', () => {
+  let previousFrontendUrl;
+  beforeEach(() => {
+    previousFrontendUrl = process.env.FRONTEND_URL;
+    process.env.FRONTEND_URL = 'https://certiverxia.com';
+  });
+  afterEach(() => {
+    if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
+    else process.env.FRONTEND_URL = previousFrontendUrl;
+  });
+
+  test('unauthenticated visitors and crawlers receive the certificate, canonical metadata and a working image', async () => {
+    const certificate = await fixtureFile();
+    const code = certificate.certificateCode;
+    const pageUrl = `https://certiverxia.com/certificate/${code}`;
+    const imageUrl = `https://certiverxia.com/api/certificates/verify/${code}/image`;
+    const verification = await request(app).get(`/api/certificates/verify/${code}`);
+    expect(verification.body.data.shareUrl).toBe(pageUrl);
+    const page = await request(app).get(`/certificate/${code.toLowerCase()}`)
+      .set('Host', 'untrusted.example').set('X-Forwarded-Host', 'untrusted.example')
+      .set('User-Agent', 'facebookexternalhit/1.1');
+    expect(page.status).toBe(200);
+    expect(page.headers['content-type']).toMatch(/text\/html/);
+    expect(page.headers['cache-control']).toBe('private, no-store');
+    expect(page.headers.etag).toBeUndefined();
+    expect(page.text).toContain(`<meta property="og:url" content="${pageUrl}">`);
+    expect(page.text).toContain(`<meta property="og:image" content="${imageUrl}">`);
+    expect(page.text).toContain(`<meta name="twitter:image" content="${imageUrl}">`);
+    expect(page.text).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(page.text).toContain(`<img class="certificate" src="${imageUrl}"`);
+    expect(page.text).toContain(studentA.name);
+    expect(page.text).toContain(courseA.courseName);
+    expect(page.text).toContain(a.instituteName);
+    expect(page.text).toContain('legacy certificate');
+    expect(page.text).not.toMatch(/untrusted\.example|uploads\/|private-files|compactToken|student@example\.com/);
+    const image = await request(app).get(localUrl(imageUrl));
+    expect(image.status).toBe(200);
+    expect(image.headers['content-type']).toMatch(/image\/jpeg/);
+    expect((await request(app).head(`/certificate/${code}`)).status).toBe(200);
+  });
+
+  test('certificate text is escaped in the page and preview metadata', async () => {
+    const certificate = await fixtureFile();
+    const value = '\"><script>alert(1)</script>&\'';
+    await Certificate.updateOne({ _id: certificate._id }, { $set: { studentName: value, courseName: value } });
+    await User.updateOne({ _id: a._id }, { $set: { instituteName: value } });
+    const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&amp;&#39;');
+    expect(page.text).not.toContain('<script>');
+    expect(page.text).not.toContain(value);
+  });
+
+  test.each(['revoked', 'suspended', 'draft', 'expired', 'invalid-signature', 'foreign-image'])(
+    'does not publish an image or achievement metadata for %s certificates', async condition => {
+      const certificate = await fixtureFile();
+      const changes = condition === 'expired' ? { validUntil: new Date(0) }
+        : condition === 'invalid-signature' ? { 'credential.signature': 'invalid' }
+          : condition === 'foreign-image' ? { generatedCertificateImage: `uploads/generated/${b._id}/foreign.jpg` }
+            : { status: condition };
+      await Certificate.updateOne({ _id: certificate._id }, { $set: changes });
+      const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+      expect(page.status).toBe(['invalid-signature', 'foreign-image'].includes(condition) ? 403 : 410);
+      expect(page.text).toContain('Certificate unavailable');
+      expect(page.text).not.toMatch(/og:image|twitter:image|<img|Student A|A Course/);
+    }
+  );
+
+  test('signed certificates are verified and stop displaying immediately if their key loses trust', async () => {
+    const { certificate } = await issue();
+    const url = `/certificate/${certificate.certificateCode}`;
+    const page = await request(app).get(url);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Digitally verified certificate');
+    expect(page.text).toContain('property="og:image"');
+    await User.updateOne({ _id: a._id }, { $unset: { credentialSigning: 1 } });
+    const blocked = await request(app).get(url);
+    expect(blocked.status).toBe(403);
+    expect(blocked.text).not.toMatch(/og:image|<img/);
+  });
+
+  test('missing images show the record without advertising a broken social preview', async () => {
+    const certificate = await fixtureFile();
+    await Certificate.updateOne({ _id: certificate._id }, { $set: { generatedCertificateImage: `uploads/generated/${a._id}/missing.jpg` } });
+    const page = await request(app).get(`/certificate/${certificate.certificateCode}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('The certificate image is unavailable.');
+    expect(page.text).not.toMatch(/og:image|twitter:image|<img/);
+  });
+
+  test('invalid and unknown certificate codes return errors without image previews', async () => {
+    expect((await request(app).get('/certificate/%3Cscript%3E')).status).toBe(400);
+    const page = await request(app).get('/certificate/UNKNOWN-CERTIFICATE');
+    expect(page.status).toBe(404);
+    expect(page.text).toContain('This certificate could not be found.');
+    expect(page.text).not.toMatch(/og:image|<img/);
+  });
 });
 
 test('the last allowed share view grants bounded file access without spending a second view', async () => {
@@ -436,8 +554,291 @@ test.each(['spoofed', 'wrong-encoding', 'wrong-extension', 'too-large'])('logo u
   expect(await fs.readdir(path.join(uploadRoot, 'logos', String(a._id)))).toEqual([]);
 });
 const { validateTransactions } = require('../../Backend/scripts/validateStagingTransactions');
+const subscriptions = require('../../Backend/services/subscriptionService');
+const { Plan, Subscription, UsageTransaction, Payment, SubscriptionEvent } = require('../../Backend/models/Saas');
+
+describe('Manual receipt submission and review', () => {
+  let pending, reviewer, reviewerToken;
+  beforeEach(async () => {
+    process.env.SAAS_ENABLED = 'true';
+    process.env.PAYMENT_BANK_NAME = 'Test Bank'; process.env.PAYMENT_ACCOUNT_HOLDER = 'Test Holder';
+    process.env.PAYMENT_ACCOUNT_NUMBER = '123456'; process.env.PAYMENT_BANK_BRANCH = 'Test Branch';
+    reviewer = { _id: id(), userType: 'superadmin', email: 'receipt-reviewer@example.com', isActive: true };
+    await User.collection.insertOne(reviewer); reviewerToken = signAccessToken(reviewer);
+    const plan = await Plan.create({ name: 'Receipt package', priceMinor: 1490000, active: true, limits: { certificates: 100, teachers: 2, templates: 2 } });
+    pending = await subscriptions.requestSubscription(a._id, plan._id, 'request-receipt-test');
+  });
+  afterEach(() => {
+    process.env.SAAS_ENABLED = 'false';
+    for (const key of ['PAYMENT_BANK_NAME', 'PAYMENT_ACCOUNT_HOLDER', 'PAYMENT_ACCOUNT_NUMBER', 'PAYMENT_BANK_BRANCH']) delete process.env[key];
+  });
+  const upload = async (subId, bytes, auth = token) => request(app).post(`/api/subscriptions/${subId}/payment-proof`)
+    .set('Authorization', `Bearer ${auth}`).field('transactionNumber', 'BANK-RECEIPT-123').field('payerName', 'Test Payer').field('paidAt', '2026-01-01').field('notes', 'Annual package')
+    .attach('receipt', bytes, { filename: 'receipt.png', contentType: 'image/png' });
+  test('only super admins can update durable bank instructions, and every change is audited', async () => {
+    const url = '/api/subscriptions/admin/bank-details';
+    const bank = { bankName: 'New Bank', accountHolder: 'New Holder', accountNumber: '00123456', branch: 'Main' };
+    expect((await request(app).put(url).send(bank)).status).toBe(401);
+    expect((await api('put', url, bank)).status).toBe(403);
+    expect((await api('get', url)).status).toBe(403);
+    expect((await api('put', url, { ...bank, branch: '' }, reviewerToken)).status).toBe(400);
+    expect((await api('put', url, { ...bank, extra: true }, reviewerToken)).status).toBe(400);
+    expect((await api('put', url, bank, reviewerToken)).status).toBe(200);
+    expect((await api('get', '/api/subscriptions/bank-details')).body.data).toMatchObject(bank);
+    expect((await api('put', url, { ...bank, accountNumber: '00987654' }, reviewerToken)).status).toBe(200);
+    expect((await api('get', '/api/subscriptions/bank-details')).body.data.accountNumber).toBe('00987654');
+    expect(await SubscriptionEvent.countDocuments({ event: 'payment_bank_details_updated', actorId: reviewer._id })).toBe(2);
+    expect((await Subscription.findById(pending._id)).status).toBe('pending');
+  });
+  test('proof stays pending, is tenant-private, and requires current receipt approval before allocating credits', async () => {
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { reference: 'BANK-RECEIPT-123', amountMinor: 1490000 }, reviewerToken)).status).toBe(409);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    let saved = await Subscription.findById(pending._id);
+    expect(saved.status).toBe('pending'); expect(saved.allocated).toBe(0);
+    expect(saved.paymentProof.packageReference).toBe('Receipt package');
+    expect(saved.paymentProof.receipt).toBeUndefined();
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`)).status).toBe(200);
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`, {}, signAccessToken(b))).status).toBe(404);
+    expect((await api('get', `/api/subscriptions/${pending._id}/receipt`, {}, reviewerToken)).headers['cache-control']).toBe('private, no-store');
+    const body = { reference: 'BANK-RECEIPT-123', amountMinor: 1490000, receiptVersion: saved.paymentProof.receiptVersion };
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, body)).status).toBe(403);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { ...body, receiptVersion: 'stale' }, reviewerToken)).status).toBe(409);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, body, reviewerToken)).status).toBe(200);
+    saved = await Subscription.findById(pending._id);
+    expect(saved.status).toBe('active'); expect(saved.allocated).toBe(100); expect(saved.paymentProof.status).toBe('approved');
+    expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(1);
+  });
+  test('rejects spoofed images and cross-tenant uploads; permits corrected receipt after rejection', async () => {
+    expect((await upload(pending._id, Buffer.from('not a PNG'))).status).toBe(400);
+    expect((await upload(pending._id, await pngBytes(), signAccessToken(b))).status).toBe(404);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    const before = await Subscription.findById(pending._id);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(409);
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/reject-receipt`, { reason: 'Amount is not visible', receiptVersion: before.paymentProof.receiptVersion }, reviewerToken)).status).toBe(200);
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    const after = await Subscription.findById(pending._id);
+    expect(after.paymentProof.receiptVersion).not.toBe(before.paymentProof.receiptVersion);
+    expect(after.status).toBe('pending');
+  });
+});
+
+describe('Manual SaaS subscriptions and real certificate issuance', () => {
+  let plan, subscription, admin, adminToken;
+  beforeEach(async () => {
+    process.env.SAAS_ENABLED = 'true';
+    admin = { _id: id(), userType: 'superadmin', email: 'admin-saas@example.com', isActive: true };
+    await User.collection.insertOne(admin); adminToken = signAccessToken(admin);
+    plan = await Plan.create({ name: 'Test annual plan', priceMinor: 1490000, active: true,
+      limits: { certificates: 1, teachers: 2, templates: 2 }, features: { bulkCertificateIssue: true, secureSharing: true } });
+    subscription = await subscriptions.requestSubscription(a._id, plan._id, 'request-subscription-a');
+    await Subscription.updateOne({ _id: subscription._id }, { $set: { paymentProof: { transactionNumber: 'BANK-A', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-a' } } });
+    subscription = await subscriptions.activateManual(subscription._id, admin._id, { reference: 'BANK-A', amountMinor: 1490000, receiptVersion: 'fixture-a' });
+  });
+  afterEach(() => { process.env.SAAS_ENABLED = 'false'; });
+
+  test('manual payment rejects incorrect amounts and activates exactly once under retries', async () => {
+    const pending = await subscriptions.requestSubscription(b._id, plan._id, 'request-subscription-b');
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${pending._id}/activate`, { reference: 'BANK-B', amountMinor: 1 }, adminToken)).status).toBe(400);
+    expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(0);
+    await Subscription.updateOne({ _id: pending._id }, { $set: { paymentProof: { transactionNumber: 'BANK-B', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-b' } } });
+    const results = await Promise.allSettled([1, 2].map(() => subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000, receiptVersion: 'fixture-b' })));
+    expect(results.some(result => result.status === 'fulfilled')).toBe(true);
+    await subscriptions.activateManual(pending._id, admin._id, { reference: 'BANK-B', amountMinor: 1490000, receiptVersion: 'fixture-b' });
+    expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(1);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: pending._id, event: 'credit_allocated' })).toBe(1);
+    expect(await SubscriptionEvent.countDocuments({ subscriptionId: pending._id, event: 'manual_payment_activated' })).toBe(1);
+  });
+  test('bank references cannot activate two different subscriptions', async () => {
+    const pending = await subscriptions.requestSubscription(b._id, plan._id, 'request-subscription-b');
+    await expect(subscriptions.activateManual(pending._id, admin._id, { reference: 'bank-a', amountMinor: 1490000 })).rejects.toBeDefined();
+    expect((await Subscription.findById(pending._id)).status).toBe('pending');
+    expect(await UsageTransaction.countDocuments({ subscriptionId: pending._id })).toBe(0);
+  });
+  test('plan changes preserve purchased prices and limits', async () => {
+    await Plan.updateOne({ _id: plan._id }, { $set: { priceMinor: 999999, 'limits.certificates': 999 } });
+    const saved = await Subscription.findById(subscription._id);
+    expect(saved.snapshot.priceMinor).toBe(1490000); expect(saved.snapshot.limits.certificates).toBe(1);
+  });
+  test('concurrent distinct issuance cannot overspend the final credit', async () => {
+    const second = await Student.create({ instituteId: a._id, courseId: courseA._id, name: 'Second', email: 'second@example.com' });
+    const results = await Promise.allSettled([issue(), issue({ input: payload({ studentId: String(second._id) }), idempotencyKey: 'another-request-key-2' })]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const saved = await Subscription.findById(subscription._id);
+    expect(saved.consumed).toBe(1); expect(saved.reserved).toBe(0);
+    expect(await Certificate.countDocuments({ instituteId: a._id })).toBe(1);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: saved._id, event: 'credit_consumed' })).toBe(1);
+  });
+  test('idempotent issuance retry does not consume another credit, even after expiry', async () => {
+    const first = await issue(); await Subscription.updateOne({ _id: subscription._id }, { $set: { endsAt: new Date(0) } });
+    const replay = await issue(); expect(replay.replayed).toBe(true); expect(String(replay.certificate._id)).toBe(String(first.certificate._id));
+    expect((await Subscription.findById(subscription._id)).consumed).toBe(1);
+    const verify = await request(app).get(`/api/certificates/verify/${first.certificate.certificateCode}`);
+    expect(verify.status).toBe(200);
+  });
+  test('failed rendering releases its credit and a retry can use it', async () => {
+    jest.spyOn(rendering, 'generateCertificateImage').mockRejectedValueOnce(new Error('render failed'));
+    await expect(issue()).rejects.toThrow('render failed');
+    expect((await Subscription.findById(subscription._id)).reserved).toBe(0);
+    await issue(); expect((await Subscription.findById(subscription._id)).consumed).toBe(1);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: subscription._id, event: 'credit_released' })).toBe(1);
+  });
+  test('expiry during rendering rolls back certificate completion and releases its credit', async () => {
+    const original = rendering.generateCertificateImage;
+    jest.spyOn(rendering, 'generateCertificateImage').mockImplementationOnce(async data => {
+      const file = await original(data);
+      await Subscription.updateOne({ _id: subscription._id }, { $set: { endsAt: new Date(0) } }); return file;
+    });
+    await expect(issue()).rejects.toMatchObject({ status: 402 });
+    expect(await Certificate.countDocuments({ instituteId: a._id })).toBe(0);
+    const saved = await Subscription.findById(subscription._id); expect(saved.reserved).toBe(0); expect(saved.consumed).toBe(0);
+  });
+  test('expired abandoned reservations are recovered before a new issuance', async () => {
+    await subscriptions.transaction(async session => {
+      const op = new Operation({ instituteId: a._id, actorId: a._id, studentId: studentA._id, courseId: courseA._id,
+        key: 'abandoned-request-key', fingerprint: 'abandoned', state: 'reserved', attempt: 1, awardDate: new Date(), leaseUntil: new Date(0) });
+      await subscriptions.reserveCredit(op, session); await op.save({ session });
+    });
+    await issue(); const saved = await Subscription.findById(subscription._id);
+    expect(saved.reserved).toBe(0); expect(saved.consumed).toBe(1);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: subscription._id, event: 'credit_released' })).toBe(1);
+  });
+  test('teacher issuance uses the same credit limit', async () => {
+    await issue({ actorId: teacher._id });
+    expect((await Subscription.findById(subscription._id)).consumed).toBe(1);
+  });
+  test('template creation is serialized at the purchased limit', async () => {
+    const create = suffix => subscriptions.saveLimitedResource(new Template({ instituteId: a._id, courseId: courseA._id,
+      templateName: `Extra ${suffix}`, templateImage: templateA.templateImage }), 'templates');
+    const results = await Promise.allSettled([create('one'), create('two')]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(await Template.countDocuments({ instituteId: a._id })).toBe(2);
+  });
+  test('concurrent teacher creation respects its limit and preserves a working password', async () => {
+    const data = suffix => ({ firstName: 'Test', lastName: suffix, email: `${suffix}@example.com`, password: 'ValidPassword123', employeeId: suffix,
+      department: 'Testing', assignedCourses: [String(courseA._id)] });
+    const responses = await Promise.all(['new-one', 'new-two'].map(suffix => api('post', '/api/teachers', data(suffix))));
+    expect(responses.filter(response => response.status === 201)).toHaveLength(1);
+    expect(responses.filter(response => response.status === 402)).toHaveLength(1);
+    expect(await User.countDocuments({ instituteId: a._id, userType: 'teacher' })).toBe(2);
+    const created = await User.findById(responses.find(response => response.status === 201).body.data.id).select('+password');
+    expect(await require('bcryptjs').compare('ValidPassword123', created.password)).toBe(true);
+  });
+  test('bulk issuance stops at quota and feature restrictions reject the entire batch', async () => {
+    const second = await Student.create({ instituteId: a._id, courseId: courseA._id, name: 'Second', email: 'second@example.com' });
+    const certificates = [studentA, second].map(student => ({ studentEmail: student.email, courseCode: courseA.courseCode, templateId: String(templateA._id), awardDate: '2026-09-01' }));
+    const result = await api('post', '/api/certificates/bulk-issue', { certificates });
+    expect(result.status).toBe(200); expect(result.body.data.successful).toHaveLength(1); expect(result.body.data.failed).toHaveLength(1);
+    expect(result.body.data.failed[0].status).toBe(402);
+    expect((await Subscription.findById(subscription._id)).consumed).toBe(1);
+    // A separately purchased feature-restricted snapshot; raw insert/update is test fixture setup only.
+    await Subscription.collection.updateOne({ _id: subscription._id }, { $set: { 'snapshot.features.bulkCertificateIssue': false } });
+    expect((await api('post', '/api/certificates/bulk-issue', { certificates })).status).toBe(403);
+  });
+  test('legacy draft issuance also consumes exactly one credit', async () => {
+    const draft = await Certificate.create({ instituteId: a._id, studentId: studentA._id, courseId: courseA._id, templateId: templateA._id,
+      certificateCode: 'LEGACY-SAAS-DRAFT', studentName: studentA.name, courseName: courseA.courseName, awardDate: new Date(), status: 'draft' });
+    const result = await issue({ legacyCertificateId: draft._id });
+    expect(String(result.certificate._id)).toBe(String(draft._id));
+    expect((await Subscription.findById(subscription._id)).consumed).toBe(1);
+  });
+  test('admin catalogue initialization and editing are audited while malformed plan data is rejected', async () => {
+    await Plan.deleteMany({});
+    const result = await api('post', '/api/subscriptions/admin/plans/bootstrap', {}, adminToken);
+    expect(result.status).toBe(200); expect(result.body.data.map(plan => plan.priceMinor)).toEqual([1490000, 2990000, 4990000]);
+    expect((await api('post', '/api/subscriptions/admin/plans/bootstrap', {}, adminToken)).status).toBe(409);
+    const created = result.body.data[0];
+    const edit = { name: created.name, priceMinor: 1590000, limits: created.limits, active: false };
+    expect((await api('put', `/api/subscriptions/admin/plans/${created._id}`, edit, adminToken)).status).toBe(200);
+    expect(await SubscriptionEvent.countDocuments({ event: 'plan_edited', planId: created._id })).toBe(1);
+    expect((await api('put', `/api/subscriptions/admin/plans/${created._id}`, { ...edit, priceMinor: -1 }, adminToken)).status).toBe(400);
+    expect((await Subscription.findById(subscription._id)).snapshot.priceMinor).toBe(1490000);
+  });
+  test('institutes and teachers cannot administer subscriptions or read other institutes', async () => {
+    expect((await api('post', `/api/subscriptions/admin/subscriptions/${subscription._id}/activate`, { reference: 'FAKE', amountMinor: 1490000 })).status).toBe(403);
+    expect((await api('get', '/api/subscriptions/mine', {}, teacherToken)).status).toBe(403);
+    const mine = await api('get', `/api/subscriptions/mine?instituteId=${a._id}`, {}, signAccessToken(b));
+    expect(mine.status).toBe(200); expect(mine.body.data.subscriptions).toHaveLength(0); expect(mine.body.data.payments).toHaveLength(0);
+  });
+  test('suspension prevents issuance and pending activation cannot be bypassed by status changes', async () => {
+    await subscriptions.setStatus(subscription._id, admin._id, 'suspended', 'Manual review');
+    await expect(issue()).rejects.toMatchObject({ status: 402 });
+    await subscriptions.setStatus(subscription._id, admin._id, 'active', 'Review complete'); await issue();
+    const pending = await subscriptions.requestSubscription(b._id, plan._id, 'request-subscription-b');
+    await expect(subscriptions.setStatus(pending._id, admin._id, 'active', 'Bypass payment')).rejects.toMatchObject({ status: 409 });
+  });
+  test('renewal creates a new snapshot and leaves the old ledger intact', async () => {
+    await issue(); await Subscription.updateOne({ _id: subscription._id }, { $set: { endsAt: new Date(0) } });
+    const renewed = await subscriptions.requestSubscription(a._id, plan._id, 'request-renewal-key');
+    await Subscription.updateOne({ _id: renewed._id }, { $set: { paymentProof: { transactionNumber: 'BANK-RENEWAL', packageReference: plan.name, status: 'submitted', receiptVersion: 'fixture-renewal' } } });
+    await subscriptions.activateManual(renewed._id, admin._id, { reference: 'BANK-RENEWAL', amountMinor: 1490000, receiptVersion: 'fixture-renewal' });
+    expect((await Subscription.findById(subscription._id)).status).toBe('expired');
+    expect((await Subscription.findById(renewed._id)).consumed).toBe(0);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: subscription._id, event: 'credit_consumed' })).toBe(1);
+  });
+  test('a suspended expired term requires audited admin closure before renewal', async () => {
+    await subscriptions.setStatus(subscription._id, admin._id, 'suspended', 'Review account');
+    await Subscription.updateOne({ _id: subscription._id }, { $set: { endsAt: new Date(0) } });
+    await expect(subscriptions.requestSubscription(a._id, plan._id, 'renew-suspended-term')).rejects.toMatchObject({ status: 409 });
+    await subscriptions.setStatus(subscription._id, admin._id, 'expired', 'Account review resolved');
+    expect((await subscriptions.requestSubscription(a._id, plan._id, 'renew-suspended-term')).status).toBe('pending');
+    expect(await SubscriptionEvent.countDocuments({ subscriptionId: subscription._id, event: 'subscription_expired' })).toBe(1);
+  });
+});
 test('staging transaction probe verifies commit and rollback and removes its temporary collection', async () => {
   expect(await validateTransactions(mongoose.connection)).toEqual({ committed: 1, rolledBack: true });
   const collections = await mongoose.connection.db.listCollections().toArray();
   expect(collections.some(c => c.name.startsWith('_staging_probe_'))).toBe(false);
+});
+
+describe('Registration trial and upgrade lifecycle', () => {
+  let starter;
+  beforeEach(async () => {
+    process.env.SAAS_ENABLED = 'true';
+    starter = await Plan.create({ name: 'Starter', priceMinor: 1490000, active: true,
+      limits: { certificates: 37, teachers: 3, templates: 4 }, features: { bulkCertificateIssue: true, secureSharing: true } });
+  });
+  afterEach(() => { process.env.SAAS_ENABLED = 'false'; });
+  test('registration grants Starter limits for exactly 14 days without restarting on retry', async () => {
+    const response = await request(app).post('/api/auth/register').send({ instituteName: 'Trial Institute', email: 'trial@example.com',
+      address: 'Colombo', adminName: 'Trial Admin', password: 'TrialPassword123', confirmPassword: 'TrialPassword123', agreeToTerms: true });
+    expect(response.status).toBe(201);
+    const user = await User.findOne({ email: 'trial@example.com' }).select('+password');
+    expect(await require('bcryptjs').compare('TrialPassword123', user.password)).toBe(true);
+    const trial = await Subscription.findOne({ instituteId: user._id, activation: 'trial' });
+    expect(trial.status).toBe('trial'); expect(trial.allocated).toBe(37);
+    expect(trial.snapshot.limits.teachers).toBe(3); expect(trial.snapshot.limits.templates).toBe(4);
+    expect(trial.endsAt - trial.startsAt).toBe(14 * 86400000);
+    await subscriptions.transaction(session => subscriptions.createRegistrationTrial(user._id, session));
+    expect(await Subscription.countDocuments({ instituteId: user._id, activation: 'trial' })).toBe(1);
+    expect((await Subscription.findById(trial._id)).endsAt).toEqual(trial.endsAt);
+    expect(await Payment.countDocuments({ instituteId: user._id })).toBe(0);
+  });
+  test('trial remains usable during payment review; approval replaces it with paid credits', async () => {
+    const trial = await subscriptions.transaction(session => subscriptions.createRegistrationTrial(a._id, session));
+    const pending = await subscriptions.requestSubscription(a._id, starter._id, 'trial-upgrade-request');
+    expect(String((await subscriptions.requireActiveSubscription(a._id))._id)).toBe(String(trial._id));
+    await issue(); expect((await Subscription.findById(trial._id)).consumed).toBe(1);
+    expect((await Subscription.findById(pending._id)).allocated).toBe(0);
+    await expect(subscriptions.activateManual(pending._id, b._id, { reference: 'TRIAL-UPGRADE', amountMinor: starter.priceMinor })).rejects.toMatchObject({ status: 409 });
+    await Subscription.updateOne({ _id: pending._id }, { $set: { paymentProof: { transactionNumber: 'TRIAL-UPGRADE', status: 'submitted', receiptVersion: 'trial-receipt' } } });
+    await subscriptions.activateManual(pending._id, b._id, { reference: 'TRIAL-UPGRADE', amountMinor: starter.priceMinor, receiptVersion: 'trial-receipt' });
+    expect((await Subscription.findById(trial._id)).status).toBe('expired');
+    expect(String((await subscriptions.requireActiveSubscription(a._id))._id)).toBe(String(pending._id));
+    expect((await Subscription.findById(pending._id)).allocated).toBe(37);
+    expect(await require('../../Backend/models/Notification').countDocuments({ recipient: a._id, title: 'Payment approved' })).toBe(1);
+  });
+  test('expired trial blocks issuance but allows selection and cancellation without another free trial', async () => {
+    const trial = await subscriptions.transaction(session => subscriptions.createRegistrationTrial(a._id, session));
+    await Subscription.updateOne({ _id: trial._id }, { $set: { endsAt: new Date(0) } });
+    await expect(issue()).rejects.toMatchObject({ status: 402 });
+    const pending = await subscriptions.requestSubscription(a._id, starter._id, 'expired-trial-upgrade');
+    expect((await api('post', `/api/subscriptions/${pending._id}/cancel`, {}, signAccessToken(b))).status).toBe(409);
+    expect((await api('post', `/api/subscriptions/${pending._id}/cancel`)).status).toBe(200);
+    const renewed = await subscriptions.requestSubscription(a._id, starter._id, 'new-package-request');
+    expect(renewed.status).toBe('pending');
+    await Subscription.updateOne({ _id: renewed._id }, { $set: { paymentProof: { transactionNumber: 'EXPIRED-UPGRADE', status: 'submitted', receiptVersion: 'expired-receipt' } } });
+    await subscriptions.activateManual(renewed._id, b._id, { reference: 'EXPIRED-UPGRADE', amountMinor: starter.priceMinor, receiptVersion: 'expired-receipt' });
+    expect((await Subscription.findById(trial._id)).endsAt.getTime()).toBe(0);
+    expect(await Subscription.countDocuments({ instituteId: a._id, activation: 'trial' })).toBe(1);
+  });
 });

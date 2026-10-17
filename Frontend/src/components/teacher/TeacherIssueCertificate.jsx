@@ -1,6 +1,7 @@
+import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 import { useSearchParams } from 'react-router-dom';
 import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
@@ -46,15 +47,15 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
+
       console.log('Fetching courses from:', `${API_URL}/teachers/courses/my`);
-      
-      const response = await axios.get(`${API_URL}/teachers/courses/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/teachers/courses/my`, {
+        headers: { }
       });
-      
+
       console.log('Courses response:', response.data);
-      
+
       if (response.data.success) {
         setCourses(response.data.data || []);
       }
@@ -66,15 +67,15 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
 
   const fetchStudentsForCourse = async () => {
     try {
-      const token = localStorage.getItem('token');
+
       console.log('Fetching students for course:', selectedCourse);
-      
-      const response = await axios.get(`${API_URL}/teachers/students/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/teachers/students/my`, {
+        headers: { }
       });
-      
+
       console.log('Students response:', response.data);
-      
+
       if (response.data.success) {
         // Filter students by selected course and without certificates
         const filtered = response.data.data.filter(
@@ -82,7 +83,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
         );
         console.log(`Found ${filtered.length} eligible students for course`);
         setStudents(filtered);
-        
+
         // If student was pre-selected via URL, verify they're in the list
         if (selectedStudent) {
           const studentExists = filtered.some(s => s._id === selectedStudent);
@@ -98,21 +99,21 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
 
   const fetchTemplatesForCourse = async () => {
     if (!selectedCourse) return;
-    
+
     setTemplatesLoading(true);
     setError('');
-    
+
     try {
-      const token = localStorage.getItem('token');
+
       const url = `${API_URL}/teachers/templates/course/${selectedCourse}`;
       console.log('Fetching templates from:', url);
-      
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(url, {
+        headers: { }
       });
-      
+
       console.log('Templates response:', response.data);
-      
+
       if (response.data.success) {
         setTemplates(response.data.data || []);
         if (response.data.data.length === 0) {
@@ -142,17 +143,17 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+
       const url = `${API_URL}/teachers/certificates/issue`;
       console.log('Issuing certificate to:', url);
-      
-      const response = await axios.post(url, {
+
+      const response = await apiClient.post(url, {
         studentId: selectedStudent,
         courseId: selectedCourse,
         templateId: selectedTemplate,
         awardDate
       }, {
-        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey({ studentId: selectedStudent, courseId: selectedCourse, templateId: selectedTemplate, awardDate }) }
+        headers: {  'Idempotency-Key': issuanceKey({ studentId: selectedStudent, courseId: selectedCourse, templateId: selectedTemplate, awardDate }) }
       });
 
       console.log('Issue response:', response.data);
@@ -165,10 +166,10 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
           studentName: students.find(s => s._id === selectedStudent)?.name,
           courseName: courses.find(c => c._id === selectedCourse)?.courseName
         });
-        
+
         // Refresh student list
         await fetchStudentsForCourse();
-        
+
         // Notify parent component
         if (onCertificateIssued) {
           onCertificateIssued();
@@ -377,7 +378,7 @@ const TeacherIssueCertificate = ({ API_URL, assignedCourses = [], instituteId, o
               </div>
               <button
                 onClick={() => {
-                  alert('Email functionality will be implemented');
+                  notify('Email functionality will be implemented');
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >

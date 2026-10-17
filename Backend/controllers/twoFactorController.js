@@ -4,6 +4,7 @@ const User = require('../models/User');
 const LoginChallenge = require('../models/LoginChallenge');
 const { getPolicy } = require('../utils/settingsPolicy');
 const { sendOtpEmail } = require('../utils/emailService');
+const { hasInstituteAccess } = require('../utils/accountAccess');
 
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const hashCode = (token, code) => crypto.createHmac('sha256', process.env.JWT_SECRET).update(`${token}:${code}`).digest('hex');
@@ -17,7 +18,7 @@ const beginTwoFactor = async (user, res, purpose = 'login') => {
   const otp = crypto.randomInt(100000, 1000000).toString();
   const challenge = await LoginChallenge.findOneAndUpdate({ userId: user._id }, {
     tokenHash: hash(challengeToken), codeHash: hashCode(challengeToken, otp), attempts: 0,
-    purpose,
+    purpose, sessionVersion: user.sessionVersion || 0,
     createdAt: new Date(), expiresAt: new Date(Date.now() + policy.otpExpiry * 60000)
   }, { upsert: true, new: true });
   try {
@@ -47,11 +48,25 @@ const verifyTwoFactor = async (req, res) => {
     if (!user || !['superadmin', 'institute', 'teacher'].includes(user.userType) || !user.isActive || (user.userType === 'institute' && (!user.isVerifiedByAdmin || (!user.isEmailVerified && !user.isPhoneVerified)))) {
       return res.status(403).json({ success: false, message: 'Account is unavailable.' });
     }
+    if (!Number.isSafeInteger(challenge.sessionVersion) || challenge.sessionVersion !== (user.sessionVersion || 0)) {
+      await LoginChallenge.deleteOne({ _id: challenge._id, tokenHash: hash(challengeToken) });
+      return res.status(401).json({ success: false, code: 'CHALLENGE_REVOKED', message: 'Your account changed. Sign in again for a new login code.' });
+    }
+    if (!await hasInstituteAccess(user)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
+    }
     const consumed = await LoginChallenge.findOneAndDelete({ _id: challenge._id, tokenHash: hash(challengeToken), expiresAt: { $gt: new Date() } });
     if (!consumed) return res.status(401).json({ success: false, message: 'Login code already used or expired. Sign in again.' });
     if (challenge.purpose === 'enable') {
+      const version = challenge.sessionVersion === 0
+        ? { $or: [{ sessionVersion: 0 }, { sessionVersion: { $exists: false } }] }
+        : { sessionVersion: challenge.sessionVersion };
+      const enabled = await User.updateOne({ _id: user._id, isActive: true, ...version },
+        { $set: { twoFactorEnabled: true, updatedAt: new Date() } });
+      if (enabled.matchedCount !== 1) {
+        return res.status(401).json({ success: false, code: 'CHALLENGE_REVOKED', message: 'Your account changed. Sign in again for a new login code.' });
+      }
       user.twoFactorEnabled = true;
-      await user.save();
     }
     const token = signAccessToken(user, { twoFactorVerified: true });
     const fields = ['instituteName', 'adminName', 'logo', 'isEmailVerified', 'isPhoneVerified', 'isVerifiedByAdmin', 'status', 'firstName', 'lastName', 'employeeId', 'department', 'designation', 'permissions', 'instituteId', 'assignedCourses'];

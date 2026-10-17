@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const { signAccessToken } = require('../config/jwt');
 const crypto = require('crypto');
 const User = require('../models/User');
@@ -10,6 +11,8 @@ const { isValidEmail, isValidPassword, isNonEmptyString } = require('../utils/va
 const { hashOtp } = require('../utils/otpSecurity');
 const ActivityLog = require('../models/ActivityLog');
 const { accountInstructionsResponse } = require('../utils/authResponses');
+const subscriptions = require('../services/subscriptionService');
+const { hasInstituteAccess } = require('../utils/accountAccess');
 
 const generateOTP = () => crypto.randomInt(100000, 999999).toString();
 
@@ -68,7 +71,7 @@ const registerInstitute = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already registered.' });
     }
 
-    const user = new User({
+    let user = new User({
       instituteName: instituteName.trim(),
       email: email.toLowerCase().trim(),
       phone: phone?.trim() || '',
@@ -85,7 +88,18 @@ const registerInstitute = async (req, res) => {
       isVerifiedByAdmin: false
     });
 
-    await user.save();
+    if (subscriptions.enabled()) {
+      const original = user.toObject();
+      user = await subscriptions.transaction(async session => {
+        const candidate = new User(original);
+        await candidate.save({ session });
+        await subscriptions.createRegistrationTrial(candidate._id, session);
+        return candidate;
+      });
+      user.$session(null);
+    } else {
+      await user.save();
+    }
 
     const accountOtp = generateOTP();
     await OTP.deleteMany({ email: user.email, type: { $in: ['email', 'phone'] } });
@@ -111,7 +125,7 @@ const registerInstitute = async (req, res) => {
       await sendOtpEmail({ to: user.email, otp: accountOtp, purpose: 'verification' });
       emailSent = true;
     } catch (emailError) {
-      console.warn('Warning: failed to send email OTP:', emailError.message);
+      appLogger.warn('Warning: failed to send email OTP:', emailError.message);
     }
 
     if (user.phone) {
@@ -119,13 +133,19 @@ const registerInstitute = async (req, res) => {
         await sendSMSOTP(user.phone, accountOtp);
         smsSent = true;
       } catch (smsError) {
-        console.warn('Warning: failed to send SMS OTP:', smsError.message);
+        appLogger.warn('Registration SMS failed', smsError);
       }
     }
 
     return res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your account with the OTP sent to your email or phone.',
+      message: emailSent && smsSent
+        ? 'Registration successful. Check your email or phone for your verification code.'
+        : emailSent
+          ? 'Your account was created. SMS delivery failed; please use the verification code sent to your email.'
+          : smsSent
+            ? 'Your account was created. Check your phone for your verification code. Email delivery failed.'
+            : 'Your account was created, but we could not send a verification code. Try Resend OTP shortly or contact support.',
       userId: user._id,
       email: user.email,
       nextStep: 'verify-account',
@@ -134,7 +154,7 @@ const registerInstitute = async (req, res) => {
       otp: process.env.NODE_ENV === 'test' ? accountOtp : undefined
     });
   } catch (error) {
-    console.error('Register institute error:', error);
+    appLogger.error('Register institute error:', error);
     return res.status(500).json({ success: false, message: 'Registration failed', error: error.message });
   }
 };
@@ -183,7 +203,7 @@ const verifyOtp = async (req, res) => {
       verifiedBy: otpRecord.type
     });
   } catch (error) {
-    console.error('Verify OTP error:', error);
+    appLogger.error('Verify OTP error:', error);
     return res.status(500).json({ success: false, message: 'OTP verification failed', error: error.message });
   }
 };
@@ -212,7 +232,7 @@ const resendOtp = async (req, res) => {
       try {
         await sendOtpEmail({ to: user.email, otp, purpose: 'verification' });
       } catch (emailError) {
-        console.warn('Warning: failed to resend email OTP:', emailError.message);
+        appLogger.warn('Warning: failed to resend email OTP:', emailError.message);
       }
     }
 
@@ -221,13 +241,13 @@ const resendOtp = async (req, res) => {
       try {
         await sendSMSOTP(user.phone, otp);
       } catch (smsError) {
-        console.warn('Warning: failed to resend SMS OTP:', smsError.message);
+        appLogger.warn('Verification SMS resend failed', smsError);
       }
     }
 
     return res.json(accountInstructionsResponse());
   } catch (error) {
-    console.error('Resend OTP error:', error);
+    appLogger.error('Resend OTP error:', error);
     return res.json(accountInstructionsResponse());
   }
 };
@@ -250,7 +270,7 @@ const forgotPassword = async (req, res) => {
 
     return res.json(genericResponse);
   } catch (error) {
-    console.error('Forgot password error:', error);
+    appLogger.error('Forgot password error:', error);
     return res.json(accountInstructionsResponse());
   }
 };
@@ -296,7 +316,7 @@ const resetPassword = async (req, res) => {
 
     return res.json({ success: true, message: 'Password reset successfully.' });
   } catch (error) {
-    console.error('Reset password error:', error);
+    appLogger.error('Reset password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to reset password', error: error.message });
   }
 };
@@ -312,7 +332,7 @@ const getCurrentUser = async (req, res) => {
 
     res.json({ success: true, data: safeUser });
   } catch (error) {
-    console.error('Get current user error:', error);
+    appLogger.error('Get current user error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch current user', error: error.message });
   }
 };
@@ -323,6 +343,10 @@ const login = async (req, res) => {
 
     if (!isValidEmail(email) || !isNonEmptyString(password)) {
       return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    }
+
+    if (userType !== undefined && !['superadmin', 'institute', 'teacher'].includes(userType)) {
+      return res.status(400).json({ success: false, message: 'Invalid account type.' });
     }
 
     const query = { email: email.toLowerCase().trim() };
@@ -349,6 +373,10 @@ const login = async (req, res) => {
 
     if (!user.isActive) {
       return res.status(403).json({ success: false, message: 'Your account is not active. Please contact administrator.' });
+    }
+
+    if (!await hasInstituteAccess(user)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
     }
 
     if (user.twoFactorEnabled) return await beginTwoFactor(user, res);
@@ -388,7 +416,7 @@ const login = async (req, res) => {
 
     return res.json({ success: true, token, user: userData });
   } catch (error) {
-    console.error('Login error:', error);
+    appLogger.error('Login error:', error);
     return res.status(500).json({ success: false, message: 'Login failed', error: error.message });
   }
 };
@@ -404,7 +432,7 @@ const verificationStatus = async (req, res) => {
     // Authenticated users can retrieve their own profile through /me.
     return res.json(accountInstructionsResponse());
   } catch (error) {
-    console.error('Verification status error:', error);
+    appLogger.error('Verification status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to check verification status', error: error.message });
   }
 };

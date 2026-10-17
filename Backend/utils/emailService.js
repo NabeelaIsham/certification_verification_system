@@ -1,5 +1,7 @@
+const { appLogger } = require('./logger.js');
 const nodemailer = require('nodemailer');
 const Settings = require('../models/Settings');
+const { assertDeliveryAllowed } = require('./deliveryPolicy');
 
 const DEFAULT_FROM_NAME = 'Certificate Verification System';
 
@@ -8,7 +10,7 @@ const getEmailSettings = async () => {
     const settings = await Settings.findOne();
     return settings?.email || {};
   } catch (error) {
-    console.error('Error loading email settings:', error);
+    appLogger.error('Error loading email settings:', error);
     return {};
   }
 };
@@ -26,6 +28,9 @@ const createTransporter = async () => {
   const smtpPass = (settingsHaveAuth && hasValue(emailConfig.smtpPassword) ? emailConfig.smtpPassword : process.env.EMAIL_PASS || '');
 
   return nodemailer.createTransport({
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 120000,
     host,
     port,
     secure: port === 465,
@@ -44,7 +49,8 @@ const getFromDetails = async () => {
   };
 };
 
-const sendEmail = async ({ to, subject, html }) => {
+const sendEmail = async ({ to, subject, html, attachments }) => {
+  assertDeliveryAllowed('email', to);
   const transporter = await createTransporter();
   const { fromName, fromEmail } = await getFromDetails();
 
@@ -56,7 +62,8 @@ const sendEmail = async ({ to, subject, html }) => {
     from: `"${fromName}" <${fromEmail}>`,
     to,
     subject,
-    html
+    html,
+    ...(attachments ? { attachments } : {})
   });
 };
 
@@ -134,7 +141,7 @@ const sendOtpEmail = async ({ to, otp, purpose = 'verification' }) => {
   });
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`OTP email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`OTP email sent to ${to}: ${info.messageId}`);
   return info;
 };
 
@@ -214,7 +221,7 @@ const sendCertificateEmail = async ({
   `;
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`Certificate email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`Certificate email sent to ${to}: ${info.messageId}`);
   return info;
 };
 
@@ -270,11 +277,50 @@ const sendCredentialShareEmail = async ({
   `;
 
   const info = await sendEmail({ to, subject, html });
-  console.log(`Credential share email sent to ${to}: ${info.messageId}`);
+  appLogger.log(`Credential share email sent to ${to}: ${info.messageId}`);
   return info;
 };
 
+const sendSubscriptionExpiredEmail = async ({ to, packageName, expiredAt }) => {
+  const expiry = new Date(expiredAt).toLocaleString('en-GB', { timeZone: 'Asia/Colombo', timeZoneName: 'short' });
+  const baseUrl = process.env.FRONTEND_URL || process.env.FRONTEND_BASE_URL || '';
+  const renewalUrl = /^https?:\/\//i.test(baseUrl) ? `${baseUrl.replace(/\/$/, '')}/institute/subscription` : '';
+  return sendEmail({ to, subject: `CERTIVERXIA: your ${packageName} package has expired`, html: `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;color:#071A4D">
+      <h1>Your package has expired</h1>
+      <p>Your <strong>${escapeHtml(packageName)}</strong> package ended on ${escapeHtml(expiry)}.</p>
+      <p>New certificate issuance, teacher and template creation, bulk issuance, and new secure sharing are no longer available under this package.</p>
+      <p>You can still sign in to renew, view your payment receipts, and access existing records. Existing certificates remain verifiable.</p>
+      ${renewalUrl ? `<p><a href="${escapeHtml(renewalUrl)}">Choose your next package</a></p>` : '<p>Sign in to CERTIVERXIA and open My Package to renew.</p>'}
+      <p>If you have already activated a replacement package, its access is unaffected.</p>
+      <p>CERTIVERXIA<br>info@certiverxia.com</p>
+    </div>` });
+};
+
+const sendPaidInvoiceEmail = ({ to, packageName, number, buffer }) => sendEmail({
+  to, subject: `CERTIVERXIA: paid invoice for ${packageName}`,
+  html: `<div style="font-family:Arial,sans-serif;color:#071A4D;padding:28px">
+    <h1>Payment approved <span style="color:#10B981">PAID</span></h1>
+    <p>Your <strong>${escapeHtml(packageName)}</strong> package payment has been verified by the super admin.</p>
+    <p>Your paid invoice ${escapeHtml(number)} is attached. It includes the amount received, approval date, and package term.</p>
+    <p>You can also download it any time from My Package &gt; Payment history.</p>
+    <p>CERTIVERXIA<br>info@certiverxia.com</p></div>`,
+  attachments: [{ filename: `${number}-PAID.pdf`, content: buffer, contentType: 'application/pdf' }]
+});
+
 module.exports = {
+  sendTeacherAccessEmail: ({ to, name, instituteName, url, invitation, hours }) => sendEmail({
+    to, subject: invitation ? 'CERTIVERXIA: your teacher account is active' : 'CERTIVERXIA: reset your teacher password',
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:28px;color:#071A4D">
+      <h1>${invitation ? 'Welcome to your teacher workspace' : 'Set a new password'}</h1>
+      <p>Hello ${escapeHtml(name)},</p><p>${escapeHtml(instituteName)} ${invitation ? 'has activated your teacher account.' : 'has requested a password reset for your teacher account.'}</p>
+      <p>Choose your own password using the button below, then sign in to your teacher dashboard. Available features depend on your institute package and assigned permissions.</p>
+      <p><a style="display:inline-block;background:#1464FF;color:white;padding:14px 22px;border-radius:8px;text-decoration:none" href="${escapeHtml(url)}">${invitation ? 'Set password and get started' : 'Reset my password'}</a></p>
+      <p>This link expires in ${hours} hours and can be used once. A newer link replaces an older one.</p><p>If this was unexpected, contact your institute. Do not share this link or your password.</p>
+      <p>CERTIVERXIA<br>info@certiverxia.com</p></div>`
+  }),
+  sendPaidInvoiceEmail,
+  sendSubscriptionExpiredEmail,
   createTransporter,
   sendEmail,
   sendOtpEmail,

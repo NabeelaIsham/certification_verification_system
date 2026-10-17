@@ -2,7 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
@@ -13,7 +13,11 @@
     "backup:database": "node scripts/backupDatabase.js",
     "repair:qrs": "node scripts/repairVerificationQrs.js",
     "setup-superadmin": "node scripts/setupSuperAdmin.js",
-    "setup-email": "node scripts/setupEmailSettings.js"
+    "setup-email": "node scripts/setupEmailSettings.js",
+    "check:deployment": "node scripts/deploymentReadiness.js",
+    "check:sms": "node scripts/checkSmsConfiguration.js",
+    "backup:restore-drill": "node scripts/restoreBackupDrill.js",
+    "assets:optimize": "node scripts/optimizeBrandAssets.js"
   },
   "keywords": [],
   "author": "",

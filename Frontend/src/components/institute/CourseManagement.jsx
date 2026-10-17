@@ -1,5 +1,6 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const CourseManagement = ({ API_URL }) => {
   const [courses, setCourses] = useState([]);
@@ -24,9 +25,9 @@ const CourseManagement = ({ API_URL }) => {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/courses`, {
+        headers: { }
       });
       if (response.data.success) {
         setCourses(response.data.data);
@@ -40,9 +41,9 @@ const CourseManagement = ({ API_URL }) => {
 
   const fetchTemplates = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/certificate-templates`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/certificate-templates`, {
+        headers: { }
       });
       if (response.data.success) {
         setTemplates(response.data.data);
@@ -64,25 +65,25 @@ const CourseManagement = ({ API_URL }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+
       if (editingCourse) {
         // Update course
-        const response = await axios.put(`${API_URL}/courses/${editingCourse._id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.put(`${API_URL}/courses/${editingCourse._id}`, formData, {
+          headers: { }
         });
         if (response.data.success) {
-          alert('Course updated successfully');
+          notify('Course updated successfully');
         }
       } else {
         // Create course
-        const response = await axios.post(`${API_URL}/courses`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.post(`${API_URL}/courses`, formData, {
+          headers: { }
         });
         if (response.data.success) {
-          alert('Course created successfully');
+          notify('Course created successfully');
         }
       }
-      
+
       setShowModal(false);
       setEditingCourse(null);
       setFormData({
@@ -95,7 +96,7 @@ const CourseManagement = ({ API_URL }) => {
       fetchCourses();
     } catch (error) {
       console.error('Error saving course:', error);
-      alert(error.response?.data?.message || 'Error saving course');
+      notify(error.response?.data?.message || 'Error saving course');
     } finally {
       setLoading(false);
     }
@@ -117,18 +118,18 @@ const CourseManagement = ({ API_URL }) => {
     if (!window.confirm('Are you sure you want to delete this course?')) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.delete(`${API_URL}/courses/${courseId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.delete(`${API_URL}/courses/${courseId}`, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
-        alert('Course deleted successfully');
+        notify('Course deleted successfully');
         fetchCourses();
       }
     } catch (error) {
       console.error('Error deleting course:', error);
-      alert(error.response?.data?.message || 'Error deleting course');
+      notify(error.response?.data?.message || 'Error deleting course');
     }
   };
 
@@ -217,8 +218,8 @@ const CourseManagement = ({ API_URL }) => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    course.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
+                    course.status === 'active'
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-gray-100 text-gray-800'
                   }`}>
                     {course.status}

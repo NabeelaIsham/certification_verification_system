@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const blank = { name: '', email: '', phone: '', courseId: '' };
 export default function TeacherStudentActions({ API_URL, permissions = {}, students, courses, onChange }) {
@@ -11,7 +11,7 @@ export default function TeacherStudentActions({ API_URL, permissions = {}, stude
   const request = async (method, path, data) => {
     setBusy(true); setMessage('');
     try {
-      const response = await axios({ method, url: `${API_URL}/teachers${path}`, data, headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const response = await apiClient({ method, url: `${API_URL}/teachers${path}`, data, headers: { } });
       const results = response.data.data;
       setMessage(results?.failed ? `${results.successful.length} imported. ${results.failed.length} failed. ${results.failed.map(row => `${row.email || 'Row'}: ${row.error}`).join(' ')}` : response.data.message);
       setSelected(''); setForm(blank); await onChange();

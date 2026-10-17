@@ -9,6 +9,7 @@ const schema = new mongoose.Schema({
   state: { type: String, enum: ['reserved', 'consumed', 'released'], required: true },
   attempt: { type: Number, required: true },
   leaseUntil: Date,
+  subscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subscription' },
   awardDate: { type: Date, required: true },
   certificateId: { type: mongoose.Schema.Types.ObjectId, ref: 'Certificate' }
 }, { timestamps: true });

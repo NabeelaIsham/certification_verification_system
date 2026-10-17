@@ -1,5 +1,10 @@
 # Atlas staging acceptance gate
 
+Current reconciliation (2026-10-16): [PR #2 is merged](https://github.com/NabeelaIsham/certification_verification_system/pull/2).
+The findings below describe the September 30 source/staging dataset, not a fresh audit
+of the currently configured production database. See [the latest review](READINESS_REVIEW_2026-10-16.md)
+for the separate database inspection, current PR/CI state and live deployment checks.
+
 Status on 2026-09-30: the supplied Atlas cluster is reachable (MongoDB 8.0.34).
 The local `certverify` database (8.0.5) was backed up and migrated into
 `certverify_staging_20260930`, then independently backed up and restored into
@@ -7,7 +12,7 @@ The local `certverify` database (8.0.5) was backed up and migrated into
 collections, 111 documents, collection options and indexes. Transaction commit and
 rollback passed on both Atlas copies. No application connection settings were changed.
 
-PR #1 is merged; PR #2 targets main and remains draft. Full staging acceptance is still
+PR #1 and PR #2 are merged. Full staging acceptance is still
 blocked by existing source-data issues and application/operational validation below.
 
 1. Create a separate Atlas staging project/cluster with the approved cloud region and tier.
@@ -37,7 +42,7 @@ blocked by existing source-data issues and application/operational validation be
    separate upload directory, and repeat counts/indexes, signature/file checks and the
    transaction probe. Record backup checksums, elapsed restore time and results without
    secrets or personal data. Rebuild staging containers and confirm file/database persistence.
-7. Record evidence and exact tested commit below. Only then mark PR #2 ready for review.
+7. Record evidence and exact tested commit below before accepting the application deployment.
    Complete controlled file access and operational readiness before subscriptions/credits;
    implement manual subscriptions before PayHere.
 
@@ -72,5 +77,5 @@ credential continuity plan; resolve orphan references without inventing/deleting
 normalize absolute file paths for the eventual staging host; isolate staging secrets and
 email/SMS delivery; validate application issuance, private-file/share flows and persisted
 deployment. Rotate the Atlas password disclosed in chat. No database URI/password is
-recorded in this document, Git, or the validation output. These findings prevent marking
-PR #2 ready despite successful data migration and restoration.
+recorded in this document, Git, or the validation output. These historical findings still
+require recovery/disposition evidence despite the completed PR merge and data migration.

@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const { sendEmail } = require('../utils/emailService');
 
 const sendTestEmail = async (req, res) => {
@@ -16,7 +17,7 @@ const sendTestEmail = async (req, res) => {
 
     return res.json({ success: true, message: `Test email sent to ${destinationEmail}` });
   } catch (error) {
-    console.error('Send test email error:', error);
+    appLogger.error('Send test email error:', error);
     return res.status(500).json({ success: false, message: 'Failed to send test email', error: error.message });
   }
 };

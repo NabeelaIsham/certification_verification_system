@@ -13,6 +13,7 @@ const { isValidPassword } = require('../../Backend/utils/validators');
 
 const validEnvironment = {
   NODE_ENV: 'production',
+  DEPLOYMENT_ENV: 'production',
   MONGODB_URI: 'mongodb://mongo:27017/certverify',
   JWT_SECRET: 'j'.repeat(40),
   CREDENTIAL_KEY_ENCRYPTION_SECRET: 'c'.repeat(40),

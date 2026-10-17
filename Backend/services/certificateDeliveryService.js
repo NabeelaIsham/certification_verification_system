@@ -29,6 +29,7 @@ const sendIssuedCertificateNotification = async ({ certificate, student, institu
 
   const token = crypto.randomBytes(32).toString('base64url');
   const instituteId = certificate.instituteId?._id || certificate.instituteId;
+  await require('./subscriptionService').requirePlanFeature(instituteId, 'secureSharing');
   const share = await Share.create({ certificate: certificate._id, institute: instituteId,
     createdBy: instituteId, tokenHash: crypto.createHash('sha256').update(token).digest('hex'),
     label: 'Certificate delivery', visibleFields: ['studentName', 'courseName', 'awardDate', 'instituteName', 'certificateCode', 'status', 'certificateImage'],

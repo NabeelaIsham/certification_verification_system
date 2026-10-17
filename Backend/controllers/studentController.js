@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const Student = require('../models/Student');
 const Course = require('../models/Course');
 const Certificate = require('../models/Certificate');
@@ -10,9 +11,9 @@ const createStudent = async (req, res) => {
 
     // Validate required fields
     if (!name || !email || !courseId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name, email, and course are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, and course are required'
       });
     }
 
@@ -20,22 +21,22 @@ const createStudent = async (req, res) => {
     const course = await Course.findOne({ _id: courseId, instituteId });
     if (!course) {
       return res.status(404).json({
-        success: false, 
-        message: 'Invalid course selected' 
+        success: false,
+        message: 'Invalid course selected'
       });
     }
 
     // Check if student already enrolled in this course
-    const existingStudent = await Student.findOne({ 
-      instituteId, 
-      email: email.toLowerCase(), 
-      courseId 
+    const existingStudent = await Student.findOne({
+      instituteId,
+      email: email.toLowerCase(),
+      courseId
     });
-    
+
     if (existingStudent) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Student already enrolled in this course' 
+      return res.status(400).json({
+        success: false,
+        message: 'Student already enrolled in this course'
       });
     }
 
@@ -61,9 +62,9 @@ const createStudent = async (req, res) => {
       data: student
     });
   } catch (error) {
-    console.error('Create student error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Create student error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to add student',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -77,7 +78,7 @@ const getStudents = async (req, res) => {
     const { search, courseId, status, page = 1, limit = 10 } = req.query;
 
     let query = { instituteId };
-    
+
     // Add search filter
     if (search) {
       query.$or = [
@@ -133,9 +134,9 @@ const getStudents = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get students error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get students error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch students',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -153,15 +154,15 @@ const getStudentById = async (req, res) => {
 
     if (!student) {
       return res.status(404).json({
-        success: false, 
-        message: 'Student not found' 
+        success: false,
+        message: 'Student not found'
       });
     }
 
     // Get certificate history for this student
-    const certificates = await Certificate.find({ 
-      studentId: id, 
-      instituteId 
+    const certificates = await Certificate.find({
+      studentId: id,
+      instituteId
     }).sort({ createdAt: -1 });
 
     res.json({
@@ -172,9 +173,9 @@ const getStudentById = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get student by ID error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get student by ID error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch student',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -199,7 +200,7 @@ const updateStudent = async (req, res) => {
     // If updating email, check if it's already taken
     if (updates.email) {
       updates.email = updates.email.toLowerCase();
-      
+
       const existingStudent = await Student.findOne({
         instituteId,
         email: updates.email,
@@ -217,11 +218,11 @@ const updateStudent = async (req, res) => {
 
     // If updating course, verify it exists
     if (updates.courseId) {
-      const course = await Course.findOne({ 
-        _id: updates.courseId, 
-        instituteId 
+      const course = await Course.findOne({
+        _id: updates.courseId,
+        instituteId
       });
-      
+
       if (!course) {
         return res.status(404).json({
           success: false,
@@ -238,8 +239,8 @@ const updateStudent = async (req, res) => {
 
     if (!student) {
       return res.status(404).json({
-        success: false, 
-        message: 'Student not found' 
+        success: false,
+        message: 'Student not found'
       });
     }
 
@@ -249,9 +250,9 @@ const updateStudent = async (req, res) => {
       data: student
     });
   } catch (error) {
-    console.error('Update student error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Update student error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to update student',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -265,15 +266,15 @@ const deleteStudent = async (req, res) => {
     const { id } = req.params;
 
     // Check if student has any certificates
-    const certificatesCount = await Certificate.countDocuments({ 
-      studentId: id, 
-      instituteId 
+    const certificatesCount = await Certificate.countDocuments({
+      studentId: id,
+      instituteId
     });
 
     if (certificatesCount > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot delete student with issued certificates. Please revoke certificates first or mark student as inactive.' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete student with issued certificates. Please revoke certificates first or mark student as inactive.'
       });
     }
 
@@ -281,8 +282,8 @@ const deleteStudent = async (req, res) => {
 
     if (!student) {
       return res.status(404).json({
-        success: false, 
-        message: 'Student not found' 
+        success: false,
+        message: 'Student not found'
       });
     }
 
@@ -291,9 +292,9 @@ const deleteStudent = async (req, res) => {
       message: 'Student deleted successfully'
     });
   } catch (error) {
-    console.error('Delete student error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Delete student error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to delete student',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -306,7 +307,7 @@ const bulkUploadStudents = async (req, res) => {
     const instituteId = req.instituteId || req.user.id;
     const { students } = req.body;
 
-    console.log('Bulk upload received:', JSON.stringify(students, null, 2));
+    appLogger.log('Bulk upload received:', JSON.stringify(students, null, 2));
 
     if (!students || !Array.isArray(students) || students.length === 0) {
       return res.status(400).json({
@@ -316,7 +317,7 @@ const bulkUploadStudents = async (req, res) => {
     }
 
     // Log the first student to check format
-    console.log('First student data:', students[0]);
+    appLogger.log('First student data:', students[0]);
 
     const results = {
       successful: [],
@@ -325,22 +326,22 @@ const bulkUploadStudents = async (req, res) => {
 
     // Get all courses for this institute for quick lookup
     const courses = await Course.find({ instituteId, ...(req.allowedCourseIds ? { _id: { $in: req.allowedCourseIds } } : {}) });
-    console.log(`Found ${courses.length} courses for institute`);
-    
+    appLogger.log(`Found ${courses.length} courses for institute`);
+
     const courseMap = {};
     courses.forEach(course => {
       courseMap[course.courseCode.toUpperCase()] = course;
     });
-    console.log('Available course codes:', Object.keys(courseMap));
+    appLogger.log('Available course codes:', Object.keys(courseMap));
 
     for (let i = 0; i < students.length; i++) {
       const studentData = students[i];
-      console.log(`Processing student ${i + 1}:`, studentData);
+      appLogger.log(`Processing student ${i + 1}:`, studentData);
 
       try {
         // Check if this is actually a header row
         if (studentData.name?.toLowerCase() === 'name' && studentData.email?.toLowerCase() === 'email') {
-          console.log('Skipping possible header row:', studentData.name);
+          appLogger.log('Skipping possible header row:', studentData.name);
           continue;
         }
 
@@ -360,7 +361,7 @@ const bulkUploadStudents = async (req, res) => {
         const phone = studentData.phone ? studentData.phone.trim() : '';
         const enrollmentDate = studentData.enrollmentDate ? new Date(studentData.enrollmentDate) : new Date();
 
-        console.log(`Looking for course with code: "${courseCode}"`);
+        appLogger.log(`Looking for course with code: "${courseCode}"`);
 
         // Find course by course code
         const course = courseMap[courseCode];
@@ -372,7 +373,7 @@ const bulkUploadStudents = async (req, res) => {
           continue;
         }
 
-        console.log(`Found course: ${course.courseName} (${course._id})`);
+        appLogger.log(`Found course: ${course.courseName} (${course._id})`);
 
         // Check if student already exists
         const existingStudent = await Student.findOne({
@@ -400,15 +401,15 @@ const bulkUploadStudents = async (req, res) => {
         });
 
         await student.save();
-        console.log(`✅ Student created: ${name} (${email})`);
-        
+        appLogger.log(`✅ Student created: ${name} (${email})`);
+
         results.successful.push({
           name: student.name,
           email: student.email,
           courseCode: course.courseCode
         });
       } catch (error) {
-        console.error(`Error processing student ${i + 1}:`, error);
+        appLogger.error(`Error processing student ${i + 1}:`, error);
         results.failed.push({
           ...studentData,
           error: error.message
@@ -416,15 +417,15 @@ const bulkUploadStudents = async (req, res) => {
       }
     }
 
-    console.log(`Bulk upload complete: ${results.successful.length} successful, ${results.failed.length} failed`);
-    
+    appLogger.log(`Bulk upload complete: ${results.successful.length} successful, ${results.failed.length} failed`);
+
     res.json({
       success: true,
       message: `Bulk upload completed: ${results.successful.length} successful, ${results.failed.length} failed`,
       data: results
     });
   } catch (error) {
-    console.error('Bulk upload error:', error);
+    appLogger.error('Bulk upload error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to process bulk upload',
@@ -440,8 +441,8 @@ const getStudentsByCourse = async (req, res) => {
     const { courseId } = req.params;
     if (!await Course.findOne({ _id: courseId, instituteId })) return res.status(404).json({ success: false, message: 'Course not found' });
 
-    const students = await Student.find({ 
-      instituteId, 
+    const students = await Student.find({
+      instituteId,
       courseId,
       status: 'active'
     }).select('name email phone enrollmentDate');
@@ -451,7 +452,7 @@ const getStudentsByCourse = async (req, res) => {
       data: students
     });
   } catch (error) {
-    console.error('Get students by course error:', error);
+    appLogger.error('Get students by course error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch students'
@@ -492,7 +493,7 @@ const updateStudentStatus = async (req, res) => {
       data: student
     });
   } catch (error) {
-    console.error('Update student status error:', error);
+    appLogger.error('Update student status error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update student status'
@@ -507,11 +508,11 @@ const exportStudents = async (req, res) => {
     const { courseId, status } = req.query;
 
     let query = { instituteId };
-    
+
     if (courseId && courseId !== 'all') {
       query.courseId = courseId;
     }
-    
+
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -537,7 +538,7 @@ const exportStudents = async (req, res) => {
       count: exportData.length
     });
   } catch (error) {
-    console.error('Export students error:', error);
+    appLogger.error('Export students error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to export students'

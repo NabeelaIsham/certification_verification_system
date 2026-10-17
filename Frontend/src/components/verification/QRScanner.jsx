@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useRef, useEffect } from 'react'
 
 const QRScanner = () => {
@@ -16,7 +17,7 @@ const QRScanner = () => {
       setScanning(true)
     } catch (error) {
       console.error('Error accessing camera:', error)
-      alert('Unable to access camera. Please check permissions.')
+      notify('Unable to access camera. Please check permissions.')
     }
   }
 

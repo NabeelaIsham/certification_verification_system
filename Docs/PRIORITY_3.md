@@ -13,13 +13,18 @@ institute's directory, including real-path checks that reject linked files.
   institute or authorized teacher. Institute previews and links load authenticated blobs.
 - `/api/private-files/templates/:id/background` and `/:assetIndex`: the same ownership
   checks, including teacher course assignments. Template previews use authenticated blobs.
-- Public verification returns credential details, status and signature results. It does
-  not return image/QR URLs, filesystem paths, internal lifecycle records or compact payloads.
+- Public verification returns credential details, status, signature results and an image
+  preview URL for eligible certificates, plus the public `/certificate/:code` sharing URL.
+  It does not return QR URLs, filesystem paths, internal lifecycle records or compact payloads.
+  Public image/page requests recheck certificate lifecycle and issuer trust; image access
+  is scoped to the institute's generated files. See [CERTIFICATE_SHARING.md](CERTIFICATE_SHARING.md).
 - Opening a share atomically consumes one view. If image disclosure is permitted, it
   grants five minutes to display/download that image without consuming another view.
   Each file request rechecks share expiry/revocation, image disclosure, institute ownership,
   and active certificate status. Exhaustion prevents new views; the final counted view's
   grant works for its remaining five minutes. Previously downloaded copies cannot be revoked.
+  A valid public certificate code separately permits the public preview above; revoking a
+  controlled share token does not revoke that active certificate's public preview.
 - Certificate emails now link to a controlled share (72 hours, 25 views). Failed email
   delivery revokes the newly created share. Existing static links in old emails stop working;
   use the existing resend action to send a controlled link.
@@ -56,7 +61,8 @@ views, revoked/expired shares/certificates, public verification, delivery email 
 upload spoofing, limits and failure cleanup. Frontend tests cover authenticated blobs,
 object URL cleanup and access-token destination restrictions.
 
-Deploy the backend, frontend and proxy changes together. Keep this branch stacked on
-Priority 2 until its staging gate passes. Actual Atlas migration/restoration, persisted
+Deploy the backend, frontend and proxy changes together. PR #2 is merged and the original
+controlled-file foundation is already in main; reconcile the remaining PR #3 changes using
+the [current review](READINESS_REVIEW_2026-10-16.md). Actual Atlas migration/restoration, persisted
 volume survival, off-server backups, secret rotation and production monitoring remain
 operational gates; passing local tests does not complete them.
