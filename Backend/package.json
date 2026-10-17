@@ -40,7 +40,7 @@
     "pdfkit": "^0.20.2",
     "qrcode": "^1.5.4",
     "sharp": "^0.35.5",
-    "twilio": "^5.12.1"
+    "twilio": "^6.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
