@@ -608,6 +608,31 @@ describe('Manual receipt submission and review', () => {
     expect(saved.status).toBe('active'); expect(saved.allocated).toBe(100); expect(saved.paymentProof.status).toBe('approved');
     expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(1);
   });
+  test('receipt downloads require authentication and only super admins can review a submitted proof', async () => {
+    expect((await upload(pending._id, await pngBytes())).status).toBe(200);
+    const before = await Subscription.findById(pending._id);
+    const receiptUrl = `/api/subscriptions/${pending._id}/receipt`;
+    expect((await request(app).get(receiptUrl)).status).toBe(401);
+    expect((await api('get', receiptUrl, {}, teacherToken)).status).toBe(403);
+    const approve = { reference: 'BANK-RECEIPT-123', amountMinor: 1490000, receiptVersion: before.paymentProof.receiptVersion };
+    const reject = { reason: 'Unauthorized review', receiptVersion: before.paymentProof.receiptVersion };
+    const reviewUrl = `/api/subscriptions/admin/subscriptions/${pending._id}`;
+    expect((await request(app).post(`${reviewUrl}/activate`).send(approve)).status).toBe(401);
+    expect((await request(app).post(`${reviewUrl}/reject-receipt`).send(reject)).status).toBe(401);
+    for (const actorToken of [token, signAccessToken(b), teacherToken]) {
+      expect((await api('get', '/api/subscriptions/admin/reviews', {}, actorToken)).status).toBe(403);
+      expect((await api('post', `${reviewUrl}/activate`, approve, actorToken)).status).toBe(403);
+      expect((await api('post', `${reviewUrl}/reject-receipt`, reject, actorToken)).status).toBe(403);
+    }
+    const after = await Subscription.findById(pending._id);
+    expect(after.status).toBe('pending');
+    expect(after.paymentProof.status).toBe('submitted');
+    expect(after.paymentProof.receiptVersion).toBe(before.paymentProof.receiptVersion);
+    expect(after.allocated).toBe(0);
+    expect(await Payment.countDocuments({ subscriptionId: pending._id })).toBe(0);
+    expect(await UsageTransaction.countDocuments({ subscriptionId: pending._id, event: 'credit_allocated' })).toBe(0);
+    expect(await SubscriptionEvent.countDocuments({ subscriptionId: pending._id, event: 'payment_receipt_rejected' })).toBe(0);
+  });
   test('rejects spoofed images and cross-tenant uploads; permits corrected receipt after rejection', async () => {
     expect((await upload(pending._id, Buffer.from('not a PNG'))).status).toBe(400);
     expect((await upload(pending._id, await pngBytes(), signAccessToken(b))).status).toBe(404);
