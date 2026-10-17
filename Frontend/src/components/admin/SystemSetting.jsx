@@ -111,8 +111,8 @@ const SystemSettings = ({ API_URL }) => {
     if (window.confirm('Are you sure you want to reset all settings to default?')) {
       setSettings({
         general: {
-          systemName: 'Certificate Verification System',
-          supportEmail: 'support@certverify.com',
+          systemName: 'Certiverxia',
+          supportEmail: 'info@certiverxia.com',
           companyName: 'Your Company Name',
           timezone: 'Asia/Colombo',
           dateFormat: 'DD/MM/YYYY'
@@ -126,12 +126,12 @@ const SystemSettings = ({ API_URL }) => {
           requirePhoneVerification: true
         },
         email: {
-          smtpServer: 'smtp.gmail.com',
-          smtpPort: 587,
+          smtpServer: 'smtp.hostinger.com',
+          smtpPort: 465,
           smtpUsername: '',
           smtpPassword: '',
           fromEmail: '',
-          fromName: 'Certificate System'
+          fromName: 'Certiverxia'
         },
         verification: {
           otpExpiry: 5,
@@ -387,7 +387,7 @@ const SystemSettings = ({ API_URL }) => {
                   value={settings.email?.smtpServer || ''}
                   onChange={(e) => handleSettingChange('email', 'smtpServer', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="smtp.gmail.com"
+                  placeholder="smtp.hostinger.com"
                 />
               </div>
 
@@ -397,7 +397,7 @@ const SystemSettings = ({ API_URL }) => {
                 </label>
                 <input
                   type="number"
-                  value={settings.email?.smtpPort || 587}
+                  value={settings.email?.smtpPort || 465}
                   onChange={(e) => handleSettingChange('email', 'smtpPort', parseInt(e.target.value))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />

@@ -5,11 +5,11 @@ const settingsSchema = new mongoose.Schema({
   general: {
     systemName: {
       type: String,
-      default: 'Certificate Verification System'
+      default: 'Certiverxia'
     },
     supportEmail: {
       type: String,
-      default: 'support@certverify.com'
+      default: 'info@certiverxia.com'
     },
     companyName: {
       type: String,
@@ -57,11 +57,11 @@ const settingsSchema = new mongoose.Schema({
   email: {
     smtpServer: {
       type: String,
-      default: 'smtp.gmail.com'
+      default: 'smtp.hostinger.com'
     },
     smtpPort: {
       type: Number,
-      default: 587
+      default: 465
     },
     smtpUsername: {
       type: String,
@@ -77,7 +77,7 @@ const settingsSchema = new mongoose.Schema({
     },
     fromName: {
       type: String,
-      default: 'Certificate System'
+      default: 'Certiverxia'
     }
   },
 

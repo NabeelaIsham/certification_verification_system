@@ -1,0 +1,50 @@
+http:
+  routers:
+    www:
+      rule: 'Host(`www.certiverxia.com`)'
+      entryPoints: [websecure]
+      service: frontend
+      middlewares: [canonical]
+      tls:
+        certResolver: letsencrypt
+    api:
+      rule: 'Host(`certiverxia.com`) && (Path(`/api`) || PathPrefix(`/api/`) || Path(`/uploads`) || PathPrefix(`/uploads/`) || Path(`/health`))'
+      priority: 100
+      entryPoints: [websecure]
+      service: backend
+      middlewares: [security]
+      tls:
+        certResolver: letsencrypt
+    website:
+      rule: 'Host(`certiverxia.com`)'
+      priority: 10
+      entryPoints: [websecure]
+      service: frontend
+      middlewares: [security]
+      tls:
+        certResolver: letsencrypt
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: http://backend:5000
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://frontend:80
+  middlewares:
+    canonical:
+      redirectRegex:
+        regex: '^https://www\.certiverxia\.com/(.*)'
+        replacement: 'https://certiverxia.com/${1}'
+        permanent: true
+    security:
+      headers:
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: no-referrer
+        stsSeconds: 31536000
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
