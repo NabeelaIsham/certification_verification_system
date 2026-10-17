@@ -1,8 +1,0 @@
-old                                      new                                      ref
-0dfca5800f17323eec06584310f156ee54497fe4 819c5ef77e8f3bc94309f04f79876fc260d4f604 refs/heads/feat/manual-payment-receipts
-656d24cd461bbfa0d31d1a4cfc598841a1f9985e f27e27c9d75899cdf7e14f6b32b549d99aaa3586 refs/heads/feat/saas-manual-subscriptions
-65eb0f13b5bfc6b80d8122fb992faad50f197f02 36cc8ac6071f19ad18cbe8143afdcf13d71d8d35 refs/heads/fix/priority-1-security
-72d399c9309b170ce721ff55636b215f1d2576df 3f35b2fb18d3047a221007db60de2b953ca8123c refs/heads/fix/priority-2-foundation
-67d5c37c4452e3edc8630746911155cd763adb26 96bd077f0ef665c960b09b11ff59077657613b93 refs/heads/fix/priority-3-file-access
-f636fd6b097f0e7af4c9eedac4bc103857d1f7c8 600711561a9aeb663272f30dd66c78ea348d37cd refs/heads/fix/priority-4-5-operations
-151469379a1f5f0a8a38dc6d03fd31fb7b9cc929 9084818e34035db486c1cc03d493c07b872ab62f refs/heads/main
