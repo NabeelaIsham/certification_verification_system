@@ -49,6 +49,8 @@ const Navbar = () => {
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
             <button
+              aria-label={isOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={isOpen}
               onClick={() => setIsOpen(!isOpen)}
               className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-blue-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
             >

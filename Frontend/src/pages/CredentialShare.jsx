@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../services/api.jsx';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -12,7 +12,7 @@ const CredentialShare = () => {
 
   useEffect(() => {
     let active = true;
-    axios.get(`${API_URL}/certificates/verify/share/${encodeURIComponent(token)}`)
+    apiClient.get(`${API_URL}/certificates/verify/share/${encodeURIComponent(token)}`)
       .then((response) => {
         if (active) setCredential(response.data.data);
       })
@@ -74,10 +74,18 @@ const CredentialShare = () => {
 
           {credential.certificateImage && (
             <img
+              referrerPolicy="no-referrer"
               src={credential.certificateImage}
               alt="Shared certificate"
               className="mt-6 w-full rounded-lg border border-gray-200"
             />
+          )}
+
+          {credential.certificateImage && (
+            <p className="mt-3 text-center">
+              <a href={`${credential.certificateImage}&download=1`} rel="noreferrer" className="text-blue-700 underline">Download certificate</a>
+              <span className="block mt-1 text-xs text-gray-500">File access lasts five minutes. Reopen this share if it expires.</span>
+            </p>
           )}
 
           <div className={`mt-6 rounded-lg border p-4 text-sm ${

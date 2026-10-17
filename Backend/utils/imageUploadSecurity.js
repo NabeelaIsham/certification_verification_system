@@ -15,6 +15,8 @@ const sanitizeUploadedImage = async (file, allowedFormats) => {
       limitInputPixels: 40_000_000
     });
     const metadata = await image.metadata();
+    const declaredFormat = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[file.mimetype];
+    if (!declaredFormat || metadata.format !== declaredFormat) throw new Error('Image contents do not match the declared MIME type');
     if (allowedFormats) {
       const normalized = allowedFormats.map(format => format === 'JPG' ? 'jpeg' : format.toLowerCase());
       if (!normalized.includes(metadata.format)) throw new Error('This image encoding is disabled in certificate settings');
@@ -49,8 +51,13 @@ const sanitizeUploadedImage = async (file, allowedFormats) => {
 
 const sanitizeUploadedImages = async (files, allowedFormats) => {
   const sanitized = [];
-  for (const file of files) {
-    sanitized.push(await sanitizeUploadedImage(file, allowedFormats));
+  try {
+    for (const file of files) {
+      sanitized.push(await sanitizeUploadedImage(file, allowedFormats));
+    }
+  } catch (error) {
+    await Promise.allSettled(files.map(file => fs.unlink(file.path)));
+    throw error;
   }
   return sanitized;
 };

@@ -1,6 +1,9 @@
+const { appLogger } = require('../utils/logger.js');
 const mongoose = require('mongoose');
+const { requireDatabaseUri } = require('./databaseUri');
 
 const loadModels = () => {
+  require('../models/Saas');
   require('../models/User');
   require('../models/Notification');
   require('../models/Course');
@@ -18,21 +21,23 @@ const loadModels = () => {
   require('../models/IssuanceEvent');
 };
 
-const connectDatabase = async () => {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/certverify';
+const connectDatabase = async (options = {}) => {
+  const mongoUri = requireDatabaseUri();
 
   await mongoose.connect(mongoUri, {
     serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 10000),
     maxPoolSize: Number(process.env.MONGODB_MAX_POOL_SIZE || 20),
-    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1)
+    minPoolSize: Number(process.env.MONGODB_MIN_POOL_SIZE || 1),
+    ...options
   });
-  console.log('MongoDB connected successfully');
+  appLogger.log('MongoDB connected successfully');
 
   return mongoose.connection;
 };
 
 const ensureCollections = async () => {
   const modelNames = [
+    'Plan', 'Subscription', 'UsageTransaction', 'SubscriptionEvent', 'Payment', 'BankPaymentDetails', 'SubscriptionExpiryEmail', 'PaymentInvoiceEmail',
     'User',
     'Notification',
     'Course',
@@ -62,9 +67,9 @@ const ensureCollections = async () => {
       }
       // createIndexes is additive and does not drop unknown production indexes.
       await Model.createIndexes();
-      console.log(`Collection ready: ${Model.collection.name}`);
+      appLogger.log(`Collection ready: ${Model.collection.name}`);
     } catch (error) {
-      console.error(`Failed to prepare collection ${modelName}:`, error.message);
+      appLogger.error(`Failed to prepare collection ${modelName}:`, error.message);
       throw error;
     }
   }
@@ -79,7 +84,7 @@ const seedSuperAdmin = async () => {
   } = process.env;
 
   if (!SUPERADMIN_EMAIL || !SUPERADMIN_PASSWORD) {
-    console.warn('SUPERADMIN_EMAIL or SUPERADMIN_PASSWORD is missing; skipping superadmin seed.');
+    appLogger.warn('SUPERADMIN_EMAIL or SUPERADMIN_PASSWORD is missing; skipping superadmin seed.');
     return;
   }
 
@@ -93,7 +98,7 @@ const seedSuperAdmin = async () => {
     existing.isVerifiedByAdmin = true;
     existing.status = 'approved';
     await existing.save();
-    console.log(`Superadmin ready: ${email}`);
+    appLogger.log(`Superadmin ready: ${email}`);
     return;
   }
 
@@ -108,7 +113,7 @@ const seedSuperAdmin = async () => {
     status: 'approved'
   });
 
-  console.log(`Superadmin created: ${email}`);
+  appLogger.log(`Superadmin created: ${email}`);
 };
 
 const seedSettings = async () => {
@@ -118,7 +123,7 @@ const seedSettings = async () => {
     EMAIL_PORT,
     EMAIL_USER,
     EMAIL_PASS,
-    EMAIL_FROM_NAME = 'Verify Awards'
+    EMAIL_FROM_NAME = 'CERTIVERXIA'
   } = process.env;
 
   let settings = await Settings.findOne();
@@ -138,7 +143,7 @@ const seedSettings = async () => {
   if (EMAIL_FROM_NAME) settings.email.fromName = EMAIL_FROM_NAME;
 
   await settings.save();
-  console.log('Settings ready');
+  appLogger.log('Settings ready');
 };
 
 const initializeDatabase = async () => {

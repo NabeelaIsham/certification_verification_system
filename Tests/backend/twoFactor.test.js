@@ -1,4 +1,4 @@
-jest.mock('../../Backend/models/User', () => ({ findOne: jest.fn(), findById: jest.fn() }));
+jest.mock('../../Backend/models/User', () => ({ findOne: jest.fn(), findById: jest.fn(), exists: jest.fn(), updateOne: jest.fn() }));
 jest.mock('../../Backend/models/Settings', () => ({ findOne: jest.fn() }));
 jest.mock('../../Backend/models/LoginChallenge', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn(), findOneAndDelete: jest.fn(), deleteOne: jest.fn() }));
 jest.mock('../../Backend/utils/emailService', () => ({ sendOtpEmail: jest.fn() }));
@@ -12,7 +12,7 @@ const { updateTwoFactor } = require('../../Backend/controllers/twoFactorControll
 const { authenticateToken } = require('../../Backend/middleware/authMiddleware');
 const jwt = require('jsonwebtoken');
 
-const user = { _id: 'admin-id', email: 'admin@example.com', userType: 'superadmin', isActive: true, comparePassword: jest.fn() };
+const user = { _id: 'admin-id', email: 'admin@example.com', userType: 'superadmin', instituteId: 'institute-id', isActive: true, comparePassword: jest.fn() };
 const response = () => { const res = { status: jest.fn(), json: jest.fn() }; res.status.mockReturnValue(res); return res; };
 let record;
 beforeEach(() => {
@@ -21,6 +21,8 @@ beforeEach(() => {
   user.comparePassword.mockResolvedValue(true);
   User.findOne.mockResolvedValue(user);
   User.findById.mockResolvedValue(user);
+  User.exists.mockResolvedValue({ _id: 'institute-id' });
+  User.updateOne.mockResolvedValue({ matchedCount: 1 });
   Settings.findOne.mockResolvedValue({ security: { twoFactorAuth: true } });
   Challenge.findOneAndUpdate.mockImplementation(async (filter, update) => {
     if (update.$inc) return record;
@@ -119,7 +121,25 @@ test('enrollment does not enable 2FA until the emailed code is verified', async 
   User.findById.mockResolvedValue(account);
   const verified = response();
   await verifyTwoFactor({ body: { challengeToken: initial.json.mock.calls[0][0].challengeToken, otp: sendOtpEmail.mock.calls[0][0].otp } }, verified);
-  expect(account.twoFactorEnabled).toBe(true); expect(account.save).toHaveBeenCalled();
+  expect(account.twoFactorEnabled).toBe(true);
+  expect(User.updateOne).toHaveBeenCalledWith(expect.objectContaining({ _id: account._id, isActive: true,
+    $or: [{ sessionVersion: 0 }, { sessionVersion: { $exists: false } }] }), expect.objectContaining({ $set: expect.objectContaining({ twoFactorEnabled: true }) }));
+  expect(account.save).not.toHaveBeenCalled();
+});
+
+test('enrollment cannot enable 2FA when the session changes between its check and update', async () => {
+  const account = { ...user, userType: 'teacher', twoFactorEnabled: false, sessionVersion: 2, save: jest.fn() };
+  const initial = response();
+  await updateTwoFactor({ user: account, userId: account._id, body: { enabled: true, password: 'password' } }, initial);
+  User.findById.mockResolvedValue(account);
+  User.updateOne.mockResolvedValue({ matchedCount: 0 });
+  const verified = response();
+  await verifyTwoFactor({ body: { challengeToken: initial.json.mock.calls[0][0].challengeToken, otp: sendOtpEmail.mock.calls[0][0].otp } }, verified);
+  expect(User.updateOne).toHaveBeenCalledWith(expect.objectContaining({ _id: account._id, sessionVersion: 2 }), expect.any(Object));
+  expect(verified.status).toHaveBeenCalledWith(401);
+  expect(verified.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CHALLENGE_REVOKED' }));
+  expect(account.twoFactorEnabled).toBe(false);
+  expect(account.save).not.toHaveBeenCalled();
 });
 test('disabling 2FA requires the current password', async () => {
   const account = { ...user, userType: 'teacher', twoFactorEnabled: true, comparePassword: jest.fn().mockResolvedValue(false), save: jest.fn() };

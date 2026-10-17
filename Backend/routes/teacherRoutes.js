@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const access = require('../controllers/teacherAccessController');
+const { createRateLimit } = require('../middleware/rateLimit');
+const passwordLimit = createRateLimit({ max: 20, windowMs: 15 * 60000, keyPrefix: 'teacher-password' });
 const teacherPermission = require('../middleware/teacherPermission');
 const students = require('../controllers/studentController');
 const courses = require('../controllers/courseController');
@@ -30,6 +33,7 @@ const {
 
 // ============ PUBLIC ROUTES ============
 router.post('/login', teacherLogin);
+router.post('/password-setup', passwordLimit, access.complete);
 
 // ============ TEACHER ROUTES (Self-service) ============
 router.get('/profile/me', authenticateToken, authorizeTeacher, getTeacherProfile);
@@ -51,6 +55,8 @@ router.post('/certificates/issue', authenticateToken, authorizeTeacher, teacherP
 
 // ============ INSTITUTE ADMIN ROUTES ============
 router.post('/', authenticateToken, authorizeInstitute, createTeacher);
+router.post('/:id/password-link', authenticateToken, authorizeInstitute, passwordLimit, access.sendLink);
+router.post('/:id/reset-password', authenticateToken, authorizeInstitute, passwordLimit, access.adminReset);
 router.get('/', authenticateToken, authorizeInstitute, getTeachers);
 router.get('/:id', authenticateToken, authorizeInstitute, getTeacherById);
 router.put('/:id', authenticateToken, authorizeInstitute, updateTeacher);

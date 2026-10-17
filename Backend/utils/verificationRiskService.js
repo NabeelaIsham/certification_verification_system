@@ -1,3 +1,4 @@
+const { appLogger } = require('./logger.js');
 const crypto = require('crypto');
 const VerificationLog = require('../models/VerificationLog');
 const Notification = require('../models/Notification');
@@ -93,7 +94,7 @@ const recordVerification = async ({
     }
     return log;
   } catch (error) {
-    console.error('Failed to record verification analytics:', error);
+    appLogger.error('Failed to record verification analytics:', error);
     return null;
   }
 };

@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const reloadModels = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/certverify');
+    await mongoose.connect(require('../config/databaseUri').requireDatabaseUri());
     console.log('✅ Connected to MongoDB');
 
     // Clear all model caches

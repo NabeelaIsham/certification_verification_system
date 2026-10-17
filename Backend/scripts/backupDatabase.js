@@ -1,42 +1,28 @@
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
-const dotenv = require('dotenv');
+const { runMongoTool, hashFile } = require('../utils/mongoTools');
+require('dotenv').config({ quiet: true });
 
-dotenv.config();
-
-const mongoUri = process.env.MONGODB_URI;
-if (!mongoUri) {
-  console.error('MONGODB_URI is required');
-  process.exit(1);
+const run = async () => {
+  if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is required');
+  const directory = path.resolve(process.env.BACKUP_DIRECTORY || path.join(__dirname, '../backups'));
+  fs.mkdirSync(directory, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const archive = path.join(directory, `certverify-${timestamp}.archive.gz`);
+  const temporary = `${archive}.partial`;
+  try {
+    runMongoTool(process.env.MONGODUMP_PATH || 'mongodump', process.env.MONGODB_URI, [`--archive=${temporary}`, '--gzip']);
+    const { size } = fs.statSync(temporary);
+    if (!size) throw new Error('Database backup is empty');
+    const checksum = await hashFile(temporary);
+    fs.writeFileSync(`${archive}.sha256`, checksum + '\n', { mode: 0o600, flag: 'wx' });
+    fs.renameSync(temporary, archive);
+    console.log(`Database backup created: ${archive} (${size} bytes); SHA-256 manifest saved.`);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+};
+if (require.main === module) {
+  run().catch(error => { console.error(error.message); process.exitCode = 1; });
 }
-
-const backupDirectory = path.resolve(
-  process.env.BACKUP_DIRECTORY || path.join(__dirname, '../backups')
-);
-fs.mkdirSync(backupDirectory, { recursive: true });
-
-const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-const archivePath = path.join(backupDirectory, `certverify-${timestamp}.archive.gz`);
-const mongodump = process.env.MONGODUMP_PATH || 'mongodump';
-const result = spawnSync(mongodump, [
-  `--uri=${mongoUri}`,
-  `--archive=${archivePath}`,
-  '--gzip'
-], {
-  stdio: 'inherit',
-  windowsHide: true
-});
-
-if (result.error) {
-  console.error(`Database backup failed: ${result.error.message}`);
-  console.error('Install MongoDB Database Tools or set MONGODUMP_PATH to the mongodump executable.');
-  process.exit(1);
-}
-if (result.status !== 0) {
-  console.error(`Database backup failed with exit code ${result.status}`);
-  process.exit(result.status || 1);
-}
-
-const stats = fs.statSync(archivePath);
-console.log(`Database backup created: ${archivePath} (${stats.size} bytes)`);
+module.exports = { run };

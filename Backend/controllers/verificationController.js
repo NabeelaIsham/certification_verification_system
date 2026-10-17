@@ -1,33 +1,26 @@
-const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
+const { appLogger } = require('../utils/logger.js');
 const Certificate = require('../models/Certificate');
-const path = require('path');
-const fs = require('fs');
-const {
-  verifyStoredCredential,
-  credentialToCompactToken,
-  isCredentialKeyTrusted
-} = require('../utils/credentialService');
+const { inspectPublicCertificate, publicCertificateLinks } = require('../utils/publicCertificate');
 const { recordVerification } = require('../utils/verificationRiskService');
+const { sendPrivateFile, privateHeaders } = require('../services/privateFiles');
 
-const getBaseUrl = () => (process.env.API_URL || 'http://localhost:5000').replace(/\/+$/, '');
-
-const toPublicUploadUrl = (storedPath, fallbackPath) => {
-  const baseUrl = getBaseUrl();
-  const normalizedPath = (storedPath || fallbackPath || '').replace(/\\/g, '/');
-  const uploadsIndex = normalizedPath.indexOf('/uploads/');
-
-  if (uploadsIndex >= 0) {
-    return `${baseUrl}${normalizedPath.slice(uploadsIndex)}`;
-  }
-
-  if (normalizedPath.startsWith('uploads/')) {
-    return `${baseUrl}/${normalizedPath}`;
-  }
-
-  return fallbackPath ? `${baseUrl}/${fallbackPath.replace(/\\/g, '/')}` : null;
+const viewVerifiedCertificate = async (req, res) => {
+  privateHeaders(res);
+  try {
+    const code = String(req.params.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9-]{2,99}$/.test(code)) return res.sendStatus(400);
+    const certificate = await Certificate.findOne({ certificateCode: code })
+      .populate('instituteId', 'credentialSigning.keyId credentialSigning.previousKeys');
+    if (!certificate || !certificate.generatedCertificateImage) return res.sendStatus(404);
+    const inspection = inspectPublicCertificate(certificate);
+    if (inspection.status !== 'issued') return res.sendStatus(410);
+    if (!inspection.imageAllowed) return res.sendStatus(403);
+    return sendPrivateFile(res, certificate.generatedCertificateImage, certificate.instituteId._id, 'generated');
+  } catch (error) { return res.sendStatus(error.status || 500); }
 };
 
 const verifyCertificate = async (req, res) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
   try {
     const code = String(req.params.code || '').trim().toUpperCase();
     if (!code) {
@@ -56,18 +49,14 @@ const verifyCertificate = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Certificate not found.' });
     }
 
-    const signatureCheck = verifyStoredCredential(certificate.credential);
-    const issuerKeyTrusted = Boolean(
-      signatureCheck.valid &&
-      isCredentialKeyTrusted(certificate.instituteId?.credentialSigning, signatureCheck.keyId)
-    );
-    const outcome = effectiveStatus(certificate) === 'issued'
+    const { status, signature: signatureCheck, trusted: issuerKeyTrusted } = inspectPublicCertificate(certificate);
+    const outcome = status === 'issued'
       ? (!certificate.credential?.signature
         ? 'unsigned'
         : signatureCheck.valid && issuerKeyTrusted
           ? 'valid'
           : 'invalid')
-      : effectiveStatus(certificate);
+      : status;
     await recordVerification({
       req,
       certificate,
@@ -77,51 +66,24 @@ const verifyCertificate = async (req, res) => {
       verificationMethod: req.query.method === 'qr' ? 'qr' : 'manual'
     });
 
-    const instituteId = certificate.instituteId?._id || certificate.instituteId;
-    const instituteIdString = instituteId ? instituteId.toString() : null;
-    const certificateImagePath = instituteIdString
-      ? path.join(__dirname, '../uploads/generated', instituteIdString, `${certificate.certificateCode}.jpg`)
-      : null;
-    const qrImagePath = instituteIdString
-      ? path.join(__dirname, '../uploads/qrcodes', instituteIdString, `${certificate.certificateCode}.png`)
-      : null;
-    const imageExists = certificateImagePath ? fs.existsSync(certificateImagePath) : false;
-    const qrCodeExists = qrImagePath ? fs.existsSync(qrImagePath) : false;
-    const certificateImageFallback = imageExists && instituteIdString
-      ? `uploads/generated/${instituteIdString}/${certificate.certificateCode}.jpg`
-      : null;
-    const qrCodeFallback = qrCodeExists && instituteIdString
-      ? `uploads/qrcodes/${instituteIdString}/${certificate.certificateCode}.png`
-      : null;
-    const certificateImageUrl = toPublicUploadUrl(certificate.generatedCertificateImage, certificateImageFallback);
-    const qrCodeUrl = toPublicUploadUrl(certificate.qrCodeImage, qrCodeFallback);
-
-    if (!imageExists) {
-      console.warn(`Certificate image file missing: ${certificateImagePath}`);
-    }
-
     return res.json({ success: true, data: {
       certificateCode: certificate.certificateCode,
+      shareUrl: publicCertificateLinks(certificate.certificateCode).page,
+      certificateImage: ['valid', 'unsigned'].includes(outcome) && certificate.generatedCertificateImage
+        ? `${req.baseUrl}/${encodeURIComponent(certificate.certificateCode)}/image` : null,
       studentName: certificate.studentName || certificate.studentId?.name,
       courseName: certificate.courseName || certificate.courseId?.courseName,
       awardDate: certificate.awardDate,
       instituteName: certificate.instituteId?.instituteName,
-      instituteId: certificate.instituteId,
-      status: effectiveStatus(certificate),
-      statusMessage: effectiveStatus(certificate) === 'issued'
+      status,
+      statusMessage: status === 'issued'
         ? 'Credential is active'
-        : `Credential is ${effectiveStatus(certificate)}`,
+        : `Credential is ${status}`,
       issuedAt: certificate.createdAt,
       validUntil: certificate.validUntil,
       revokedAt: certificate.revokedAt,
       suspendedAt: certificate.suspendedAt,
-      lifecycleEvents: certificate.lifecycleEvents,
-      certificateImage: certificateImageUrl,
-      certificateUrl: certificateImageUrl,
-      qrCodeImage: qrCodeUrl,
       verificationUrl: certificate.verificationUrl,
-      imageExists,
-      qrCodeExists,
       credential: {
         signed: Boolean(certificate.credential?.signature),
         signatureValid: signatureCheck.valid,
@@ -130,7 +92,6 @@ const verifyCertificate = async (req, res) => {
         keyId: certificate.credential?.keyId,
         hash: certificate.credential?.hash,
         signedAt: certificate.credential?.signedAt,
-        compactToken: credentialToCompactToken(certificate.credential),
         verificationNote: signatureCheck.valid && issuerKeyTrusted
           ? 'The credential contents match the registered institute digital signature.'
           : signatureCheck.valid
@@ -141,11 +102,12 @@ const verifyCertificate = async (req, res) => {
       }
     }});
   } catch (error) {
-    console.error('Verify certificate error:', error);
+    appLogger.error('Verify certificate error:', error);
     return res.status(500).json({ success: false, message: 'Failed to verify certificate', error: error.message });
   }
 };
 
 module.exports = {
-  verifyCertificate
+  verifyCertificate,
+  viewVerifiedCertificate
 };

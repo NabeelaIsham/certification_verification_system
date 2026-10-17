@@ -1,8 +1,14 @@
 # Stabilization checklist
 
-Baseline: `2e18b650`. Repair branches: `fix/priority-1-security` and `fix/priority-2-foundation`.
+Baseline: `2e18b650`. Repair branches: `fix/priority-1-security`, `fix/priority-2-foundation`, and `fix/priority-3-file-access`.
 This document tracks implementation separately from operational acceptance. It does not
 declare the application ready for production SaaS.
+
+Latest local authentication findings and fixes are recorded in
+[the October 16 security review](SECURITY_FIXES_2026-10-16.md), with 184 unit tests,
+135 tests in the full integration run and 21 tests in the final focused authentication
+integration run passing. The original checklist below is historical;
+use that review and [production readiness](production-readiness.md) for current blockers.
 
 ## Priority 1: security baseline
 
@@ -37,9 +43,9 @@ or payments until the acceptance gate below is complete.
 | 2 | 8. Central issuance | Implemented one service for institute, teacher, bulk and legacy draft issuance; rendering/signing, reference validation, transaction commit and ledger are shared. Replica-set deployment is required. |
 | 2 | 9. Idempotency and usage ledger | Implemented deduplication, transactional reservation/consumption/release ledger, concurrent-request tests and stale-worker recovery. PARTIAL: subscription allowance checks and purchased-credit reservation remain Priority 6 dependencies. |
 | 2 | 10. Identity rules | Globally unique normalized account email, including teacher creation across roles; database uniqueness tested. Multiple institute memberships require a separate membership design. |
-| 3 | 11. File access | Replace public generated-certificate and QR static paths with authorized file delivery; update previews, downloads and email/share links together. Preserve limited public verification. |
-| 3 | 12. Metadata versus storage | Audit remaining embedded file data and standardize filesystem metadata; select an object-storage adapter before expansion. |
-| 3 | 13. Upload validation | Extend existing image sanitization tests to MIME spoofing, signatures, dimension limits, unsafe filenames and every upload route. Evaluate malware scanning for supported file types. |
+| 3 | 11. File access | Implemented authenticated file delivery, frontend blob previews, expiring/revocable share grants and email links; public verification excludes file access. Coordinated staging deployment/cache purge remains. |
+| 3 | 12. Metadata versus storage | Models store image references rather than binary data. New certificate/QR references are relative paths on the existing persistent filesystem volume. Cross-host legacy path normalization and storage restoration remain staging checks. |
+| 3 | 13. Upload validation | Implemented MIME/decoded-format agreement and exact logo extension checks; integration coverage includes template/assets/logo spoofing, dimensions, byte limits, generated filenames and failure cleanup. Image reencoding is not antivirus scanning; arbitrary documents stay unsupported. |
 | 4 | 14. MongoDB upgrade | Choose Atlas or an authenticated private MongoDB 8 deployment; test migration and restoration using a copy of data. Do not attach an existing 4.4 volume directly to MongoDB 8. |
 | 4 | 15. Fail-closed database config | Server startup already checks production configuration; remove local fallbacks from direct database/script entry points too. |
 | 4 | 16. Persistent storage | Existing MongoDB/upload volumes need deployment verification; add persistent backup output and test rebuild survival. |
@@ -97,3 +103,30 @@ real transaction coverage), replica-set integration tests 42/42, frontend tests 
 both linters, the frontend production build, and both dependency audits passed (zero
 vulnerabilities). The full tenant/file-access acceptance gate above stays open
 until Priority 3 replaces raw public file delivery.
+
+## Priority 3 and deployment order
+
+PR #1 merged on 2026-09-29 and PR #2 merged on 2026-10-01. The merge does not complete
+application staging, persistence or recovery acceptance. The [October 16 review](READINESS_REVIEW_2026-10-16.md)
+reconciles current PR/CI state, historical data findings and live evidence.
+See [PRIORITY_3.md](PRIORITY_3.md) for the controlled file protocol and
+[ATLAS_STAGING.md](ATLAS_STAGING.md) for the outstanding staging gate.
+Database/operational preparation, secrets and monitoring must precede Priority 6.
+Implement manual subscriptions before PayHere. Atlas migration/restoration was completed on 2026-09-30 for the local database;
+see the staging record for existing data blockers. No production deployment or
+application connection switch was performed during that migration exercise. Later live
+deployment observations are recorded in the October 16 review.
+
+## Database migration and restoration ? 2026-09-30
+
+The locally configured MongoDB 8.0.5 database was consistently backed up, migrated to
+Atlas 8.0.34 and independently restored. All 12 collections, 111 documents, options and
+indexes match; both Atlas databases pass transaction commit/rollback. The 35-file upload
+backup passed byte/hash comparison after restoration. Backups are encrypted locally and
+excluded from Git. This does not validate an uninspected production MongoDB 4.4 volume.
+
+The source and both restored copies share one invalid signing-key record, four certificates
+with missing references, eleven unsigned legacy certificates and twenty-six absolute file
+references. These existing issues, application UAT, staging isolation, persistent deployment
+and off-server recovery keep the historical operational acceptance gate open; they do not
+change PR #2's merged status. Do not present these historical counts as a current production audit.

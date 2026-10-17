@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Student = require('../models/Student');
@@ -25,11 +26,8 @@ const uploadLogoFile = multer({
   storage: logoStorage,
   limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
+    const expectedMime = { '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[path.extname(file.originalname).toLowerCase()];
+    if (expectedMime && file.mimetype === expectedMime) {
       return cb(null, true);
     }
 
@@ -50,7 +48,7 @@ const removeUploadedFile = (relativePath) => {
   const absolutePath = path.join(__dirname, '..', normalizedPath);
   fs.unlink(absolutePath, (error) => {
     if (error && error.code !== 'ENOENT') {
-      console.error('Logo cleanup error:', error);
+      appLogger.error('Logo cleanup error:', error);
     }
   });
 };
@@ -59,9 +57,9 @@ const removeUploadedFile = (relativePath) => {
 const getProfile = async (req, res) => {
   try {
     const instituteId = req.userId;
-    
+
     const institute = await User.findById(instituteId).select('-password');
-    
+
     if (!institute) {
       return res.status(404).json({
         success: false,
@@ -74,7 +72,7 @@ const getProfile = async (req, res) => {
       data: institute
     });
   } catch (error) {
-    console.error('Profile fetch error:', error);
+    appLogger.error('Profile fetch error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch profile'
@@ -88,8 +86,8 @@ const getStats = async (req, res) => {
     const instituteId = req.userId;
 
     const [
-      totalStudents, 
-      totalCourses, 
+      totalStudents,
+      totalCourses,
       certificatesIssued,
       activeCourses,
       completedStudents,
@@ -116,9 +114,9 @@ const getStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Stats error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Stats error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch statistics',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -150,9 +148,9 @@ const updateSettings = async (req, res) => {
       data: institute
     });
   } catch (error) {
-    console.error('Settings update error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Settings update error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to update settings',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -202,7 +200,7 @@ const uploadLogo = async (req, res) => {
         removeUploadedFile(toRelativeUploadPath(req.file.path));
       }
 
-      console.error('Logo upload error:', error);
+      appLogger.error('Logo upload error:', error);
       res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
         success: false,
         message: 'Failed to upload logo',
@@ -233,7 +231,7 @@ const changePassword = async (req, res) => {
     }
 
     const institute = await User.findById(instituteId);
-    
+
     if (!institute) {
       return res.status(404).json({
         success: false,
@@ -260,7 +258,7 @@ const changePassword = async (req, res) => {
       message: 'Password changed successfully. Please sign in again.'
     });
   } catch (error) {
-    console.error('Password change error:', error);
+    appLogger.error('Password change error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to change password'

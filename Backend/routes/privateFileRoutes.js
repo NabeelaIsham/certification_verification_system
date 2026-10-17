@@ -1,0 +1,10 @@
+const router = require('express').Router();
+const { authenticateToken } = require('../middleware/authMiddleware');
+const { createRateLimit } = require('../middleware/rateLimit');
+const files = require('../services/privateFiles');
+router.use((req, res, next) => { files.privateHeaders(res); next(); });
+router.get('/share', createRateLimit({ windowMs: 15 * 60 * 1000, max: 120, keyPrefix: 'share-files' }), files.sharedFile);
+router.use(authenticateToken);
+router.get('/certificates/:code/:kind', files.certificateFile);
+router.get('/templates/:id/:kind', files.templateFile);
+module.exports = router;

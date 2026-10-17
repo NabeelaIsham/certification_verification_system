@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const crypto = require('crypto');
 const mongoose = require('mongoose');
@@ -26,19 +27,14 @@ const SHARE_FIELDS = [
 ];
 
 const getFrontendUrl = () => (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
-const getApiUrl = () => (process.env.API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+const { shareImageUrl, privateHeaders } = require('../services/privateFiles');
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const isValidId = (value) => mongoose.Types.ObjectId.isValid(value);
-
-const certificateImageUrl = (certificate) => {
-  if (!certificate.generatedCertificateImage) return null;
-  const instituteId = certificate.instituteId?._id || certificate.instituteId;
-  return `${getApiUrl()}/uploads/generated/${instituteId}/${certificate.certificateCode}.jpg`;
-};
 
 const createShare = async (req, res) => {
   try {
     const instituteId = req.userId;
+    await require('../services/subscriptionService').requirePlanFeature(instituteId, 'secureSharing');
     if (!isValidId(req.params.id)) {
       return res.status(400).json({ success: false, message: 'Invalid certificate ID' });
     }
@@ -100,7 +96,7 @@ const createShare = async (req, res) => {
         { _id: share._id },
         { $set: { revokedAt: new Date() } }
       );
-      console.error('Credential share email failed; share revoked:', emailError);
+      appLogger.error('Credential share email failed; share revoked:', emailError);
       return res.status(502).json({
         success: false,
         message: 'The share link could not be emailed and was revoked. Check the email configuration and try again.'
@@ -118,8 +114,8 @@ const createShare = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Create credential share error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create share link' });
+    appLogger.error('Create credential share error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Failed to create share link' });
   }
 };
 
@@ -161,6 +157,7 @@ const revokeShare = async (req, res) => {
 };
 
 const resolveShare = async (req, res) => {
+  privateHeaders(res);
   try {
     const token = String(req.params.token || '');
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
@@ -193,6 +190,7 @@ const resolveShare = async (req, res) => {
     if (!certificate) {
       return res.status(404).json({ success: false, message: 'Certificate not found' });
     }
+    if (String(certificate.instituteId?._id || certificate.instituteId) !== String(share.institute)) return res.sendStatus(404);
     const complete = {
       studentName: certificate.studentName,
       courseName: certificate.courseName,
@@ -200,7 +198,7 @@ const resolveShare = async (req, res) => {
       instituteName: certificate.instituteId?.instituteName,
       certificateCode: certificate.certificateCode,
       status: effectiveStatus(certificate),
-      certificateImage: certificateImageUrl(certificate)
+      certificateImage: shareImageUrl(share, certificate)
     };
     const disclosed = Object.fromEntries(
       share.visibleFields
@@ -244,7 +242,7 @@ const resolveShare = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Resolve credential share error:', error);
+    appLogger.error('Resolve credential share error:', error);
     return res.status(500).json({ success: false, message: 'Failed to open share link' });
   }
 };
@@ -318,7 +316,7 @@ const addLifecycleEvent = async (req, res) => {
       data: certificate
     });
   } catch (error) {
-    console.error('Credential lifecycle error:', error);
+    appLogger.error('Credential lifecycle error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update credential lifecycle' });
   }
 };
@@ -368,7 +366,7 @@ const getSigningKeyStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get signing key status error:', error);
+    appLogger.error('Get signing key status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to read signing-key status' });
   }
 };
@@ -416,7 +414,7 @@ const rotateSigningKey = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Rotate signing key error:', error);
+    appLogger.error('Rotate signing key error:', error);
     return res.status(500).json({ success: false, message: 'Failed to rotate signing key' });
   }
 };
