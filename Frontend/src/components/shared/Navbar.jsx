@@ -9,7 +9,6 @@ const Navbar = () => {
   const navigation = [
     { name: 'Home', href: '/', current: location.pathname === '/' },
     { name: 'Verify Certificate', href: '/verify', current: location.pathname === '/verify' },
-    { name: 'Students', href: '/student/dashboard', current: location.pathname === '/student/dashboard' },
     { name: 'Login', href: '/login', current: location.pathname === '/login' },
   ];
 
