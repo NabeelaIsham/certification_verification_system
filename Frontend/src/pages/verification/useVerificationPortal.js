@@ -76,7 +76,8 @@ export default function useVerificationPortal() {
           const offlineResult = await verifyOfflineCredential(token);
           if (offlineResult.certificateCode !== normalizedCode) {
             throw new Error(
-              'QR credential code does not match its verification link'
+              'QR credential code does not match its verification link',
+              { cause: error }
             );
           }
           setVerificationResult(normalizeVerificationResult(offlineResult));
