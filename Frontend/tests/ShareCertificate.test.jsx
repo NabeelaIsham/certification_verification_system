@@ -27,7 +27,7 @@ describe('Certificate sharing', () => {
       <Route path="/student/dashboard" element={<StudentPortal />} />
       <Route path="/verify/ABC123" element={<p>Verification result</p>} />
     </Routes></MemoryRouter>);
-    fireEvent.change(screen.getByLabelText('Certificate code'), { target: { value: ' ABC123 ' } });
+    fireEvent.change(screen.getByLabelText('Certificate code or link'), { target: { value: ' ABC123 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Find certificate' }));
     expect(screen.getByText('Verification result')).toBeInTheDocument();
   });

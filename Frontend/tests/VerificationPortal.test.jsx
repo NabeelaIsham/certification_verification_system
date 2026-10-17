@@ -38,6 +38,10 @@ describe("VerificationPortal", () => {
       expect(
         await screen.findByRole("heading", { name: heading }),
       ).toBeInTheDocument();
+      expect(axios.get).toHaveBeenCalledWith(
+        expect.stringMatching(/\/certificates\/verify\/INS-261008-TESTCODE$/),
+        { params: { method: "manual" } },
+      );
       if (iconClass)
         expect(container.querySelector(".cvx-result-icon")).toHaveClass(
           iconClass,
