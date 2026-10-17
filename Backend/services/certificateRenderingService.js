@@ -185,7 +185,7 @@ const generateCertificateImage = async (certificateData) => {
     return outputPath;
   } catch (error) {
     appLogger.error('Certificate generation error details:', error);
-    throw new Error(`Image generation failed: ${error.message}`);
+    throw new Error(`Image generation failed: ${error.message}`, { cause: error });
   }
 };
 

@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 5
+    groups:
+      eslint-toolchain:
+        patterns:
+          - eslint
+          - "@eslint/*"
+          - "eslint-plugin-*"
   - package-ecosystem: npm
     directory: /Frontend
     schedule:

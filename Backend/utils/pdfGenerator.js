@@ -167,7 +167,7 @@ const generateCertificatePDF = async (data) => {
 
   } catch (error) {
     appLogger.error('PDF Generation Error:', error);
-    throw new Error(`Failed to generate PDF: ${error.message}`);
+    throw new Error(`Failed to generate PDF: ${error.message}`, { cause: error });
   }
 };
 
