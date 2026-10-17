@@ -23,7 +23,7 @@
     "qr-scanner": "^1.4.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-hook-form": "^7.65.0",
+    "react-hook-form": "^7.90.0",
     "react-router-dom": "^7.9.4",
     "react-toastify": "^11.0.5"
   },
