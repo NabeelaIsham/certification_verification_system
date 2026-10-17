@@ -10,9 +10,11 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
-      reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
     ],
+    plugins: {
+      'react-hooks': reactHooks,
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -24,6 +26,9 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Preserve the core Hooks policy from v5. The v7 presets also enable
+      // React Compiler checks, which need a separate migration.
+      'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'off',
       'react-refresh/only-export-components': 'off',
     },

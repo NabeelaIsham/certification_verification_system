@@ -106,8 +106,8 @@ const BulkUpload = ({ API_URL }) => {
   };
 
   const downloadSampleCSV = (type) => {
-    let content = '';
-    let filename = '';
+    let content;
+    let filename;
 
     if (type === 'students') {
       content = 'Name,Email,Phone,CourseCode,EnrollmentDate\nJohn Doe,john@example.com,1234567890,CS101,2024-01-15\nJane Smith,jane@example.com,9876543210,CS102,2024-01-16';
