@@ -10,6 +10,27 @@ const { sendSubscriptionExpiredEmail } = require('../../Backend/utils/emailServi
 
 beforeEach(() => jest.resetAllMocks());
 
+test.each([
+  ['Hostinger defaults', {}, 'smtp.hostinger.com', 465, 'Certiverxia'],
+  ['explicit environment settings', { EMAIL_HOST: 'smtp.operator.example', EMAIL_PORT: '587', EMAIL_FROM_NAME: 'Configured sender' }, 'smtp.operator.example', 587, 'Configured sender']
+])('email uses %s when no saved settings exist', async (_label, overrides, host, port, fromName) => {
+  const originalEnv = process.env;
+  process.env = { ...originalEnv, EMAIL_USER: 'sender@example.com', EMAIL_PASS: 'test-mail-password' };
+  for (const key of ['EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_FROM_NAME']) delete process.env[key];
+  Object.assign(process.env, overrides);
+  try {
+    Settings.findOne.mockResolvedValue(null);
+    const sendMail = jest.fn().mockResolvedValue({ messageId: 'smtp-config-test' });
+    nodemailer.createTransport.mockReturnValue({ sendMail });
+    await sendOtpEmail({ to: 'admin@example.com', otp: '123456' });
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(expect.objectContaining({ host, port, secure: port === 465,
+      auth: { user: 'sender@example.com', pass: 'test-mail-password' } }));
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ from: `"${fromName}" <sender@example.com>` }));
+  } finally {
+    process.env = originalEnv;
+  }
+});
+
 test('teacher invitation sends the setup link and escapes names', async () => {
   Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com' } });
   const sendMail = jest.fn().mockResolvedValue({ messageId: 'teacher-test' });

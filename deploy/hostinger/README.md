@@ -2,6 +2,8 @@
 
 Production URL: **https://certiverxia.com**. Contact/sender: **info@certiverxia.com**.
 This directory prepares deployment; it does not change DNS, provision Atlas, or deploy the server.
+This is a standalone Docker Compose alternative. If the VPS uses Dokploy, follow the
+[Dokploy guide](../dokploy/README.md) and its root Compose file instead.
 
 ## Layout
 
@@ -22,17 +24,19 @@ Copy the complete repository to `/opt/certiverxia`, retaining these relative pat
 Docker persists uploads, backup output, and TLS certificates in named volumes
 `certiverxia_uploads`, `certiverxia_backups`, and `certiverxia_letsencrypt`.
 Atlas holds application data. There is no standalone MongoDB container: issuance needs transactions.
+The storage initialization service assigns the uploads and backups volumes to the backend's
+non-root user before it starts. Recreating containers must preserve these named volumes.
 
 ## DNS and server
 
 Use an Ubuntu VPS with Docker Engine and the Compose plugin installed using
 [Docker's official Ubuntu instructions](https://docs.docker.com/engine/install/ubuntu/).
-If Hostinger already runs Traefik for other applications, integrate these routes with that
-instance instead of starting a second proxy on ports 80/443.
+Ports 80/443 must be available for this standalone proxy. Use the Dokploy configuration
+when Dokploy already manages those ports and domain routing.
 
 In your domain DNS, set `A @` to the VPS public IPv4 address shown in Hostinger hPanel.
-Set `CNAME www` to `certiverxia.com`. Your screenshot resolves the domain to
-`201.18.217.142`; use that address only if it is also your VPS address in hPanel.
+Set `CNAME www` to `certiverxia.com`. Confirm the address against the VPS currently
+serving this deployment; old screenshots and earlier deployment notes are not DNS evidence.
 Remove conflicting A/AAAA records, or configure IPv6 correctly. Keep Hostinger mail
 MX, SPF, DKIM and DMARC records intact.
 
@@ -98,7 +102,7 @@ invalid signing keys or unresolved deployment data issues. Resolve those failure
 remove the preflight command. Test login, `/pricing`, subscription requests, controlled file
 access, issuance and verification before accepting real institutes.
 
-Traefik routes `/api`, `/uploads` and `/health` directly to the backend; the backend trusts
+Traefik routes `/api`, `/certificate`, `/uploads` and `/health` directly to the backend; the backend trusts
 one proxy. The frontend serves the SPA only. Traefik obtains and renews Let's Encrypt
 certificates using HTTP-01 on port 80. `www` redirects to the apex domain with the path intact.
 File-provider routing does not mount the Docker socket. Access logs at the proxy are off to
@@ -109,8 +113,10 @@ avoid recording bearer links. See [Traefik file routing](https://doc.traefik.io/
 Before upgrades, record the deployed Git commit and take a fresh database backup plus an
 uploads snapshot. Store encrypted copies off the VPS and test restoration into a separate
 database. Named volumes provide persistence, not independent backups. The backend image
-does not contain `mongodump`; use Atlas backups or MongoDB Database Tools on the operator
-host. Windows DPAPI-encrypted historical backups must be decrypted on their original Windows
+includes MongoDB Database Tools; schedule `npm run backup:database` and monitor backup age
+and failures. Keep encrypted copies off the VPS and test `npm run backup:restore-drill`
+against a separate empty restore database as described in the production readiness guide.
+Windows DPAPI-encrypted historical backups must be decrypted on their original Windows
 account before secure transfer and Linux restoration.
 
 Deploy a reviewed commit with the build/preflight/start commands above. Reverting application
@@ -125,6 +131,7 @@ Legacy `VerifyAwardsCredential` schema/URN identifiers remain for signature comp
 
 ## Validation status
 
-The configuration can be parsed locally, but Docker is unavailable in the development
-workspace. Image builds, Nginx configuration validation, real routing, TLS issuance and
-Atlas preflight must be completed on the VPS before this is considered deployed.
+CI builds the production images and validates this Compose file and Nginx configuration
+using placeholder environment values. Real domain routing (including shared certificate
+pages), TLS issuance, persistent volumes, Atlas preflight, backup restoration and delivery
+must still be verified on the selected VPS before recording a successful rollout.
