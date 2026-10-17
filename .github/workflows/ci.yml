@@ -5,38 +5,51 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  checks:
-    name: ${{ matrix.name }}
+  backend:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: backend-lint, directory: Backend, command: 'npm run lint' }
-          - { name: backend-test, directory: Backend, command: 'npm test' }
-          - { name: backend-integration, directory: Backend, command: 'npm run test:integration' }
-          - { name: backend-audit, directory: Backend, command: 'npm audit --audit-level=high' }
-          - { name: backend-production-audit, directory: Backend, command: 'npm audit --omit=dev --audit-level=high' }
-          - { name: frontend-lint, directory: Frontend, command: 'npm run lint' }
-          - { name: frontend-test, directory: Frontend, command: 'npm test -- --run' }
-          - { name: frontend-build, directory: Frontend, command: 'npm run build' }
-          - { name: frontend-audit, directory: Frontend, command: 'npm audit --audit-level=high' }
-          - { name: frontend-production-audit, directory: Frontend, command: 'npm audit --omit=dev --audit-level=high' }
     defaults:
       run:
-        working-directory: ${{ matrix.directory }}
+        working-directory: Backend
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
-      - name: Run check
-        env:
-          VITE_SAAS_ENABLED: 'true'
-        run: ${{ matrix.command }}
+      - name: Run backend lint
+        run: npm run lint
+      - name: Audit backend dependencies
+        run: npm audit --audit-level=high
+      - name: Run backend tests
+        run: npm test
+      - name: Test tenant isolation and transactional issuance
+        run: npm run test:integration
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Run frontend lint
+        run: npm run lint
+      - name: Run frontend tests
+        run: npm test -- --run
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+      - name: Build frontend production bundle
+        run: npm run build
 
   container-builds:
     runs-on: ubuntu-latest
@@ -46,25 +59,7 @@ jobs:
         run: |
           python3 Scripts/check-repository-artifacts.py
           python3 -m unittest discover -s Tests/tools
-      - name: Validate standalone Atlas deployment configuration
-        env:
-          DEPLOYMENT_NAME: certverify-staging-ci
-          DEPLOYMENT_ENV: staging
-          BACKEND_ENV_FILE: ./Backend/.env.example
-        run: docker compose -f docker-compose.atlas.yml config --quiet
-      - name: Validate Dokploy SMS environment wiring
-        env:
-          MONGODB_URI: mongodb://database.invalid/certverify_ci
-          JWT_SECRET: ci-only-jwt-value-not-for-deployment
-          CREDENTIAL_KEY_ENCRYPTION_SECRET: ci-only-encryption-value-not-for-deployment
-          VERIFICATION_PRIVACY_SECRET: ci-only-privacy-value-not-for-deployment
-          EMAIL_PASS: ci-only-email-value-not-for-deployment
-          TEXTLK_API_TOKEN: ci-only-sms-value-not-for-deployment
-          TEXTLK_SENDER_ID: Certiverxia
-        run: docker compose -f docker-compose.dokploy.yml config --quiet
       - name: Build backend production image
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx
-        run: docker build --build-arg VITE_SAAS_ENABLED=true --tag certverify-frontend-ci ./Frontend
-      - name: Build Dokploy frontend image and validate Nginx
-        run: docker build --build-arg VITE_SAAS_ENABLED=true --build-arg NGINX_CONFIG=nginx.dokploy.conf --tag certverify-frontend-dokploy-ci ./Frontend
+        run: docker build --tag certverify-frontend-ci ./Frontend

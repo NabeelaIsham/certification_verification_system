@@ -22,5 +22,7 @@ Tests/coverage/
 Frontend/node_modules/
 Frontend/dist/
 Frontend/.env
+
+/worktrees/
 .local-secrets/
 .history-cleanup/

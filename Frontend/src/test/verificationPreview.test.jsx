@@ -15,5 +15,6 @@ test('verification link displays the returned certificate image and social shari
   } } });
   render(<MemoryRouter initialEntries={['/verify/ABC-123']}><Routes><Route path="/verify/:code" element={<VerificationPortal />} /></Routes></MemoryRouter>);
   expect(await screen.findByRole('img', { name: 'Certificate' })).toHaveAttribute('src', '/api/certificates/verify/ABC-123/image');
+  expect(axios.get).toHaveBeenCalledWith(expect.stringMatching(/\/certificates\/verify\/ABC-123$/), { params: { method: 'manual' } });
   expect(new URL(screen.getByRole('link', { name: 'LinkedIn' }).href).searchParams.get('url')).toBe('https://certiverxia.com/certificate/ABC-123');
 });
