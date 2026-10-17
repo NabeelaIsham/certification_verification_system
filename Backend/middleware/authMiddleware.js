@@ -1,34 +1,36 @@
+const { appLogger } = require('../utils/logger.js');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
+const { hasInstituteAccess } = require('../utils/accountAccess');
 
 const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : require('./browserSession').sessionToken(req);
 
     if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Access token required' 
+      return res.status(401).json({
+        success: false,
+        message: 'Access token required'
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     const user = await User.findById(decoded.userId || decoded.id);
 
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'User not found' 
+      return res.status(401).json({
+        success: false,
+        message: 'User not found'
       });
     }
 
     // Check if account is active (for institutes and teachers)
     if (!user.isActive) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Account is deactivated' 
+      return res.status(403).json({
+        success: false,
+        message: 'Account is deactivated'
       });
     }
 
@@ -38,6 +40,9 @@ const authenticateToken = async (req, res, next) => {
 
     if ((decoded.sessionVersion || 0) !== (user.sessionVersion || 0)) {
       return res.status(401).json({ success: false, message: 'Session revoked. Please sign in again.', code: 'SESSION_REVOKED' });
+    }
+    if (!await hasInstituteAccess(user)) {
+      return res.status(403).json({ success: false, code: 'INSTITUTE_UNAVAILABLE', message: 'Your institute is unavailable. Contact your administrator.' });
     }
     if (user.userType === 'superadmin') {
       const settings = await Settings.findOne();
@@ -52,7 +57,7 @@ const authenticateToken = async (req, res, next) => {
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      console.warn('Auth middleware warning: token expired at', error.expiredAt);
+      appLogger.warn('Auth middleware warning: token expired at', error.expiredAt);
       return res.status(401).json({
         success: false,
         message: 'Token expired',
@@ -60,35 +65,35 @@ const authenticateToken = async (req, res, next) => {
       });
     }
 
-    console.error('Auth middleware error:', error);
-    
+    appLogger.error('Auth middleware error:', error);
+
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
-        success: false, 
+        success: false,
         message: 'Invalid token',
         code: 'INVALID_TOKEN'
       });
     }
-    
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Authentication failed' 
+
+    return res.status(500).json({
+      success: false,
+      message: 'Authentication failed'
     });
   }
 };
 
 const authorizeInstitute = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'User not authenticated' 
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
     });
   }
-  
+
   if (req.user.userType !== 'institute') {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Access denied. Institute only.' 
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Institute only.'
     });
   }
   next();
@@ -96,16 +101,16 @@ const authorizeInstitute = (req, res, next) => {
 
 const authorizeSuperAdmin = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'User not authenticated' 
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
     });
   }
-  
+
   if (req.user.userType !== 'superadmin') {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Access denied. Super admin only.' 
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Super admin only.'
     });
   }
   next();
@@ -114,16 +119,16 @@ const authorizeSuperAdmin = (req, res, next) => {
 // NEW: Authorize Teacher middleware
 const authorizeTeacher = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'User not authenticated' 
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
     });
   }
-  
+
   if (req.user.userType !== 'teacher') {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Access denied. Teacher only.' 
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Teacher only.'
     });
   }
   next();
@@ -132,16 +137,16 @@ const authorizeTeacher = (req, res, next) => {
 // NEW: Authorize Teacher OR Institute (for shared resources)
 const authorizeTeacherOrInstitute = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'User not authenticated' 
+    return res.status(401).json({
+      success: false,
+      message: 'User not authenticated'
     });
   }
-  
+
   if (req.user.userType !== 'teacher' && req.user.userType !== 'institute') {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Access denied. Teacher or Institute only.' 
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Teacher or Institute only.'
     });
   }
   next();

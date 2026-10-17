@@ -1,6 +1,7 @@
+import { notify } from '../../services/notifications.js';
 import useIssuanceKey from '../../hooks/useIssuanceKey';
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 import CertificateIssuePreview from '../shared/CertificateIssuePreview';
 
 const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
@@ -37,9 +38,9 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
 
   const fetchCourses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/courses`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/courses`, {
+        headers: { }
       });
       if (response.data.success) {
         setCourses(response.data.data);
@@ -52,9 +53,9 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
 
   const fetchStudents = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/students?courseId=${selectedCourse}`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/students?courseId=${selectedCourse}`, {
+        headers: { }
       });
       if (response.data.success) {
         setStudents(response.data.data);
@@ -67,9 +68,9 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
 
   const fetchTemplates = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/certificate-templates?courseId=${selectedCourse}`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/certificate-templates?courseId=${selectedCourse}`, {
+        headers: { }
       });
       if (response.data.success) {
         setTemplates(response.data.data);
@@ -83,7 +84,7 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!selectedStudent || !selectedCourse || !selectedTemplate || !awardDate) {
       setError('Please fill all fields');
       return;
@@ -91,8 +92,7 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      
+
       // Log the data being sent
       const requestData = {
         studentId: selectedStudent,
@@ -100,17 +100,17 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
         templateId: selectedTemplate,
         awardDate
       };
-      
+
       console.log('Sending certificate request:', requestData);
 
-      const response = await axios.post(`${API_URL}/certificates`, requestData, {
-        headers: { Authorization: `Bearer ${token}`, 'Idempotency-Key': issuanceKey(requestData) }
+      const response = await apiClient.post(`${API_URL}/certificates`, requestData, {
+        headers: {  'Idempotency-Key': issuanceKey(requestData) }
       });
 
       console.log('Certificate response:', response.data);
 
       if (response.data.success) {
-        alert('Certificate issued successfully!');
+        notify('Certificate issued successfully!');
         onCertificateIssued?.(response.data.data);
         // Reset form
         setSelectedStudent('');
@@ -118,20 +118,20 @@ const IssueCertificate = ({ API_URL, onCertificateIssued }) => {
       }
     } catch (error) {
       console.error('Error issuing certificate:', error);
-      
+
       // Show detailed error message
       if (error.response) {
         console.error('Error response:', error.response.data);
         setError(error.response.data.message || 'Failed to issue certificate');
-        alert(error.response.data.message || 'Failed to issue certificate');
+        notify(error.response.data.message || 'Failed to issue certificate');
       } else if (error.request) {
         console.error('No response received:', error.request);
         setError('No response from server. Please check your connection.');
-        alert('No response from server. Please check your connection.');
+        notify('No response from server. Please check your connection.');
       } else {
         console.error('Error setting up request:', error.message);
         setError('Error: ' + error.message);
-        alert('Error: ' + error.message);
+        notify('Error: ' + error.message);
       }
     } finally {
       setLoading(false);

@@ -23,10 +23,9 @@ const auditDeploymentData = async (db, backendRoot = path.resolve(__dirname, '..
       return;
     }
     try {
-      const root = fs.realpathSync(path.join(backendRoot, 'uploads', folder, String(instituteId)));
+      const root = fs.realpathSync(backendRoot);
       const file = fs.realpathSync(path.resolve(backendRoot, normalized));
-      const relative = path.relative(root, file);
-      if (relative.startsWith('..') || path.isAbsolute(relative) || !fs.statSync(file).isFile()) issues.unsafeFileReferences++;
+      if (file !== path.resolve(root, normalized) || !fs.statSync(file).isFile()) issues.unsafeFileReferences++;
     } catch { issues.missingFiles++; }
   };
   for (const certificate of certificates) {

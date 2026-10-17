@@ -1,7 +1,4 @@
-# Certiverxia production deployment
-
-For `https://certiverxia.com` on Hostinger with **Dokploy**, follow [the Dokploy guide](deploy/dokploy/README.md).
-The [standalone Traefik guide](deploy/hostinger/README.md) is only for servers without Dokploy.
+For Certiverxia on Hostinger **Dokploy**, use [the Dokploy guide](deploy/dokploy/README.md) and `docker-compose.dokploy.yml`. The default `docker-compose.yml` is the legacy standalone database setup.
 
 # Deployment Guide
 

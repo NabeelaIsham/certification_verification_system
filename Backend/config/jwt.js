@@ -6,6 +6,6 @@ const signAccessToken = (user, claims = {}) => jwt.sign({
   email: user.email,
   userType: user.userType,
   sessionVersion: user.sessionVersion || 0
-}, process.env.JWT_SECRET, { expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '15m' });
+}, process.env.JWT_SECRET, { algorithm: 'HS256', expiresIn: process.env.JWT_ACCESS_TOKEN_TTL || '15m' });
 
 module.exports = { signAccessToken };

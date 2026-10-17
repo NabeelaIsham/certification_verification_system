@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const Course = require('../models/Course');
 const CertificateTemplate = require('../models/CertificateTemplate');
 
@@ -9,31 +10,31 @@ const createCourse = async (req, res) => {
 
     // Validate required fields
     if (!courseName || !courseCode) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Course name and course code are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Course name and course code are required'
       });
     }
 
     // Check if course code already exists for this institute
     const existingCourse = await Course.findOne({ instituteId, courseCode });
     if (existingCourse) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Course code already exists for this institute' 
+      return res.status(400).json({
+        success: false,
+        message: 'Course code already exists for this institute'
       });
     }
 
     // If certificateTemplateId is provided, check if it exists
     if (certificateTemplateId) {
-      const template = await CertificateTemplate.findOne({ 
-        _id: certificateTemplateId, 
-        instituteId 
+      const template = await CertificateTemplate.findOne({
+        _id: certificateTemplateId,
+        instituteId
       });
       if (!template) {
         return res.status(404).json({
-          success: false, 
-          message: 'Invalid certificate template' 
+          success: false,
+          message: 'Invalid certificate template'
         });
       }
     }
@@ -62,9 +63,9 @@ const createCourse = async (req, res) => {
       data: course
     });
   } catch (error) {
-    console.error('Create course error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Create course error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to create course',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -78,7 +79,7 @@ const getCourses = async (req, res) => {
     const { search, status } = req.query;
 
     let query = { instituteId };
-    
+
     // Add search filter
     if (search) {
       query.$or = [
@@ -112,9 +113,9 @@ const getCourses = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get courses error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get courses error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch courses',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -132,8 +133,8 @@ const getCourseById = async (req, res) => {
 
     if (!course) {
       return res.status(404).json({
-        success: false, 
-        message: 'Course not found' 
+        success: false,
+        message: 'Course not found'
       });
     }
 
@@ -142,9 +143,9 @@ const getCourseById = async (req, res) => {
       data: course
     });
   } catch (error) {
-    console.error('Get course by ID error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get course by ID error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch course',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -165,16 +166,16 @@ const updateCourse = async (req, res) => {
 
     // If updating course code, check if it's already taken
     if (updates.courseCode) {
-      const existingCourse = await Course.findOne({ 
-        instituteId, 
+      const existingCourse = await Course.findOne({
+        instituteId,
         courseCode: updates.courseCode,
         _id: { $ne: id }
       });
-      
+
       if (existingCourse) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Course code already exists for another course' 
+        return res.status(400).json({
+          success: false,
+          message: 'Course code already exists for another course'
         });
       }
       updates.courseCode = updates.courseCode.toUpperCase();
@@ -182,14 +183,14 @@ const updateCourse = async (req, res) => {
 
     // If updating certificate template, verify it exists
     if (updates.certificateTemplateId) {
-      const template = await CertificateTemplate.findOne({ 
-        _id: updates.certificateTemplateId, 
-        instituteId 
+      const template = await CertificateTemplate.findOne({
+        _id: updates.certificateTemplateId,
+        instituteId
       });
       if (!template) {
         return res.status(404).json({
-          success: false, 
-          message: 'Invalid certificate template' 
+          success: false,
+          message: 'Invalid certificate template'
         });
       }
     }
@@ -202,8 +203,8 @@ const updateCourse = async (req, res) => {
 
     if (!course) {
       return res.status(404).json({
-        success: false, 
-        message: 'Course not found' 
+        success: false,
+        message: 'Course not found'
       });
     }
 
@@ -213,9 +214,9 @@ const updateCourse = async (req, res) => {
       data: course
     });
   } catch (error) {
-    console.error('Update course error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Update course error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to update course',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -230,15 +231,15 @@ const deleteCourse = async (req, res) => {
 
     // Check if course has any students enrolled
     const Student = require('../models/Student');
-    const enrolledStudents = await Student.countDocuments({ 
-      courseId: id, 
-      instituteId 
+    const enrolledStudents = await Student.countDocuments({
+      courseId: id,
+      instituteId
     });
 
     if (enrolledStudents > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot delete course with enrolled students. Please deactivate it instead.' 
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete course with enrolled students. Please deactivate it instead.'
       });
     }
 
@@ -246,8 +247,8 @@ const deleteCourse = async (req, res) => {
 
     if (!course) {
       return res.status(404).json({
-        success: false, 
-        message: 'Course not found' 
+        success: false,
+        message: 'Course not found'
       });
     }
 
@@ -256,9 +257,9 @@ const deleteCourse = async (req, res) => {
       message: 'Course deleted successfully'
     });
   } catch (error) {
-    console.error('Delete course error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Delete course error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to delete course',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -298,7 +299,7 @@ const toggleCourseStatus = async (req, res) => {
       data: course
     });
   } catch (error) {
-    console.error('Toggle course status error:', error);
+    appLogger.error('Toggle course status error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update course status'
@@ -313,8 +314,8 @@ const getCoursesByTemplate = async (req, res) => {
     const { templateId } = req.params;
     if (!await CertificateTemplate.findOne({ _id: templateId, instituteId })) return res.status(404).json({ success: false, message: 'Template not found' });
 
-    const courses = await Course.find({ 
-      instituteId, 
+    const courses = await Course.find({
+      instituteId,
       certificateTemplateId: templateId,
       status: 'active'
     }).select('courseName courseCode');
@@ -324,7 +325,7 @@ const getCoursesByTemplate = async (req, res) => {
       data: courses
     });
   } catch (error) {
-    console.error('Get courses by template error:', error);
+    appLogger.error('Get courses by template error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch courses'

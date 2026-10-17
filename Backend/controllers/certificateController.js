@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const { tenantFile } = require('../utils/tenantFiles');
 const Certificate = require('../models/Certificate');
 const Student = require('../models/Student');
@@ -62,9 +63,9 @@ const getCertificates = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get certificates error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get certificates error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch certificates',
       error: error.message
     });
@@ -83,9 +84,9 @@ const getCertificateById = async (req, res) => {
       .populate('templateId');
 
     if (!certificate) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Certificate not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
       });
     }
 
@@ -107,9 +108,9 @@ const getCertificateById = async (req, res) => {
       data: certificateWithUrl
     });
   } catch (error) {
-    console.error('Get certificate error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get certificate error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch certificate',
       error: error.message
     });
@@ -149,9 +150,9 @@ const sendCertificateEmailHandler = async (req, res) => {
       .populate('instituteId', 'instituteName logo');
 
     if (!certificate) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Certificate not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
       });
     }
 
@@ -179,9 +180,9 @@ const sendCertificateEmailHandler = async (req, res) => {
       message: 'Certificate email sent successfully'
     });
   } catch (error) {
-    console.error('Send email error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Send email error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to send certificate email',
       error: error.message
     });
@@ -198,15 +199,15 @@ const regenerateCertificateImage = async (req, res) => {
       .populate('templateId');
 
     if (!certificate) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Certificate not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found'
       });
     }
 
     if (certificate.status === 'draft') return issueDraft(req, res, certificate);
     const template = certificate.templateId;
-    
+
     if (!template || String(template.instituteId) !== String(instituteId)) {
       return res.status(404).json({
         success: false,
@@ -240,7 +241,7 @@ const regenerateCertificateImage = async (req, res) => {
     const verificationUrl = buildOnlineVerificationUrl(certificate.certificateCode);
     const qrCodeDir = path.join(__dirname, '../uploads/qrcodes', instituteId.toString());
     fs.mkdirSync(qrCodeDir, { recursive: true });
-    
+
     const qrCodePath = path.join(qrCodeDir, `${certificate.certificateCode}.png`);
     await QRCode.toFile(qrCodePath, verificationUrl, {
       width: 360,
@@ -280,7 +281,7 @@ const regenerateCertificateImage = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Regenerate certificate error:', error);
+    appLogger.error('Regenerate certificate error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to regenerate certificate image',
@@ -327,7 +328,7 @@ const downloadCertificate = async (req, res) => {
 
     require('../services/privateFiles').sendPrivateFile(res, certificate.generatedCertificateImage, instituteId, 'generated', `${certificate.certificateCode}.jpg`);
   } catch (error) {
-    console.error('Download certificate error:', error);
+    appLogger.error('Download certificate error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to download certificate',

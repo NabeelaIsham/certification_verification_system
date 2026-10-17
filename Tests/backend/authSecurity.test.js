@@ -1,4 +1,4 @@
-jest.mock('../../Backend/models/User', () => ({ findOne: jest.fn(), findById: jest.fn(), findByIdAndUpdate: jest.fn() }));
+jest.mock('../../Backend/models/User', () => ({ findOne: jest.fn(), findById: jest.fn(), findByIdAndUpdate: jest.fn(), exists: jest.fn() }));
 jest.mock('../../Backend/models/OTP', () => ({ findOne: jest.fn(), findOneAndDelete: jest.fn(), deleteMany: jest.fn(), create: jest.fn() }));
 jest.mock('../../Backend/utils/emailService', () => ({ sendOtpEmail: jest.fn() }));
 jest.mock('../../Backend/utils/smsService', () => ({ sendOtpSms: jest.fn() }));
@@ -25,6 +25,7 @@ beforeEach(() => {
   jest.resetAllMocks();
   process.env.JWT_SECRET = 'test-only-auth-security-secret';
   delete process.env.JWT_ACCESS_TOKEN_TTL;
+  User.exists.mockResolvedValue({ _id: 'institute-id' });
 });
 afterAll(() => { process.env = originalEnv; });
 

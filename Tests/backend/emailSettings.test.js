@@ -6,8 +6,46 @@ const Settings = require('../../Backend/models/Settings');
 const nodemailer = require('nodemailer');
 const { updateSettings } = require('../../Backend/controllers/adminController');
 const { sendOtpEmail } = require('../../Backend/utils/emailService');
+const { sendSubscriptionExpiredEmail } = require('../../Backend/utils/emailService');
 
 beforeEach(() => jest.resetAllMocks());
+
+test('teacher invitation sends the setup link and escapes names', async () => {
+  Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com' } });
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'teacher-test' });
+  nodemailer.createTransport.mockReturnValue({ sendMail });
+  const url = 'https://certiverxia.example/teacher/set-password#token=' + 'a'.repeat(64);
+  await require('../../Backend/utils/emailService').sendTeacherAccessEmail({ to: 'teacher@example.com', name: '<Jane>', instituteName: '<Institute>', url, invitation: true, hours: 24 });
+  const sent = sendMail.mock.calls[0][0];
+  expect(sent.to).toBe('teacher@example.com');
+  expect(sent.html).toContain(url);
+  expect(sent.html).toContain('&lt;Jane&gt;');
+  expect(sent.html).toContain('&lt;Institute&gt;');
+  expect(sent.html).toContain('24');
+  expect(sent.subject).toMatch(/active/i);
+});
+
+test('approved payment email includes the paid PDF invoice attachment', async () => {
+  Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com' } });
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'invoice-test' });
+  nodemailer.createTransport.mockReturnValue({ sendMail });
+  const buffer = Buffer.from('%PDF-test');
+  await require('../../Backend/utils/emailService').sendPaidInvoiceEmail({ to: 'institute@example.com', packageName: '<Professional>', number: 'CVX-123', buffer });
+  expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: 'institute@example.com',
+    html: expect.stringContaining('&lt;Professional&gt;'),
+    attachments: [{ filename: 'CVX-123-PAID.pdf', content: buffer, contentType: 'application/pdf' }] }));
+});
+
+test('expiry email uses configured SMTP, escapes names and includes expiry time and renewal guidance', async () => {
+  Settings.findOne.mockResolvedValue({ email: { fromEmail: 'sender@example.com', fromName: 'CERTIVERXIA' } });
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'expiry-test' });
+  nodemailer.createTransport.mockReturnValue({ sendMail });
+  await sendSubscriptionExpiredEmail({ to: 'institute@example.com', packageName: '<Starter>', expiredAt: '2026-10-08T10:00:00Z' });
+  const sent = sendMail.mock.calls[0][0];
+  expect(sent.to).toBe('institute@example.com');
+  expect(sent.html).toContain('&lt;Starter&gt;'); expect(sent.html).not.toContain('<Starter>');
+  expect(sent.html).toContain('15:30'); expect(sent.html).toContain('renew');
+});
 test.each(['', '********'])('saving password %j preserves existing SMTP credentials', async (password) => {
   const settings = { email: { smtpPassword: 'existing-secret' }, save: jest.fn(), toObject() { return { email: { ...this.email } }; } };
   Settings.findOne.mockResolvedValue(settings);

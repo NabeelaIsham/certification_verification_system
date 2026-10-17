@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import axios from 'axios';
+import axios from '../src/services/api.jsx';
 import PrivateImage from '../src/components/shared/PrivateImage';
 import PrivateFileLink from '../src/components/shared/PrivateFileLink';
 
-vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+vi.mock('../src/services/api.jsx', () => ({ default: { get: vi.fn() } }));
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem('token', 'test-access-token');
@@ -17,7 +17,7 @@ it('loads private previews through authenticated blobs and releases them on unmo
   const { unmount } = render(<PrivateImage src="/api/private-files/certificates/AAA/image" alt="Certificate" />);
   await waitFor(() => expect(screen.getByAltText('Certificate')).toHaveAttribute('src', 'blob:private-image'));
   expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/api/private-files/certificates/AAA/image'), expect.objectContaining({
-    responseType: 'blob', headers: { Authorization: 'Bearer test-access-token' }
+    responseType: 'blob', headers: {  }
   }));
   unmount();
   expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:private-image');

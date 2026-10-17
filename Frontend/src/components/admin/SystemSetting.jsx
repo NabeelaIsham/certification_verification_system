@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
+import TimezoneSelect from './TimezoneSelect';
 
 const SystemSettings = ({ API_URL }) => {
   const [activeTab, setActiveTab] = useState('general');
@@ -9,7 +10,7 @@ const SystemSettings = ({ API_URL }) => {
   const testEmail = async () => {
     setTestingEmail(true);
     try {
-      const response = await axios.post(`${API_URL}/admin/settings/test-email`, {}, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const response = await apiClient.post(`${API_URL}/admin/settings/test-email`, {}, { headers: { } });
       showMessage('success', response.data.message);
     } catch (error) { showMessage('error', error.response?.data?.message || 'Test email failed'); }
     finally { setTestingEmail(false); }
@@ -23,14 +24,14 @@ const SystemSettings = ({ API_URL }) => {
   }, []);
 
   const fetchSettings = async () => {
-    const token = localStorage.getItem('token');
+
     setLoading(true);
 
     try {
-      const response = await axios.get(`${API_URL}/admin/settings`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await apiClient.get(`${API_URL}/admin/settings`, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
         if (response.data.data.certificate?.allowedFormats) response.data.data.certificate.allowedFormats = response.data.data.certificate.allowedFormats.filter(f => ['PNG', 'JPEG', 'JPG'].includes(f));
         setSettings(response.data.data);
@@ -45,14 +46,14 @@ const SystemSettings = ({ API_URL }) => {
   };
 
   const handleSaveSettings = async () => {
-    const token = localStorage.getItem('token');
+
     setSaving(true);
     setMessage({ type: '', text: '' });
 
     try {
       // Prepare settings for saving
       const settingsToSave = JSON.parse(JSON.stringify(settings));
-      
+
       // Handle password field
       if (settingsToSave.email && originalSettings.email) {
         // If password hasn't changed, don't send it (keep '********')
@@ -61,17 +62,17 @@ const SystemSettings = ({ API_URL }) => {
         }
       }
 
-      const response = await axios.put(
+      const response = await apiClient.put(
         `${API_URL}/admin/settings`,
         settingsToSave,
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
+        {
+          headers: {
+
             'Content-Type': 'application/json'
-          } 
+          }
         }
       );
-      
+
       if (response.data.success) {
         showMessage('success', 'Settings saved successfully!');
         if (response.data.data.security?.twoFactorAuth && !originalSettings.security?.twoFactorAuth) {
@@ -113,7 +114,7 @@ const SystemSettings = ({ API_URL }) => {
           systemName: 'Certiverxia',
           supportEmail: 'info@certiverxia.com',
           companyName: 'Your Company Name',
-          timezone: 'UTC+5:30',
+          timezone: 'Asia/Colombo',
           dateFormat: 'DD/MM/YYYY'
         },
         security: {
@@ -154,12 +155,12 @@ const SystemSettings = ({ API_URL }) => {
     if (exportSettings.email) {
       exportSettings.email.smtpPassword = ''; // Remove password for export
     }
-    
+
     const dataStr = JSON.stringify(exportSettings, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    
+
     const exportFileDefaultName = `system-settings-${new Date().toISOString().split('T')[0]}.json`;
-    
+
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
@@ -242,7 +243,7 @@ const SystemSettings = ({ API_URL }) => {
           {activeTab === 'general' && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">General Settings</h3>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   System Name
@@ -279,21 +280,12 @@ const SystemSettings = ({ API_URL }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Timezone
-                  </label>
-                  <select
-                    value={settings.general?.timezone || 'UTC+5:30'}
-                    onChange={(e) => handleSettingChange('general', 'timezone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    <option value="UTC+5:30">UTC+5:30 (India)</option>
-                    <option value="UTC+0">UTC+0 (London)</option>
-                    <option value="UTC-5">UTC-5 (New York)</option>
-                    <option value="UTC+8">UTC+8 (Singapore)</option>
-                  </select>
+                  <TimezoneSelect
+                    value={settings.general?.timezone || 'Asia/Colombo'}
+                    onChange={value => handleSettingChange('general', 'timezone', value)}
+                  />
                 </div>
 
                 <div>
@@ -318,7 +310,7 @@ const SystemSettings = ({ API_URL }) => {
           {activeTab === 'security' && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Security Settings</h3>
-              
+
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-gray-700">Two-Factor Authentication</p>
@@ -385,7 +377,7 @@ const SystemSettings = ({ API_URL }) => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Email Configuration</h3>
               <p className="text-sm text-gray-500">Save your changes first, then send a test to your super admin email address.</p>
               <button type="button" onClick={testEmail} disabled={testingEmail || saving} className="px-4 py-2 bg-purple-600 text-white rounded-lg disabled:opacity-50">{testingEmail ? 'Sending...' : 'Send Test Email'}</button>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   SMTP Server
@@ -467,7 +459,7 @@ const SystemSettings = ({ API_URL }) => {
           {activeTab === 'verification' && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Verification Settings</h3>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   OTP Expiry (minutes)
@@ -532,7 +524,7 @@ const SystemSettings = ({ API_URL }) => {
           {activeTab === 'certificate' && (
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Certificate Settings</h3>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Default Validity (days)

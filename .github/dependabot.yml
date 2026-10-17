@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /Backend
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    groups:
+      eslint-toolchain:
+        patterns:
+          - eslint
+          - "@eslint/*"
+          - "eslint-plugin-*"
+  - package-ecosystem: npm
+    directory: /Frontend
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    groups:
+      eslint-toolchain:
+        patterns:
+          - eslint
+          - "@eslint/*"
+          - "eslint-plugin-*"
+      vite-toolchain:
+        patterns:
+          - vite
+          - "@vitejs/*"
+          - vitest
+          - "@vitest/*"

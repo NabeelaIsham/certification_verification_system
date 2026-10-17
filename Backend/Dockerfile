@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 ENV NODE_ENV=production
 ENV PORT=5000
 
-RUN apk add --no-cache fontconfig ttf-dejavu ttf-liberation
+RUN apk add --no-cache fontconfig ttf-dejavu ttf-liberation mongodb-tools
 
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
@@ -13,7 +13,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY . .
 
 RUN mkdir -p /usr/src/app/uploads/certificates /usr/src/app/uploads/generated /usr/src/app/uploads/qrcodes /usr/src/app/uploads/templates /usr/src/app/uploads/template-assets /usr/src/app/uploads/logos \
-  && chown -R node:node /usr/src/app/uploads
+  && mkdir -p /usr/src/app/backups \
+  && chown -R node:node /usr/src/app/uploads /usr/src/app/backups
+
+USER node
 
 EXPOSE 5000
 

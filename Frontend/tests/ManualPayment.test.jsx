@@ -15,6 +15,8 @@ test('shows configured bank, fixes the reference to the selected package and sub
   expect(screen.getByLabelText('Payment reference (package)')).toHaveValue('Professional');
   expect(screen.getByLabelText('Payment reference (package)')).toHaveAttribute('readonly');
   fireEvent.change(screen.getByLabelText('Bank transaction number'), { target: { value: 'BANK-123' } });
+  fireEvent.change(screen.getByLabelText('Payer name'), { target: { value: 'Test Payer' } });
+  fireEvent.change(screen.getByLabelText('Payment date'), { target: { value: '2026-01-01' } });
   const file = new File(['receipt'], 'receipt.png', { type: 'image/png' });
   await userEvent.upload(screen.getByLabelText(/Receipt image/), file);
   expect(screen.getByLabelText(/Receipt image/).files).toHaveLength(1);
@@ -24,6 +26,8 @@ test('shows configured bank, fixes the reference to the selected package and sub
   expect(url).toBe('/subscriptions/sub/payment-proof');
   expect(body.get('transactionNumber')).toBe('BANK-123');
   expect(body.get('receipt')).toBe(file);
+  expect(body.get('payerName')).toBe('Test Payer');
+  expect(body.get('paidAt')).toBe('2026-01-01');
   expect(body.has('packageReference')).toBe(false);
 });
 test('does not offer payment upload when bank details are missing', async () => {

@@ -4,6 +4,12 @@ Baseline: `2e18b650`. Repair branches: `fix/priority-1-security`, `fix/priority-
 This document tracks implementation separately from operational acceptance. It does not
 declare the application ready for production SaaS.
 
+Latest local authentication findings and fixes are recorded in
+[the October 16 security review](SECURITY_FIXES_2026-10-16.md), with 184 unit tests,
+135 tests in the full integration run and 21 tests in the final focused authentication
+integration run passing. The original checklist below is historical;
+use that review and [production readiness](production-readiness.md) for current blockers.
+
 ## Priority 1: security baseline
 
 | Checklist item | Status |
@@ -100,14 +106,16 @@ until Priority 3 replaces raw public file delivery.
 
 ## Priority 3 and deployment order
 
-PR #1 merged on 2026-09-29. PR #2 now targets main and remains draft pending actual
-Atlas staging migration, transaction, restoration and persistence evidence.
+PR #1 merged on 2026-09-29 and PR #2 merged on 2026-10-01. The merge does not complete
+application staging, persistence or recovery acceptance. The [October 16 review](READINESS_REVIEW_2026-10-16.md)
+reconciles current PR/CI state, historical data findings and live evidence.
 See [PRIORITY_3.md](PRIORITY_3.md) for the controlled file protocol and
 [ATLAS_STAGING.md](ATLAS_STAGING.md) for the outstanding staging gate.
 Database/operational preparation, secrets and monitoring must precede Priority 6.
 Implement manual subscriptions before PayHere. Atlas migration/restoration was completed on 2026-09-30 for the local database;
 see the staging record for existing data blockers. No production deployment or
-application connection switch has been performed.
+application connection switch was performed during that migration exercise. Later live
+deployment observations are recorded in the October 16 review.
 
 ## Database migration and restoration ? 2026-09-30
 
@@ -120,4 +128,5 @@ excluded from Git. This does not validate an uninspected production MongoDB 4.4 
 The source and both restored copies share one invalid signing-key record, four certificates
 with missing references, eleven unsigned legacy certificates and twenty-six absolute file
 references. These existing issues, application UAT, staging isolation, persistent deployment
-and off-server recovery keep the operational acceptance gate and PR #2 draft status open.
+and off-server recovery keep the historical operational acceptance gate open; they do not
+change PR #2's merged status. Do not present these historical counts as a current production audit.

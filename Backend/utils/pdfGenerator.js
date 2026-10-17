@@ -1,15 +1,16 @@
+const { appLogger } = require('./logger.js');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
 const generateCertificatePDF = async (data) => {
   try {
-    const { 
-      studentName, 
-      courseName, 
-      awardDate, 
-      certificateCode, 
-      template, 
+    const {
+      studentName,
+      courseName,
+      awardDate,
+      certificateCode,
+      template,
       qrCode
     } = data;
 
@@ -41,7 +42,7 @@ const generateCertificatePDF = async (data) => {
     // Draw border
     const borderColor = template?.design?.borderStyle?.match(/#[a-f0-9]{6}/i)?.[0] || '#2563eb';
     const borderWidth = parseInt(template?.design?.borderStyle) || 3;
-    
+
     doc.lineWidth(borderWidth)
        .strokeColor(borderColor)
        .rect(30, 30, doc.page.width - 60, doc.page.height - 60)
@@ -53,7 +54,7 @@ const generateCertificatePDF = async (data) => {
         const logoBuffer = await fetch(template.design.logo).then(res => res.buffer());
         doc.image(logoBuffer, doc.page.width - 150, 50, { width: 80, height: 80 });
       } catch (error) {
-        console.log('Logo could not be loaded:', error.message);
+        appLogger.log('Logo could not be loaded:', error.message);
       }
     }
 
@@ -93,7 +94,7 @@ const generateCertificatePDF = async (data) => {
       month: 'long',
       day: 'numeric'
     });
-    
+
     doc.fontSize(14)
        .font('Helvetica')
        .fillColor('#6b7280')
@@ -111,15 +112,15 @@ const generateCertificatePDF = async (data) => {
         // Convert base64 QR to buffer
         const base64Data = qrCode.replace(/^data:image\/png;base64,/, '');
         const qrBuffer = Buffer.from(base64Data, 'base64');
-        
+
         // Add QR code to PDF
-        doc.image(qrBuffer, doc.page.width / 2 - 60, 500, { 
-          width: 120, 
+        doc.image(qrBuffer, doc.page.width / 2 - 60, 500, {
+          width: 120,
           height: 120,
           align: 'center'
         });
       } catch (error) {
-        console.log('QR code could not be added:', error.message);
+        appLogger.log('QR code could not be added:', error.message);
       }
     }
 
@@ -127,12 +128,12 @@ const generateCertificatePDF = async (data) => {
     if (template?.design?.signature) {
       try {
         const signatureBuffer = await fetch(template.design.signature).then(res => res.buffer());
-        doc.image(signatureBuffer, 100, doc.page.height - 150, { 
-          width: 150, 
-          height: 60 
+        doc.image(signatureBuffer, 100, doc.page.height - 150, {
+          width: 150,
+          height: 60
         });
       } catch (error) {
-        console.log('Signature could not be loaded:', error.message);
+        appLogger.log('Signature could not be loaded:', error.message);
       }
     }
 
@@ -155,18 +156,18 @@ const generateCertificatePDF = async (data) => {
       stream.on('finish', () => {
         const baseUrl = process.env.API_URL || 'http://localhost:5000';
         const pdfUrl = `${baseUrl}/uploads/certificates/${fileName}`;
-        console.log(`✅ PDF generated successfully: ${pdfUrl}`);
+        appLogger.log(`✅ PDF generated successfully: ${pdfUrl}`);
         resolve(pdfUrl);
       });
-      
+
       stream.on('error', (error) => {
         reject(error);
       });
     });
 
   } catch (error) {
-    console.error('PDF Generation Error:', error);
-    throw new Error(`Failed to generate PDF: ${error.message}`);
+    appLogger.error('PDF Generation Error:', error);
+    throw new Error(`Failed to generate PDF: ${error.message}`, { cause: error });
   }
 };
 

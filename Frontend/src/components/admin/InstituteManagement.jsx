@@ -1,10 +1,11 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 
-const InstituteManagement = ({ onStatsUpdate }) => {
+const InstituteManagement = ({ onStatsUpdate, initialStatus = 'all' }) => {
   const [institutes, setInstitutes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState(['all', 'pending', 'approved', 'rejected', 'suspended'].includes(initialStatus) ? initialStatus : 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [pagination, setPagination] = useState({
     page: 1,
@@ -51,7 +52,7 @@ const InstituteManagement = ({ onStatsUpdate }) => {
       }
     } catch (error) {
       console.error('Error fetching institutes:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
     }
@@ -67,13 +68,13 @@ const InstituteManagement = ({ onStatsUpdate }) => {
       );
 
       if (response.data.success) {
-        alert('Institute approved successfully!');
+        notify('Institute approved successfully!');
         fetchInstitutes();
         onStatsUpdate();
       }
     } catch (error) {
       console.error('Error approving institute:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -89,13 +90,13 @@ const InstituteManagement = ({ onStatsUpdate }) => {
       });
 
       if (response.data.success) {
-        alert('Institute rejected successfully!');
+        notify('Institute rejected successfully!');
         fetchInstitutes();
         onStatsUpdate();
       }
     } catch (error) {
       console.error('Error rejecting institute:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -114,13 +115,13 @@ const InstituteManagement = ({ onStatsUpdate }) => {
       );
 
       if (response.data.success) {
-        alert(`Institute ${action}ed successfully!`);
+        notify(`Institute ${action}ed successfully!`);
         fetchInstitutes();
         onStatsUpdate();
       }
     } catch (error) {
       console.error('Error toggling institute status:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -134,7 +135,7 @@ const InstituteManagement = ({ onStatsUpdate }) => {
       }
     } catch (error) {
       console.error('Error fetching institute details:', error);
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      notify(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 

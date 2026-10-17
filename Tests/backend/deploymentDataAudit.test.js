@@ -15,7 +15,13 @@ describe('Read-only deployment data audit', () => {
   };
   const certificate = { instituteId: 'i', studentId: 's', courseId: 'c', templateId: 't' };
   beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), 'certverify-audit-')); });
-  afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
+  afterEach(() => {
+    const target = path.resolve(root);
+    if (path.dirname(target) !== path.resolve(os.tmpdir()) || !path.basename(target).startsWith('certverify-audit-')) {
+      throw new Error('Refusing to remove a directory outside this audit fixture');
+    }
+    fs.rmSync(target, { recursive: true, force: true });
+  });
 
   test('accepts portable files with complete tenant references', async () => {
     fs.mkdirSync(path.join(root, 'uploads/generated/i'), { recursive: true });
@@ -29,6 +35,16 @@ describe('Read-only deployment data audit', () => {
     const issues = await auditDeploymentData(database(original, { _id: 't', instituteId: 'other' }), root);
     expect(issues).toMatchObject({ missingReferences: 1, crossInstituteReferences: 1 });
     expect(original.studentId).toBe('missing');
+  });
+
+  test('rejects a tenant-directory junction pointing at another institute even when the file exists', async () => {
+    const other = path.join(root, 'uploads/generated/other');
+    fs.mkdirSync(other, { recursive: true });
+    fs.writeFileSync(path.join(other, 'c.png'), 'other institute');
+    fs.symlinkSync(other, path.join(root, 'uploads/generated/i'), 'junction');
+    const issues = await auditDeploymentData(database({ ...certificate, generatedCertificateImage: 'uploads/generated/i/c.png' }), root);
+    expect(issues.unsafeFileReferences).toBe(1);
+    expect(fs.readFileSync(path.join(other, 'c.png'), 'utf8')).toBe('other institute');
   });
 
   test.each([

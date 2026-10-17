@@ -6,6 +6,8 @@ const schema = new mongoose.Schema({
   codeHash: { type: String, required: true },
   attempts: { type: Number, default: 0 },
   purpose: { type: String, enum: ['login', 'enable'], default: 'login' },
+  // No default: old challenges without a version must require a fresh login.
+  sessionVersion: { type: Number, required: true, min: 0 },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, required: true, expires: 0 }
 });

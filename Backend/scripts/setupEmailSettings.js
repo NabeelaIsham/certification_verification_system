@@ -10,7 +10,7 @@ const {
   EMAIL_PORT,
   EMAIL_USER,
   EMAIL_PASS,
-  EMAIL_FROM_NAME = 'Certiverxia'
+  EMAIL_FROM_NAME = 'CERTIVERXIA'
 } = process.env;
 
 const setupEmailSettings = async () => {

@@ -1,7 +1,9 @@
 # Priority 4 and 5 deployment gates
 
-The Atlas migration and independent restore passed. This does not constitute application
-staging acceptance or production readiness. PR #2 remains draft and Priority 6 stays deferred.
+The September 30 Atlas migration and independent restore passed. This does not constitute
+application staging acceptance or production readiness. PR #2 merged on October 1 and SaaS
+features are now implemented in main; operational acceptance remains incomplete. See the
+[October 16 review](READINESS_REVIEW_2026-10-16.md) for current evidence and PR blockers.
 
 ## Deployment configuration
 
@@ -41,13 +43,17 @@ proxy trust against the actual host topology before exposing the application. Se
 
 ## Outstanding acceptance evidence
 
+The data counts below belong to the historical source/staging dataset. The October 16
+inspection of the separately configured `certiverxia` database did not reproduce them;
+that is not proof that the original records were recovered or migrated.
+
 | Gate | Current state / required action |
 | --- | --- |
 | Signing key | Original private key recovered in memory using historical configuration; public-key match validated. Three associated signed certificates verify. Reencryption and Atlas application remain pending behind a fresh verified off-server backup. |
 | References | Four unsigned legacy certificates reference missing institutes; one also references a missing template. Recover authoritative records; do not assign another institute or invent replacements. |
 | Portable uploads | 26 absolute references need a reviewed mapping to relative tenant paths and matching restored files. |
 | Legacy certificates | 11 unsigned records need an agreed legacy policy; the three signed records verify. |
-| Hosting | Choose staging/production host and install environment-specific secrets, network rules and HTTPS. |
+| Hosting | The live apex domain is healthy; www TLS and HTTP routing still fail. Environment separation, Atlas network rules and deployed credentials still require account-level evidence. |
 | Application validation | Exercise issuance retries, file access, shares/revocation and public verification on Atlas staging. |
 | Persistence | Recreate application containers and verify the same database records and upload hashes remain. |
 | Backups | Existing local DPAPI backups were restored successfully, but need independently recoverable encryption, an off-server destination, scheduled jobs, retention and alerts. The existing `backup:database` utility creates plaintext dumps and is not a complete production backup system. |
@@ -98,10 +104,12 @@ the recovery-only secret from the environment afterward. Re-run preflight, issua
 verification checks. Other institutes with different encryption histories require individual
 recovery; do not change their keys blindly.
 
-Latest published CI checked on 2026-10-01: PR #2 head `72d399c9`, PR #3 head `a5068c64`,
+Historical CI checked on 2026-10-01: PR #2 head `72d399c9`, PR #3 head `a5068c64`,
 and PR #4 head `e90493ed` all passed. This evidence does not replace staging acceptance;
 new commits require their own CI.
 
-Only after these gates pass should PR #2 become ready, the stacked changes be reviewed and
-deployed, and manual subscriptions/credit enforcement begin. PayHere follows validated
-manual subscriptions.
+Current main has green hosted CI, while the newer open PR #3/#4 heads fail dependency
+audits and PR #7 has conflicts without head-specific checks. Reconcile their remaining
+changes against main before accepting them. Manual subscriptions and credit enforcement
+are implemented; production acceptance still requires the operational gates above.
+PayHere follows validated manual subscriptions.

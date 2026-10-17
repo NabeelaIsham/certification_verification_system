@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
@@ -69,7 +70,7 @@ const generateCertificateImage = async (certificateData) => {
       instituteName
     } = certificateData;
 
-    console.log('Starting certificate image generation...');
+    appLogger.log('Starting certificate image generation...');
 
     // Check if template image exists
     if (!fs.existsSync(tenantFile(template.templateImage, instituteId, ['templates']))) {
@@ -79,7 +80,7 @@ const generateCertificateImage = async (certificateData) => {
     // Load the template image
     const templateImage = sharp(tenantFile(template.templateImage, instituteId, ['templates']));
     const metadata = await templateImage.metadata();
-    console.log('Template image loaded:', metadata);
+    appLogger.log('Template image loaded:', metadata);
 
     // Create a composite image with all fields
     const compositeOperations = [];
@@ -99,7 +100,7 @@ const generateCertificateImage = async (certificateData) => {
           instituteName
         });
 
-        console.log(`Adding text field ${field.fieldName} at (${field.x}, ${field.y}): "${text}"`);
+        appLogger.log(`Adding text field ${field.fieldName} at (${field.x}, ${field.y}): "${text}"`);
 
         // Create SVG for text
         const fontFamily = getSvgFontFamily(field.fontFamily);
@@ -125,14 +126,14 @@ const generateCertificateImage = async (certificateData) => {
         });
       }
     } else {
-      console.log('No fields defined in template');
+      appLogger.log('No fields defined in template');
     }
 
     // Add uploaded image fields such as logos, signatures, and seals
     if (template.imageFields && template.imageFields.length > 0) {
       for (const imageField of template.imageFields) {
         if (imageField.imagePath && fs.existsSync(tenantFile(imageField.imagePath, instituteId, ['template-assets']))) {
-          console.log(`Adding image field ${imageField.label || imageField.imageType} at (${imageField.x}, ${imageField.y})`);
+          appLogger.log(`Adding image field ${imageField.label || imageField.imageType} at (${imageField.x}, ${imageField.y})`);
           compositeOperations.push({
             input: await sharp(tenantFile(imageField.imagePath, instituteId, ['template-assets'])).resize(imageField.width || 120, imageField.height || 60).toBuffer(),
             top: imageField.y || 0,
@@ -141,7 +142,7 @@ const generateCertificateImage = async (certificateData) => {
             height: imageField.height || 60
           });
         } else {
-          console.log('Image field file not found:', imageField.imagePath);
+          appLogger.log('Image field file not found:', imageField.imagePath);
         }
       }
     }
@@ -149,7 +150,7 @@ const generateCertificateImage = async (certificateData) => {
     // Add QR code
     if (qrCodeImage) {
       if (fs.existsSync(qrCodeImage)) {
-        console.log('Adding QR code from:', qrCodeImage);
+        appLogger.log('Adding QR code from:', qrCodeImage);
         const qrSize = Math.max(80, Math.round(template.qrCodePosition?.size || 100));
         const resizedQrCode = await sharp(qrCodeImage)
           .resize(qrSize, qrSize, {
@@ -164,7 +165,7 @@ const generateCertificateImage = async (certificateData) => {
           left: template.qrCodePosition?.x || 0
         });
       } else {
-        console.log('QR code image not found:', qrCodeImage);
+        appLogger.log('QR code image not found:', qrCodeImage);
       }
     }
 
@@ -173,18 +174,18 @@ const generateCertificateImage = async (certificateData) => {
     fs.mkdirSync(outputDir, { recursive: true });
 
     const outputPath = path.join(outputDir, `${certificateCode}.jpg`);
-    console.log('Saving to:', outputPath);
+    appLogger.log('Saving to:', outputPath);
 
     await templateImage
       .composite(compositeOperations)
       .jpeg({ quality: 90 })
       .toFile(outputPath);
 
-    console.log('Certificate image generated successfully');
+    appLogger.log('Certificate image generated successfully');
     return outputPath;
   } catch (error) {
-    console.error('Certificate generation error details:', error);
-    throw new Error(`Image generation failed: ${error.message}`);
+    appLogger.error('Certificate generation error details:', error);
+    throw new Error(`Image generation failed: ${error.message}`, { cause: error });
   }
 };
 

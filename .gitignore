@@ -2,6 +2,14 @@ node_modules/
 dist/
 build/
 .env
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+!.env.*.template
+*.credential.xml
+*.dpapi
+__pycache__/
 *.log
 
 Backend/node_modules/
@@ -14,6 +22,7 @@ Tests/coverage/
 Frontend/node_modules/
 Frontend/dist/
 Frontend/.env
+
+/worktrees/
 .local-secrets/
-deploy/hostinger/secrets/*
-!deploy/hostinger/secrets/.gitignore
+.history-cleanup/

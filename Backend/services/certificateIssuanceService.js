@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const fs = require('fs/promises');
@@ -194,19 +195,19 @@ async function issue({ actorId, input: rawInput, idempotencyKey, legacyCertifica
     // Delivery is outside the transaction. A retry returns the saved certificate without sending twice.
     try {
       await delivery.sendIssuedCertificateNotification({ certificate, student, institute, baseUrl: process.env.API_URL || 'http://localhost:5000' });
-    } catch (error) { console.error('Certificate email failed after issuance:', error.message); }
+    } catch (error) { appLogger.error('Certificate email failed after issuance:', error.message); }
     return { certificate, replayed: false };
   } catch (error) {
     // Resolve uncertain commit outcomes before deleting files or releasing a reservation.
     let committed;
     try { committed = await release(op, input); }
     catch (recoveryError) {
-      console.error('Issuance recovery is pending:', recoveryError.message);
+      appLogger.error('Issuance recovery is pending:', recoveryError.message);
       throw fail(503, 'Issuance outcome is pending. Retry with the same key.');
     }
     if (committed && path.resolve(__dirname, '..', committed.generatedCertificateImage) === imagePath) return { certificate: committed, replayed: true };
     await Promise.all([qrCodePath, imagePath].map(file => fs.unlink(file).catch(e => {
-      if (e.code !== 'ENOENT') console.error('Issuance file cleanup failed:', e.message);
+      if (e.code !== 'ENOENT') appLogger.error('Issuance file cleanup failed:', e.message);
     })));
     if (committed) return { certificate: committed, replayed: true };
     throw error;
@@ -218,7 +219,7 @@ function responseData(certificate) {
     instituteId: certificate.instituteId, certificateCode: certificate.certificateCode, generatedImagePath: certificate.generatedCertificateImage }) };
 }
 function errorResponse(res, error) {
-  console.error('Certificate issuance failed:', error.message);
+  appLogger.error('Certificate issuance failed:', error.message);
   return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Certificate issuance failed. Retry with the same key.' });
 }
 async function issueHttp(req, res) {

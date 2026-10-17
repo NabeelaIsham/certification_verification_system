@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const effectiveStatus = (certificate) => certificate.status === 'issued' && certificate.validUntil && new Date(certificate.validUntil) <= new Date() ? 'expired' : certificate.status;
 const crypto = require('crypto');
 const mongoose = require('mongoose');
@@ -95,7 +96,7 @@ const createShare = async (req, res) => {
         { _id: share._id },
         { $set: { revokedAt: new Date() } }
       );
-      console.error('Credential share email failed; share revoked:', emailError);
+      appLogger.error('Credential share email failed; share revoked:', emailError);
       return res.status(502).json({
         success: false,
         message: 'The share link could not be emailed and was revoked. Check the email configuration and try again.'
@@ -113,7 +114,7 @@ const createShare = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Create credential share error:', error);
+    appLogger.error('Create credential share error:', error);
     return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Failed to create share link' });
   }
 };
@@ -241,7 +242,7 @@ const resolveShare = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Resolve credential share error:', error);
+    appLogger.error('Resolve credential share error:', error);
     return res.status(500).json({ success: false, message: 'Failed to open share link' });
   }
 };
@@ -315,7 +316,7 @@ const addLifecycleEvent = async (req, res) => {
       data: certificate
     });
   } catch (error) {
-    console.error('Credential lifecycle error:', error);
+    appLogger.error('Credential lifecycle error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update credential lifecycle' });
   }
 };
@@ -365,7 +366,7 @@ const getSigningKeyStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get signing key status error:', error);
+    appLogger.error('Get signing key status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to read signing-key status' });
   }
 };
@@ -413,7 +414,7 @@ const rotateSigningKey = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Rotate signing key error:', error);
+    appLogger.error('Rotate signing key error:', error);
     return res.status(500).json({ success: false, message: 'Failed to rotate signing key' });
   }
 };
