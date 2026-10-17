@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 export default function TeacherCreateCourse({ API_URL, onCreated }) {
   const [form, setForm] = useState({ courseName: '', courseCode: '', description: '', duration: '' });
@@ -8,7 +8,7 @@ export default function TeacherCreateCourse({ API_URL, onCreated }) {
   return <form className="bg-white rounded-xl border p-6 space-y-4" onSubmit={async e => {
     e.preventDefault(); setBusy(true); setMessage('');
     try {
-      await axios.post(`${API_URL}/teachers/courses`, form, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      await apiClient.post(`${API_URL}/teachers/courses`, form, { headers: { } });
       setMessage('Course created and assigned to you.'); setForm({ courseName: '', courseCode: '', description: '', duration: '' }); await onCreated();
     } catch (error) { setMessage(error.response?.data?.message || 'Could not create course.'); }
     finally { setBusy(false); }

@@ -14,6 +14,7 @@ router.post('/resend-otp', enforceOtpPolicy('send-account'), authController.rese
 router.post('/forgot-password', enforceOtpPolicy('send-reset'), authController.forgotPassword);
 router.post('/reset-password', enforceOtpPolicy('verify-reset'), authController.resetPassword);
 router.post('/login', authController.login);
+router.post('/logout', require('../middleware/browserSession').clearSession);
 router.post('/2fa/verify', require('../controllers/twoFactorController').verifyTwoFactor);
 router.put('/2fa/settings', authenticateToken, require('../controllers/twoFactorController').updateTwoFactor);
 router.get('/me', authenticateToken, authController.getCurrentUser);

@@ -1,3 +1,4 @@
+const { appLogger } = require('./logger.js');
 const crypto = require('crypto');
 
 const CREDENTIAL_VERSION = '1.0';
@@ -16,7 +17,7 @@ const getEncryptionKey = () => {
   }
 
   if (!process.env.CREDENTIAL_KEY_ENCRYPTION_SECRET && !warnedAboutFallbackSecret) {
-    console.warn('CREDENTIAL_KEY_ENCRYPTION_SECRET is missing; using JWT_SECRET as a development fallback.');
+    appLogger.warn('CREDENTIAL_KEY_ENCRYPTION_SECRET is missing; using JWT_SECRET as a development fallback.');
     warnedAboutFallbackSecret = true;
   }
 

@@ -24,12 +24,14 @@ const setupSuperAdmin = async () => {
   });
 
   if (existing) {
+    if (process.env.SUPERADMIN_CREATE_ONLY === 'true') throw new Error('Administrator already exists.');
     existing.superAdminName = SUPERADMIN_NAME;
     existing.password = SUPERADMIN_PASSWORD;
     existing.isActive = true;
     existing.isEmailVerified = true;
     existing.isVerifiedByAdmin = true;
     existing.status = 'approved';
+    existing.sessionVersion = (existing.sessionVersion || 0) + 1;
     await existing.save();
     console.log(`Super admin already exists and was updated with a fresh password: ${existing.email}`);
     return;
@@ -51,7 +53,7 @@ const setupSuperAdmin = async () => {
 
 setupSuperAdmin()
   .catch((error) => {
-    console.error('Failed to set up super admin:', error.message);
+    console.error('Failed to set up super admin. Check protected configuration and database access.', error.name);
     process.exitCode = 1;
   })
   .finally(async () => {

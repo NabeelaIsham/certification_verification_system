@@ -3,6 +3,18 @@ const { assertDeliveryAllowed } = require('../../Backend/utils/deliveryPolicy');
 const { validateProductionConfig } = require('../../Backend/config/production');
 
 describe('Deployment isolation', () => {
+  test('Dokploy forwards required SMS credentials into the backend service', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const yaml = require('js-yaml');
+    const compose = yaml.load(fs.readFileSync(path.resolve(__dirname, '../../docker-compose.dokploy.yml'), 'utf8'));
+    const environment = compose.services.backend.environment;
+    for (const variable of ['TEXTLK_API_TOKEN', 'TEXTLK_SENDER_ID']) {
+      expect(environment[variable]).toMatch(new RegExp('^\\$\\{' + variable + ':\\?'));
+    }
+    expect(environment.TEXTLK_SMS_ENDPOINT).toContain('https://app.text.lk/api/v3/sms/send');
+    expect(environment.TEXTLK_AUTH_PREFIX).toContain('Bearer');
+  });
   test.each([
     undefined, 'mongodb://localhost:27017', 'mongodb://localhost:27017/',
     'mongodb://localhost/admin', 'mongodb://localhost/%61dmin',

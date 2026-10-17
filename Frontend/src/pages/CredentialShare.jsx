@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../services/api.jsx';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -12,7 +12,7 @@ const CredentialShare = () => {
 
   useEffect(() => {
     let active = true;
-    axios.get(`${API_URL}/certificates/verify/share/${encodeURIComponent(token)}`)
+    apiClient.get(`${API_URL}/certificates/verify/share/${encodeURIComponent(token)}`)
       .then((response) => {
         if (active) setCredential(response.data.data);
       })

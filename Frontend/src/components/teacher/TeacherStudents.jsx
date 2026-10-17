@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 import TeacherStudentActions from './TeacherStudentActions';
 
 const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId, permissions = {} }) => {
@@ -21,9 +21,9 @@ const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId
 
   const fetchCourseDetails = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/teachers/courses/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/teachers/courses/my`, {
+        headers: { }
       });
       if (response.data.success) {
         setCourses(response.data.data || []);
@@ -38,11 +38,11 @@ const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId
     setLoading(true);
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/teachers/students/my`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/teachers/students/my`, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
         console.log(`Loaded ${response.data.data.length} students for institute ${instituteId}`);
         setStudents(response.data.data || []);
@@ -56,12 +56,12 @@ const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId
   };
 
   const filteredStudents = students.filter(student => {
-    const matchesSearch = 
+    const matchesSearch =
       (student.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (student.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    
+
     const matchesCourse = selectedCourse === 'all' || student.courseId?._id === selectedCourse;
-    
+
     return matchesSearch && matchesCourse;
   });
 
@@ -144,7 +144,7 @@ const TeacherStudents = ({ API_URL, teacherId, assignedCourses = [], instituteId
                   </div>
                 </div>
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  student.status === 'active' 
+                  student.status === 'active'
                     ? 'bg-green-100 text-green-800'
                     : 'bg-gray-100 text-gray-800'
                 }`}>

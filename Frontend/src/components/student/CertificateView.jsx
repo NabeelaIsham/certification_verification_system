@@ -1,3 +1,4 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -25,7 +26,7 @@ const CertificateView = () => {
 
   const downloadPDF = () => {
     // Simulate PDF download
-    alert('Downloading certificate as PDF...')
+    notify('Downloading certificate as PDF...')
   }
 
   const shareCertificate = () => {
@@ -38,7 +39,7 @@ const CertificateView = () => {
       })
     } else {
       navigator.clipboard.writeText(window.location.href)
-      alert('Certificate URL copied to clipboard!')
+      notify('Certificate URL copied to clipboard!')
     }
   }
 

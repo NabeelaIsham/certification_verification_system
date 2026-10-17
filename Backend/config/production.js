@@ -23,6 +23,7 @@ const validateProductionConfig = (env = process.env) => {
   if (env.NODE_ENV !== 'production') return { valid: true, errors: [] };
 
   const errors = [];
+  if (env.SAAS_ENABLED !== undefined && !['true', 'false'].includes(env.SAAS_ENABLED)) errors.push('SAAS_ENABLED must be true or false');
   if (!['staging', 'production'].includes(env.DEPLOYMENT_ENV)) {
     errors.push('DEPLOYMENT_ENV must be staging or production');
   }

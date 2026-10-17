@@ -1,6 +1,7 @@
+import { notify, notifyAfterRedirect } from '../../services/notifications.js';
 import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const getUploadUrl = (API_URL, filePath) => {
   if (!filePath) return '';
@@ -54,17 +55,17 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/institute/settings`, {
+
+      const response = await apiClient.put(`${API_URL}/institute/settings`, {
         instituteName: formData.instituteName,
         phone: formData.phone,
         address: formData.address
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {
-        alert('Profile updated successfully');
+        notify('Profile updated successfully');
         const userData = JSON.parse(localStorage.getItem('user')) || {};
         userData.instituteName = response.data.data.instituteName;
         userData.phone = response.data.data.phone;
@@ -75,7 +76,7 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert(error.response?.data?.message || 'Error updating profile');
+      notify(error.response?.data?.message || 'Error updating profile');
     } finally {
       setLoading(false);
     }
@@ -86,7 +87,7 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please choose an image file');
+      notify('Please choose an image file');
       return;
     }
 
@@ -96,20 +97,20 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
 
   const handleLogoUpload = async () => {
     if (!logoFile) {
-      alert('Please choose a logo first');
+      notify('Please choose a logo first');
       return;
     }
 
     setUploadingLogo(true);
 
     try {
-      const token = localStorage.getItem('token');
+
       const uploadData = new FormData();
       uploadData.append('logo', logoFile);
 
-      const response = await axios.post(`${API_URL}/institute/logo`, uploadData, {
+      const response = await apiClient.post(`${API_URL}/institute/logo`, uploadData, {
         headers: {
-          Authorization: `Bearer ${token}`,
+
           'Content-Type': 'multipart/form-data'
         }
       });
@@ -123,11 +124,11 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
         setLogoFile(null);
         setLogoPreview(getUploadUrl(API_URL, response.data.data.logo));
         onUserUpdate?.(updatedUser);
-        alert('Logo uploaded successfully');
+        notify('Logo uploaded successfully');
       }
     } catch (error) {
       console.error('Error uploading logo:', error);
-      alert(error.response?.data?.message || 'Error uploading logo');
+      notify(error.response?.data?.message || 'Error uploading logo');
     } finally {
       setUploadingLogo(false);
     }
@@ -137,7 +138,7 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
     e.preventDefault();
 
     if (formData.newPassword !== formData.confirmPassword) {
-      alert('New passwords do not match');
+      notify('New passwords do not match');
       return;
     }
 
@@ -148,23 +149,23 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
       !/[A-Z]/.test(formData.newPassword) ||
       !/\d/.test(formData.newPassword)
     ) {
-      alert('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
+      notify('Password must be 10-128 characters and include uppercase, lowercase, and a number.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/institute/change-password`, {
+
+      const response = await apiClient.put(`${API_URL}/institute/change-password`, {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {
-        alert('Password changed successfully. Please sign in again.');
+        notifyAfterRedirect('Password changed successfully. Please sign in again.');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.assign('/login');
@@ -177,7 +178,7 @@ const InstituteSettings = ({ API_URL, user, onUserUpdate }) => {
       }
     } catch (error) {
       console.error('Error changing password:', error);
-      alert(error.response?.data?.message || 'Error changing password');
+      notify(error.response?.data?.message || 'Error changing password');
     } finally {
       setLoading(false);
     }

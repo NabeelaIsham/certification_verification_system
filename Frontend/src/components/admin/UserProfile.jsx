@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const UserProfile = ({ isOpen, onClose, user, API_URL }) => {
   const [formData, setFormData] = useState({
@@ -29,13 +29,11 @@ const UserProfile = ({ isOpen, onClose, user, API_URL }) => {
       return;
     }
 
-    const token = localStorage.getItem('token');
-
     try {
-      const response = await axios.put(
+      const response = await apiClient.put(
         `${API_URL}/admin/profile`,
         formData,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { } }
       );
 
       if (response.data.success) {
@@ -45,9 +43,9 @@ const UserProfile = ({ isOpen, onClose, user, API_URL }) => {
         }, 2000);
       }
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to update profile' 
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to update profile'
       });
     } finally {
       setLoading(false);

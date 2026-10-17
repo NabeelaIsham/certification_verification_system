@@ -1,5 +1,6 @@
+import { notify } from '../../services/notifications.js';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const CertificateTemplates = ({ API_URL }) => {
   const [templates, setTemplates] = useState([]);
@@ -28,9 +29,9 @@ const CertificateTemplates = ({ API_URL }) => {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/certificate-templates`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.get(`${API_URL}/certificate-templates`, {
+        headers: { }
       });
       if (response.data.success) {
         setTemplates(response.data.data);
@@ -66,23 +67,23 @@ const CertificateTemplates = ({ API_URL }) => {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+
       if (editingTemplate) {
-        const response = await axios.put(`${API_URL}/certificate-templates/${editingTemplate._id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.put(`${API_URL}/certificate-templates/${editingTemplate._id}`, formData, {
+          headers: { }
         });
         if (response.data.success) {
-          alert('Template updated successfully');
+          notify('Template updated successfully');
         }
       } else {
-        const response = await axios.post(`${API_URL}/certificate-templates`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+        const response = await apiClient.post(`${API_URL}/certificate-templates`, formData, {
+          headers: { }
         });
         if (response.data.success) {
-          alert('Template created successfully');
+          notify('Template created successfully');
         }
       }
-      
+
       setShowModal(false);
       setEditingTemplate(null);
       setFormData({
@@ -102,7 +103,7 @@ const CertificateTemplates = ({ API_URL }) => {
       fetchTemplates();
     } catch (error) {
       console.error('Error saving template:', error);
-      alert(error.response?.data?.message || 'Error saving template');
+      notify(error.response?.data?.message || 'Error saving template');
     } finally {
       setLoading(false);
     }
@@ -131,18 +132,18 @@ const CertificateTemplates = ({ API_URL }) => {
     if (!window.confirm('Are you sure you want to delete this template?')) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.delete(`${API_URL}/certificate-templates/${templateId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+
+      const response = await apiClient.delete(`${API_URL}/certificate-templates/${templateId}`, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
-        alert('Template deleted successfully');
+        notify('Template deleted successfully');
         fetchTemplates();
       }
     } catch (error) {
       console.error('Error deleting template:', error);
-      alert(error.response?.data?.message || 'Error deleting template');
+      notify(error.response?.data?.message || 'Error deleting template');
     }
   };
 

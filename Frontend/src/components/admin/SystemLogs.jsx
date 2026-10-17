@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const SystemLogs = ({ API_URL }) => {
   const [logs, setLogs] = useState([]);
@@ -14,7 +14,7 @@ const SystemLogs = ({ API_URL }) => {
   }, [filter, page]);
 
   const fetchLogs = async () => {
-    const token = localStorage.getItem('token');
+
     setLoading(true);
 
     try {
@@ -23,10 +23,10 @@ const SystemLogs = ({ API_URL }) => {
         url += `&action=${filter}`;
       }
 
-      const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await apiClient.get(url, {
+        headers: { }
       });
-      
+
       if (response.data.success) {
         setLogs(response.data.data || []);
         setPagination(response.data.pagination);

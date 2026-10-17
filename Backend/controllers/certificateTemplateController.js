@@ -1,3 +1,4 @@
+const { appLogger } = require('../utils/logger.js');
 const CertificateTemplate = require('../models/CertificateTemplate');
 const Course = require('../models/Course');
 const multer = require('multer');
@@ -64,9 +65,9 @@ const createTemplate = async (req, res) => {
 
         const templateFile = req.files?.templateImage?.[0];
         if (!templateFile) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Template image is required' 
+          return res.status(400).json({
+            success: false,
+            message: 'Template image is required'
           });
         }
         const uploadedImages = [
@@ -79,8 +80,8 @@ const createTemplate = async (req, res) => {
         const course = await Course.findOne({ _id: courseId, instituteId });
         if (!course) {
           return res.status(404).json({
-            success: false, 
-            message: 'Invalid course selected' 
+            success: false,
+            message: 'Invalid course selected'
           });
         }
 
@@ -94,7 +95,7 @@ const createTemplate = async (req, res) => {
           if (imageFields) parsedImageFields = JSON.parse(imageFields);
           if (qrCodePosition) parsedQrPosition = JSON.parse(qrCodePosition);
         } catch (e) {
-          console.error('Error parsing fields:', e);
+          appLogger.error('Error parsing fields:', e);
         }
 
         const assetFiles = req.files?.assetImages || [];
@@ -108,7 +109,7 @@ const createTemplate = async (req, res) => {
 
         const templatePath = toRelativeUploadPath(templateFile.path);
 
-        const template = new CertificateTemplate({
+        let template = new CertificateTemplate({
           instituteId,
           templateName,
           courseId,
@@ -119,7 +120,7 @@ const createTemplate = async (req, res) => {
           isActive: true
         });
 
-        await template.save();
+        template = await require('../services/subscriptionService').saveLimitedResource(template, 'templates');
         saved = true;
 
         res.status(201).json({
@@ -128,9 +129,9 @@ const createTemplate = async (req, res) => {
           data: addTemplateAssetUrls(template, process.env.API_URL || 'http://localhost:5000')
         });
       } catch (error) {
-        console.error('Create template error:', error);
+        appLogger.error('Create template error:', error);
         res.status(error.status || (error.code === 'INVALID_IMAGE' ? 400 : 500)).json({
-          success: false, 
+          success: false,
           message: 'Failed to create template',
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
@@ -139,9 +140,9 @@ const createTemplate = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Create template error:', error);
+    appLogger.error('Create template error:', error);
     res.status(error.code === 'INVALID_IMAGE' ? 400 : 500).json({
-      success: false, 
+      success: false,
       message: 'Failed to create template',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
@@ -173,9 +174,9 @@ const getTemplates = async (req, res) => {
       data: templatesWithUrl
     });
   } catch (error) {
-    console.error('Get templates error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get templates error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch templates',
       error: error.message
     });
@@ -193,8 +194,8 @@ const getTemplateById = async (req, res) => {
 
     if (!template) {
       return res.status(404).json({
-        success: false, 
-        message: 'Template not found' 
+        success: false,
+        message: 'Template not found'
       });
     }
 
@@ -206,9 +207,9 @@ const getTemplateById = async (req, res) => {
       data: templateWithUrl
     });
   } catch (error) {
-    console.error('Get template error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Get template error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to fetch template',
       error: error.message
     });
@@ -226,8 +227,8 @@ const updateTemplateFields = async (req, res) => {
 
     if (!template) {
       return res.status(404).json({
-        success: false, 
-        message: 'Template not found' 
+        success: false,
+        message: 'Template not found'
       });
     }
 
@@ -248,9 +249,9 @@ const updateTemplateFields = async (req, res) => {
       data: template
     });
   } catch (error) {
-    console.error('Update template fields error:', error);
+    appLogger.error('Update template fields error:', error);
     res.status(error.status || 500).json({
-      success: false, 
+      success: false,
       message: 'Failed to update template fields',
       error: error.message
     });
@@ -267,8 +268,8 @@ const deleteTemplate = async (req, res) => {
 
     if (!template) {
       return res.status(404).json({
-        success: false, 
-        message: 'Template not found' 
+        success: false,
+        message: 'Template not found'
       });
     }
 
@@ -291,9 +292,9 @@ const deleteTemplate = async (req, res) => {
       message: 'Template deleted successfully'
     });
   } catch (error) {
-    console.error('Delete template error:', error);
-    res.status(500).json({ 
-      success: false, 
+    appLogger.error('Delete template error:', error);
+    res.status(500).json({
+      success: false,
       message: 'Failed to delete template',
       error: error.message
     });

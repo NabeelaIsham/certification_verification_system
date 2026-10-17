@@ -1,6 +1,7 @@
+import { notifyAfterRedirect } from '../../services/notifications.js';
 import TwoFactorSettings from '../shared/TwoFactorSettings';
 import { useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../services/api.jsx';
 
 const TeacherProfile = ({ API_URL, teacher, onProfileUpdate }) => {
   const [formData, setFormData] = useState({
@@ -36,8 +37,8 @@ console.log('Teacher data:', teacher);
     setMessage({ type: '', text: '' });
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.put(`${API_URL}/teachers/profile/me`, {
+
+      const response = await apiClient.put(`${API_URL}/teachers/profile/me`, {
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
@@ -45,12 +46,12 @@ console.log('Teacher data:', teacher);
         designation: formData.designation,
         qualification: formData.qualification
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {
         setMessage({ type: 'success', text: 'Profile updated successfully' });
-        
+
         // Update local storage
         const userData = JSON.parse(localStorage.getItem('user'));
         const updatedUser = {
@@ -63,16 +64,16 @@ console.log('Teacher data:', teacher);
           qualification: formData.qualification
         };
         localStorage.setItem('user', JSON.stringify(updatedUser));
-        
+
         // Notify parent component
         if (onProfileUpdate) {
           onProfileUpdate(updatedUser);
         }
       }
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to update profile' 
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to update profile'
       });
     } finally {
       setLoading(false);
@@ -103,16 +104,16 @@ console.log('Teacher data:', teacher);
     }
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_URL}/teachers/change-password`, {
+
+      const response = await apiClient.post(`${API_URL}/teachers/change-password`, {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { }
       });
 
       if (response.data.success) {
-        alert('Password changed successfully. Please sign in again.');
+        notifyAfterRedirect('Password changed successfully. Please sign in again.');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.assign('/login');
@@ -124,9 +125,9 @@ console.log('Teacher data:', teacher);
         });
       }
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to change password' 
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to change password'
       });
     } finally {
       setLoading(false);
