@@ -22,6 +22,9 @@ export default function Footer() {
           </div>
           <div>
             <h2>Platform</h2>
+            {import.meta.env.VITE_SAAS_ENABLED === "true" && (
+              <Link to="/pricing">Pricing</Link>
+            )}
             <Link to="/verify">Verify a certificate</Link>
             <Link to="/register">For institutions</Link>
             <Link to="/login">Sign in to your account</Link>

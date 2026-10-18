@@ -8,6 +8,9 @@ const Navbar = () => {
 
   const navigation = [
     { name: 'Home', href: '/', current: location.pathname === '/' },
+    ...(import.meta.env.VITE_SAAS_ENABLED === 'true'
+      ? [{ name: 'Pricing', href: '/pricing', current: location.pathname === '/pricing' }]
+      : []),
     { name: 'Verify Certificate', href: '/verify', current: location.pathname === '/verify' },
     { name: 'Login', href: '/login', current: location.pathname === '/login' },
   ];
@@ -24,11 +27,12 @@ const Navbar = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-2 lg:space-x-6">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 to={item.href}
+                aria-current={item.current ? 'page' : undefined}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                   item.current
                     ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
@@ -88,6 +92,7 @@ const Navbar = () => {
                 <Link
                   key={item.name}
                   to={item.href}
+                  aria-current={item.current ? 'page' : undefined}
                   className={`block px-3 py-2 rounded-md text-base font-medium ${
                     item.current
                       ? 'text-blue-600 bg-blue-50'
