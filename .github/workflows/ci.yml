@@ -63,3 +63,8 @@ jobs:
         run: docker build --tag certverify-backend-ci ./Backend
       - name: Build frontend production image and validate Nginx
         run: docker build --tag certverify-frontend-ci ./Frontend
+      - name: Validate standalone Hostinger deployment configuration
+        run: |
+          install -m 600 deploy/hostinger/backend.env.example deploy/hostinger/secrets/backend.env
+          docker compose -f deploy/hostinger/compose.yml config --quiet
+          docker run --rm --entrypoint nginx --mount "type=bind,source=${{ github.workspace }}/deploy/hostinger/nginx.conf,target=/etc/nginx/conf.d/default.conf,readonly" certverify-frontend-ci -t

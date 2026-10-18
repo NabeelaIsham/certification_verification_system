@@ -7,6 +7,20 @@ x-logging: &logging
     max-file: '3'
 
 services:
+  storage-init:
+    image: alpine:3.22
+    user: '0:0'
+    command: ['sh', '-ec', 'chown -Rh 1000:1000 /data/uploads /data/backups']
+    volumes:
+      - uploads:/data/uploads
+      - backups:/data/backups
+    network_mode: none
+    read_only: true
+    security_opt: ['no-new-privileges:true']
+    cap_drop: ['ALL']
+    cap_add: ['CHOWN', 'DAC_OVERRIDE']
+    restart: 'no'
+
   traefik:
     image: traefik:v3.7.14
     command:
@@ -32,6 +46,10 @@ services:
 
   backend:
     build: ../../Backend
+    user: '1000:1000'
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
     env_file: ./secrets/backend.env
     environment:
       NODE_ENV: production
@@ -39,6 +57,7 @@ services:
       PORT: 5000
       API_URL: https://certiverxia.com
       FRONTEND_URL: https://certiverxia.com
+      PUBLIC_DOMAIN_ALIASES: www.certiverxia.com
       CORS_ALLOWED_ORIGINS: https://certiverxia.com
       TRUST_PROXY: '1'
     command: ['sh', '-c', 'node scripts/productionPreflight.js && exec node server.js']
