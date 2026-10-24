@@ -52,7 +52,6 @@ export default function Footer() {
             <Link to="/terms">Terms & Conditions</Link>
             <Link to="/privacy">Privacy Policy</Link>
           </nav>
-          <p>Designed and developed by Nabeela Isham.</p>
         </div>
       </div>
     </footer>
