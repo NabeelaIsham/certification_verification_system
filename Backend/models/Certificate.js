@@ -111,7 +111,7 @@ const certificateSchema = new mongoose.Schema({
 });
 
 // Generate unique certificate code before saving
-certificateSchema.pre('save', async function(next) {
+certificateSchema.pre('save', async function() {
   if (!this.certificateCode) {
     try {
       const institute = await mongoose.model('User').findById(this.instituteId);
@@ -140,7 +140,6 @@ certificateSchema.pre('save', async function(next) {
     }];
   }
   this.updatedAt = new Date();
-  next();
 });
 
 certificateSchema.index({ issuanceId: 1 }, { unique: true, sparse: true });

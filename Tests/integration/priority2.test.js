@@ -22,6 +22,7 @@ const Lock = require('../../Backend/models/IssuanceLock');
 const Event = require('../../Backend/models/IssuanceEvent');
 const Share = require('../../Backend/models/CredentialShare');
 const VerificationLog = require('../../Backend/models/VerificationLog');
+const Settings = require('../../Backend/models/Settings');
 const service = require('../../Backend/services/certificateIssuanceService');
 const rendering = require('../../Backend/services/certificateRenderingService');
 const email = require('../../Backend/utils/emailService');
@@ -36,7 +37,8 @@ const api = (method, url, body = {}, auth = token) => request(app)[method](url).
 
 beforeAll(async () => {
   replset = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(replset.getUri(), { dbName: 'priority2_tests' });
+  // NODE-7832: provide os directly because the driver cannot dynamically import it in Jest.
+  await mongoose.connect(replset.getUri(), { runtimeAdapters: { os: require('node:os') }, dbName: 'priority2_tests' });
   for (const model of Object.values(mongoose.models)) await model.init();
 }, 300000);
 
@@ -77,6 +79,15 @@ afterEach(async () => {
   ownedDirs.clear();
 });
 afterAll(async () => { await mongoose.disconnect(); await replset?.stop(); });
+
+test('settings save middleware allows updates but rejects a second settings document', async () => {
+  const settings = await Settings.create({});
+  settings.general.systemName = 'Updated system';
+  await settings.save();
+  expect((await Settings.findById(settings._id)).general.systemName).toBe('Updated system');
+  await expect(Settings.create({})).rejects.toThrow('Only one settings document can exist');
+  expect(await Settings.countDocuments()).toBe(1);
+});
 
 test.each([
   ['get', () => `/api/students/${studentB._id}`, {}],

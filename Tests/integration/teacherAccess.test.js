@@ -20,7 +20,8 @@ const auth = user => ({ Authorization: `Bearer ${signAccessToken(user)}` });
 const tokenFromEmail = () => new URLSearchParams(new URL(email.sendTeacherAccessEmail.mock.calls.at(-1)[0].url).hash.slice(1)).get('token');
 beforeAll(async () => {
   db = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(db.getUri(), { dbName: 'teacher_access_tests' });
+  // NODE-7832: provide os directly because the driver cannot dynamically import it in Jest.
+  await mongoose.connect(db.getUri(), { runtimeAdapters: { os: require('node:os') }, dbName: 'teacher_access_tests' });
   for (const model of Object.values(mongoose.models)) await model.init();
 }, 300000);
 beforeEach(async () => {
