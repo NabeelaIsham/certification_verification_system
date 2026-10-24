@@ -26,7 +26,8 @@ async function subscription(overrides = {}) {
 }
 beforeAll(async () => {
   replset = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger' } });
-  await mongoose.connect(replset.getUri(), { dbName: 'subscription_lifecycle_tests' });
+  // NODE-7832: provide os directly because the driver cannot dynamically import it in Jest.
+  await mongoose.connect(replset.getUri(), { runtimeAdapters: { os: require('node:os') }, dbName: 'subscription_lifecycle_tests' });
   for (const model of Object.values(mongoose.models)) await model.init();
 }, 300000);
 beforeEach(async () => {

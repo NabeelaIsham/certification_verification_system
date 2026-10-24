@@ -115,9 +115,8 @@ const certificateTemplateSchema = new mongoose.Schema({
 });
 
 // Update timestamp on save
-certificateTemplateSchema.pre('save', function(next) {
+certificateTemplateSchema.pre('save', function() {
   this.updatedAt = new Date();
-  next();
 });
 
 module.exports = mongoose.model('CertificateTemplate', certificateTemplateSchema);

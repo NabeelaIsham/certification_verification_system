@@ -9,7 +9,8 @@ describe('Staging file migration transactions', () => {
   let replica;
   beforeAll(async () => {
     replica = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1 } });
-    await mongoose.connect(replica.getUri(), { dbName: 'certverify_staging_migration_test' });
+    // NODE-7832: provide os directly because the driver cannot dynamically import it in Jest.
+    await mongoose.connect(replica.getUri(), { runtimeAdapters: { os: require('node:os') }, dbName: 'certverify_staging_migration_test' });
     await mongoose.connection.db.createCollection('certificates');
   });
   beforeEach(async () => {

@@ -56,9 +56,8 @@ studentSchema.index({ instituteId: 1, courseId: 1 });
 studentSchema.index({ instituteId: 1, status: 1 });
 
 // Update timestamp on save
-studentSchema.pre('save', function(next) {
+studentSchema.pre('save', function() {
   this.updatedAt = new Date();
-  next();
 });
 
 // Clean up legacy indexes on startup

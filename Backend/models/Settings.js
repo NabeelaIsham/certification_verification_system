@@ -134,16 +134,15 @@ const settingsSchema = new mongoose.Schema({
 });
 
 // Ensure only one settings document exists
-settingsSchema.pre('save', async function(next) {
+settingsSchema.pre('save', async function() {
   if (this.isNew) {
     const count = await mongoose.model('Settings').countDocuments();
     if (count > 0) {
       const error = new Error('Only one settings document can exist');
-      return next(error);
+      throw error;
     }
   }
   this.updatedAt = new Date();
-  next();
 });
 
 module.exports = mongoose.model('Settings', settingsSchema);

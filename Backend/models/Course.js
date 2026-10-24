@@ -53,9 +53,8 @@ courseSchema.index({ instituteId: 1, courseCode: 1 }, {
 });
 
 // Update timestamp on save
-courseSchema.pre('save', function(next) {
+courseSchema.pre('save', function() {
   this.updatedAt = new Date();
-  next();
 });
 
 courseSchema.statics.cleanLegacyIndexes = async function() {

@@ -217,22 +217,16 @@ userSchema.index({ userType: 1, instituteId: 1 });
 userSchema.index({ userType: 1, email: 1 });
 
 // Update timestamp on save
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function() {
   this.updatedAt = new Date();
-  next();
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function() {
+  if (!this.isModified('password')) return;
   
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
 });
 
 // Compare password method
