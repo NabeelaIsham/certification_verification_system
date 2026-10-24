@@ -28,3 +28,7 @@ updates:
           - "@vitejs/*"
           - vitest
           - "@vitest/*"
+      react-runtime:
+        patterns:
+          - react
+          - react-dom

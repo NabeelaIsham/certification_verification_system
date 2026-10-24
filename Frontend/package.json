@@ -21,8 +21,8 @@
     "html5-qrcode": "^2.3.8",
     "jsqr": "^1.4.0",
     "qr-scanner": "^1.4.2",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
     "react-hook-form": "^7.90.0",
     "react-router-dom": "^7.9.4",
     "react-toastify": "^11.1.0"
