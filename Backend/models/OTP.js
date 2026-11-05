@@ -41,6 +41,10 @@ otpSchema.statics.cleanLegacyIndexes = async function() {
   for (const index of indexes) {
     if (index.key.createdAt && index.expireAfterSeconds !== undefined) await this.collection.dropIndex(index.name);
   }
-  await this.updateMany({ expiresAt: { $exists: false } }, [{ $set: { expiresAt: { $add: ['$createdAt', 300000] } } }]);
+  await this.updateMany(
+    { expiresAt: { $exists: false } },
+    [{ $set: { expiresAt: { $add: ['$createdAt', 300000] } } }],
+    { updatePipeline: true }
+  );
 };
 module.exports = mongoose.model('OTP', otpSchema);
